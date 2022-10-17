@@ -1,0 +1,13 @@
+Rplots.pdf
+.Rproj.user
+*.Rproj
+*.Rhistory
+.RData
+.Ruserdata
+*.mat
+*.csv
+results_file/
+expdata/
+mcmc_chains/
+figure-html/
+test*
