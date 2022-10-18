@@ -1,0 +1,55 @@
+---
+title: "Novel vs. repeated choice project: Psychometrics"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: 'hide'
+---
+
+# Set up environment and load in data
+
+```{r include=FALSE}
+library(tidyverse)
+library(here)
+theme_set(theme_bw())
+```
+
+Y = Accuracy (For YN correct if Stim when Val Stim > Val Ref; for BC correct if chosen Val > unchosen Val)
+X = Day (1-11) (3,7,11 fmri days)
+Fill = Condition
+Facet = Subject
+
+```{r}
+
+```
+
+Y = Accuracy (For YN correct if Stim when Val Stim > Val Ref; for BC correct if chosen Val > unchosen Val)
+X = Value left - value right
+Columns = Day (1-11) (3,7,11 fmri days)
+Color = Condition
+Rows = Subject
+
+```{r}
+
+```
+
+Y = P(left)
+X = Value left - value right
+Columns = Day (1-11) (3,7,11 fmri days)
+Color = Condition
+Rows = Subject
+
+```{r}
+
+```
+
+Y = RT
+X = Value left - value right
+Columns = Day (1-11) (3,7,11 fmri days)
+Color = Condition
+Rows = Subject
+
+```{r}
+
+```

@@ -1,0 +1,40 @@
+---
+title: "Novel vs. repeated choice project: Behavioral data checks"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: 'hide'
+---
+
+# Set up environment and load in data
+
+```{r include=FALSE}
+library(tidyverse)
+library(here)
+theme_set(theme_bw())
+```
+
+Read in concatenated behavioral data
+
+```{r}
+
+```
+
+# YN Task
+
+Number of sessions per subject
+
+Number of trials per session
+
+Reference value distribution for each subjects' sessions
+
+Response times and choice outliers/non-response
+
+# BC Task
+
+Number of sessions per subject
+
+Number of trials per session
+
+Response times and choice outliers/non-response
