@@ -13,23 +13,436 @@ output:
 library(tidyverse)
 library(here)
 theme_set(theme_bw())
-```
-
-Read in concatenated behavioral data
-
-```{r}
-
+helpers_path = here()
 ```
 
 # YN Task
 
-Number of sessions per subject
+```{r}
+data_yn = read.csv(paste0(helpers_path, '/inputs/data_choiceYN.csv'))
+```
 
-Number of trials per session
+Columns according to a readme file:
 
-Reference value distribution for each subjects' sessions
+| Column      | Description |
+| ----------- | ----------- |
+| subnum | Subject Number |
+| day | day number |
+| week | week number |
+| stimNum  | stimulus number, each stimulus has a identification number |
+| stimLettNum | number of the combination of letters in the stimulus, each letter combination has a identification number |
+| type  | stimulus' type:   0  == regular exposure; 1  == hypertrained |
+| orientation  | orientation angle of the grid |
+| filling  | amount of angle filled with color |
+| shape | shape number |
+| valueO | value in weight of the orientation |
+| valueF | value in weight of the filling |
+| valueS | value in weight of the shape |
+| session | session number |
+| yesChosen  | 1 if yes is chosen 0 otherwise |
+| response | number of response button for left arrow or right arrow |
+| payoff | payoff from trial |
+| possiblePayoff | possible payoff from stimulus if yes chosen |
+| reference | value of reference amount (if no chosen) can be 0 50 or -50 |
+| rt | response time |
+| fmri | 1 if the subject was in the scanner during that trial, 0 otherwise |
 
-Response times and choice outliers/non-response
+Not in the data that's read in even though it's listed above
+
+| stimLettNum |
+
+Additional columns without descriptions
+
+| inizialTime | 
+| endTime | 
+| inizialTimeResp | 
+| endTimeResp | 
+| startFix | 
+| evtimeON | 
+| evtimeOFF | 
+| crossON | 
+
+```{r}
+names(data_yn)
+```
+
+## Visits and number of trials
+
+6 unique subjects
+
+```{r}
+unique(data_yn$subnum)
+```
+
+Up to 11 sessions per subject
+
+```{r}
+unique(data_yn$day)
+```
+
+All subjects have 800 trials (4 blocks) of the YN task on each day
+
+```{r}
+with(data_yn, table(subnum, day))
+```
+
+```{r}
+unique(data_yn$week)
+```
+
+All subjects are missing a fourth session in the last week (what should have been session 12)
+
+```{r}
+with(data_yn, table(subnum, week))
+```
+
+## Unique stims
+
+There are 726 unique stimuli used (6 shapes x 11 orientations x 11 filling weights)
+
+```{r}
+length(unique(data_yn$stimNum))
+```
+
+How many unique stimuli does each subject see? Only one subjects sees all stims. Other see almost all of them.
+
+```{r}
+data_yn %>%
+  group_by(subnum) %>%
+  summarise(num_unique_stims = length(unique(stimNum)))
+```
+## Stim types
+
+On each day each subject encounters 480 HT stimuli and 320 RE stimuli
+
+```{r}
+with(data_yn, table(subnum, day, type))
+```
+
+Each subject has their unique set of 12 HT stimuli.
+
+```{r}
+data_yn %>%
+  filter(type == 1) %>%
+  group_by(subnum) %>%
+  summarise(ht_stims = unique(stimNum), .groups="keep")
+```
+## Stims by features
+
+```{r}
+unique(data_yn$orientation)
+```
+
+```{r}
+length(unique(data_yn$orientation))
+```
+
+0 and 90 are the most common orientations
+
+```{r}
+table(data_yn$orientation)
+```
+
+Subjects have differing frequencies of each orientation
+
+```{r}
+with(data_yn, table(subnum, orientation))
+```
+
+```{r}
+unique(data_yn$filling)
+```
+
+*There are 9 unique filling values (not 11)*
+
+```{r}
+length(unique(data_yn$filling))
+```
+
+0 is the most common filling weight followed by |0.4|
+
+```{r}
+table(data_yn$filling)
+```
+
+Subjects have differing frequencies of each filling weight. 0 is most common for all but the rest of the order is not the same across subjects.
+
+```{r}
+with(data_yn, table(subnum, filling))
+```
+
+```{r}
+with(data_yn, table(orientation, filling))
+```
+
+```{r}
+unique(data_yn$shape)
+```
+
+```{r}
+table(data_yn$shape)
+```
+
+```{r}
+with(data_yn, table(subnum, shape))
+```
+
+```{r}
+with(data_yn, table(orientation, filling, shape))
+```
+
+```{r}
+unique(data_yn$valueO)
+```
+
+```{r}
+length(unique(data_yn$valueO))
+```
+
+```{r}
+table(data_yn$valueO)
+```
+
+75 degrees has a value of 0. The further away the orientation from 75 the larger the gain/loss.
+
+```{r}
+with(data_yn, table(valueO, orientation))
+```
+
+```{r}
+unique(data_yn$valueF)
+```
+
+```{r}
+length(unique(data_yn$valueF))
+```
+
+```{r}
+table(data_yn$valueF)
+```
+
+Filling weight 0 has 0 value and the further away from 0 has larger gain/loss. All filling weights are associated with one absolute value except for filling weight |0.4| which can have a value of |0.4| or |0.6|.
+
+```{r}
+with(data_yn, table(valueF, filling))
+```
+
+```{r}
+unique(data_yn$valueS)
+```
+
+```{r}
+length(unique(data_yn$valueS))
+```
+
+```{r}
+table(data_yn$valueS)
+```
+
+```{r}
+with(data_yn, table(valueS, shape))
+```
+
+## Session (Run)
+
+There is an error in the session column.
+
+```{r}
+unique(data_yn$session)
+```
+
+One session 3 is mis-assigned to -99.
+
+```{r}
+table(data_yn$session)
+```
+
+**Subject 621 does not have session 3 on day 11.**
+
+```{r}
+with(data_yn, table(subnum, session))
+```
+
+```{r}
+data_yn_clean = data_yn %>%
+  filter(session != -99)
+```
+
+What exactly are these sessions compared with `day` and `week` columns? They are runs. Subjects complete 4 runs of 200 trials per visit.
+
+```{r}
+with(data_yn_clean, table(session, week))
+```
+
+```{r}
+with(data_yn, table(session, day))
+```
+
+## Choice
+
+Choice data is missing for one run so looking at choice only in dataset that excludes run 3 of day 11 for subnum 621.
+
+```{r}
+unique(data_yn_clean$yesChosen)
+```
+
+
+```{r}
+table(data_yn_clean$yesChosen)
+```
+
+Choice data is missing/mis-coded for the same run 
+
+```{r}
+with(data_yn_clean, table(subnum, yesChosen))
+```
+
+```{r}
+unique(data_yn_clean$response)
+```
+
+```{r}
+table(data_yn_clean$response)
+```
+
+```{r}
+with(data_yn_clean, table(fmri,response))
+```
+
+## Payoff
+
+```{r}
+length(unique(data_yn_clean$payoff))
+```
+
+```{r}
+length(unique(data_yn_clean$possiblePayoff))
+```
+
+## Reference value
+
+```{r}
+unique(data_yn_clean$reference)
+```
+
+```{r}
+table(data_yn_clean$reference)
+```
+
+```{r}
+with(data_yn_clean, table(subnum, reference))
+```
+
+```{r}
+with(data_yn_clean, table(subnum, day, reference))
+```
+
+```{r}
+with(data_yn_clean, table(subnum, session, reference))
+```
+
+There are the same number of trials for each reference value in the scanner across subjects but these are not equally distributed across subjects. A third of the subjects have seen all reference values in the scanner while the other two thirds have either not seen the 50 or -50 in the scanner.
+
+```{r}
+with(data_yn_clean, table(subnum, reference, fmri))
+```
+
+## fMRI trials
+
+```{r}
+with(data_yn_clean, table(subnum, session, fmri))
+```
+
+All subjects have 400 trials per each of the 3 fmri visits
+
+```{r}
+with(data_yn_clean, table(subnum, day, fmri))
+```
+
+Subjects completed 2nd to 4th sesssions in the scanner, never the first session.
+
+```{r}
+with(data_yn_clean %>% filter(fmri==1), table(subnum, session, day))
+```
+
+## RT
+
+Any negative RTs? No.
+
+```{r}
+sum(data_yn_clean$rt< 0)
+```
+
+```{r}
+summary(data_yn_clean$rt)
+```
+
+There are some trials with very long RTs
+
+```{r}
+data_yn_clean %>%
+  filter(rt>5) %>%
+  ggplot(aes(rt))+
+  geom_histogram(alpha=0.5, bins=30)+
+  theme(panel.grid = element_blank())+
+  facet_wrap(~subnum)+
+  xlab("")
+```
+
+```{r}
+data_yn_clean %>%
+  ggplot(aes(rt))+
+  geom_histogram(alpha=0.5, bins=30)+
+  theme(panel.grid = element_blank())+
+  facet_wrap(~subnum)
+```
+
+## Blank columns
+
+```{r}
+unique(data_yn$inizialTime)
+```
+
+```{r}
+unique(data_yn$endTime)
+```
+
+```{r}
+unique(data_yn$inizialTimeResp)
+```
+
+```{r}
+unique(data_yn$endTimeResp)
+```
+
+Drop the above columns without data
+
+```{r}
+data_yn_clean = data_yn_clean %>%
+  select(-inizialTime, -inizialTimeResp, -endTime, -endTimeResp)
+```
+
+## Columns with no description
+
+This is probably when each trial began but I don't know what it is in reference to.
+
+```{r}
+length(unique(data_yn_clean$startFix))
+```
+
+These are presumably eye-tracking data for fmri trial but no idea what units they are in or what the reference is. I'll keep them but can't use them for any analysis yet.
+
+```{r}
+length(unique(data_yn_clean$evtimeON))
+```
+
+```{r}
+length(unique(data_yn_clean$evtimeOFF))
+```
+
+```{r}
+length(unique(data_yn_clean$crossON))
+```
 
 # BC Task
 
