@@ -90,7 +90,7 @@ with(data_yn, table(subnum, day))
 unique(data_yn$week)
 ```
 
-All subjects are missing a fourth session in the last week (what should have been session 12)
+All subjects are missing a fourth session in the last week (what should have been visit 12)
 
 ```{r}
 with(data_yn, table(subnum, week))
@@ -104,7 +104,7 @@ There are 726 unique stimuli used (6 shapes x 11 orientations x 11 filling weigh
 length(unique(data_yn$stimNum))
 ```
 
-How many unique stimuli does each subject see? Only one subjects sees all stims. Other see almost all of them.
+How many unique stimuli does each subject see? Only one subjects sees all stims. Others see almost all of them.
 
 ```{r}
 data_yn %>%
@@ -353,7 +353,7 @@ with(data_yn_clean, table(subnum, reference, fmri))
 with(data_yn_clean, table(subnum, session, fmri))
 ```
 
-All subjects have 400 trials per each of the 3 fmri visits
+All subjects have 400 trials (2 runs) per each of the 3 fmri visits
 
 ```{r}
 with(data_yn_clean, table(subnum, day, fmri))
@@ -386,15 +386,25 @@ data_yn_clean %>%
   geom_histogram(alpha=0.5, bins=30)+
   theme(panel.grid = element_blank())+
   facet_wrap(~subnum)+
-  xlab("")
+  xlab("")+
+  labs(title="RT>5s trials")
 ```
+Number of trials with longer than 5 s RTs for each subject across visits.
 
 ```{r}
-data_yn_clean %>%
-  ggplot(aes(rt))+
-  geom_histogram(alpha=0.5, bins=30)+
-  theme(panel.grid = element_blank())+
-  facet_wrap(~subnum)
+with(data_yn_clean %>% filter(rt>5), table(subnum, day))
+```
+
+Proportion of all trials with RT > 5s
+
+```{r}
+nrow(data_yn_clean %>% filter(rt>5))/nrow(data_yn_clean)
+```
+
+What proportion of slow trials is from each subject?
+
+```{r}
+round(with(data_yn_clean %>% filter(rt>5), table(subnum))/nrow(data_yn_clean %>% filter(rt>5)), 3)
 ```
 
 ## Blank columns
@@ -446,8 +456,200 @@ length(unique(data_yn_clean$crossON))
 
 # BC Task
 
-Number of sessions per subject
+```{r}
+data_bc = read.csv(paste0(helpers_path, '/inputs/data_choiceBC.csv'))
+```
 
-Number of trials per session
+Columns according to a readme file:
 
-Response times and choice outliers/non-response
+| Column      | Description |
+| ----------- | ----------- |
+| subnum | Subject Number |
+| day | day number | 
+| week | week number | 
+| stimNumLeft | stimulus on the left number, each stimulus has a identification number | 
+| stimNumRight | stimulus on the right number, each stimulus has a identification number | 
+| stimLettNumLeft | number of the combination of letters in the stimulus on the left, each letter combination has a identification number | 
+| stimLettNumRight | number of the combination of letters in the stimulus on the right, each letter combination has a identification number | 
+| TypeLeft | stimulus' type on the left:   0  == regular exposure; 1  == hypertrained | 
+| TypeRight | type of stimulus on the right | 
+| OrientationLeft | orientation angle of the grid for stimulus of the left | 
+| FillingLeft | amount of angle filled with color for stimulus of the left | 
+| ShapeLeft | shape in the stimulus of the left | 
+| valueOLeft | value in weight of the orientation for stimulus of the left | 
+| valueFLeft | value in weight of the filling for stimulus of the left | 
+| valueSLeft | value in weight of the shape on the right |  
+| OrientationRight | orientation angle of the grid for stimulus of the right | 
+| FillingRight | amount of angle filled with color for stimulus of the right | 
+| ShapeRight | shape in the stimulus of the right | 
+| valueORight | value in weight of the orientation for stimulus of the right | 
+| valueFRight | value in weight of the filling for stimulus of the right | 
+| valueSRight | value in weight of the shape on the right |  
+| leftChosen | 1 if left option is chosen 0 otherwise | 
+| Response | number of response button for left arrow or right arrow | 
+| Payoff | payoff from trial | 
+| possiblePayoffLeft | possible payoff from stimulus on the left | 
+| possiblePayoffRight | possible payoff from stimulus on the right | 
+| Rt | response time |  
+| fmri | 1 if the subject was in the scanner during that trial, 0 otherwise | 
+
+Additional columns without descriptions
+
+| inizialTime | 
+| endTime | 
+| inizialTimeResp | 
+| endTimeResp | 
+| startFix | 
+| evtimeON | 
+| evtimeOFF | 
+| crossON | 
+
+```{r}
+names(data_bc)
+```
+
+## Visits and number of trials
+
+6 unique subjects
+
+```{r}
+unique(data_bc$subnum)
+```
+
+Up to 11 sessions per subject
+
+```{r}
+unique(data_bc$day)
+```
+
+All subjects have 200 trials of the BC task on each day
+
+```{r}
+with(data_bc, table(subnum, day))
+```
+
+```{r}
+unique(data_bc$week)
+```
+
+All subjects are missing a fourth session in the third week (what should have been visit 12)
+
+```{r}
+with(data_bc, table(subnum, week))
+```
+
+## Unique stims
+
+There are 726 unique stimuli used (6 shapes x 11 orientations x 11 filling weights) on each side
+
+```{r}
+length(unique(data_bc$stimNumLef))
+```
+
+```{r}
+length(unique(data_bc$stimNumRight))
+```
+
+How many unique stimuli does each subject see? 
+
+```{r}
+data_bc %>%
+  group_by(subnum) %>%
+  summarise(num_unique_left_stims = length(unique(stimNumLef)),
+            num_unique_right_stims = length(unique(stimNumRight)))
+```
+
+## Redundant stim num columns
+
+```{r}
+sum(data_bc$stimLettNumLeft == data_bc$stimNumLef) == nrow(data_bc)
+```
+
+```{r}
+sum(data_bc$stimLettNumRight == data_bc$stimNumRight) == nrow(data_bc)
+```
+
+Drop redundant columns and fix column name
+
+```{r}
+data_bc_clean = data_bc %>%
+  select(-stimLettNumLeft, -stimLettNumRight) %>%
+  rename(stimNumLeft = stimNumLef)
+```
+
+## Stim types
+
+On each day each subject encounters 66 HT stimuli and 134 RE stimuli
+
+```{r}
+with(data_bc, table(subnum, day, typeLeft))
+```
+
+```{r}
+with(data_bc, table(subnum, day, typeRight))
+```
+
+Are pairs of same type (ie. choice is either between two HT stimuli or two RE stimuli)? Yes.
+
+```{r}
+with(data_bc, sum(typeLeft == typeRight)) == nrow(data_bc)
+```
+
+## Stims by features
+
+## Session (Run)
+
+## Choice
+
+## Payoff
+
+## fMRI trials
+
+## RT
+
+## Blank columns
+
+```{r}
+unique(data_bc$inizialTime)
+```
+
+```{r}
+unique(data_bc$endTime)
+```
+
+```{r}
+unique(data_bc$inizialTimeResp)
+```
+
+```{r}
+unique(data_bc$endTimeResp)
+```
+
+Drop blank columns
+
+```{r}
+data_bc_clean = data_bc_clean %>%
+  select(-inizialTime, -inizialTimeResp, -endTime, -endTimeResp)
+```
+
+## Columns with no description
+
+This is probably when each trial began but I don't know what it is in reference to.
+
+```{r}
+length(unique(data_bc_clean$startFix))
+```
+
+These are presumably eye-tracking data for fmri trial but no idea what units they are in or what the reference is. I'll keep them but can't use them for any analysis yet.
+
+```{r}
+length(unique(data_bc_clean$evtimeON))
+```
+
+```{r}
+length(unique(data_bc_clean$evtimeOFF))
+```
+
+```{r}
+length(unique(data_bc_clean$crossON))
+```
