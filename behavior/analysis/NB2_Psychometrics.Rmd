@@ -13,6 +13,9 @@ output:
 library(tidyverse)
 library(here)
 theme_set(theme_bw())
+helpers_path = paste0(here(),'/analysis/helpers/')
+source(paste0(helpers_path, '01_clean_behavioral_data.R'))
+
 ```
 
 Y = Accuracy (For YN correct if Stim when Val Stim > Val Ref; for BC correct if chosen Val > unchosen Val)
@@ -21,8 +24,45 @@ Fill = Condition
 Facet = Subject
 
 ```{r}
-
+data_yn_clean %>%
+  mutate(correct = ifelse(possiblePayoff>reference & yesChosen == 1, 1, ifelse(possiblePayoff < reference & yesChosen == 0, 1, 0))) %>%
+  group_by(subnum, day, type) %>%
+  summarise(mean_correct = mean(correct),
+            sem_correct = sd(correct)/sqrt(n()),
+            .groups="keep") %>%
+  mutate(type = ifelse(type == 1, "HT", "RE")) %>%
+  ggplot(aes(day, mean_correct, color=type))+
+  geom_point()+
+  geom_errorbar(aes(ymin=mean_correct-sem_correct, ymax=mean_correct+sem_correct), width=0)+
+  geom_line()+
+  facet_wrap(~subnum)+
+  labs(x = "Day", y = "Accuracy", title="Y/N Task", color="")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom")+
+  scale_x_continuous(breaks=seq(1,11,1))+
+  scale_color_brewer(palette = "Dark2")
 ```
+
+```{r}
+data_bc_clean %>%
+  mutate(correct = ifelse(possiblePayoffleft>possiblePayoffright & leftChosen == 1, 1, ifelse(possiblePayoffleft<possiblePayoffright & leftChosen == 0, 1, 0))) %>%
+  group_by(subnum, day, typeLeft) %>%
+  summarise(mean_correct = mean(correct),
+            sem_correct = sd(correct)/sqrt(n()),
+            .groups="keep") %>%
+  mutate(type = ifelse(typeLeft == 1, "HT", "RE")) %>%
+  ggplot(aes(day, mean_correct, color=type))+
+  geom_point()+
+  geom_errorbar(aes(ymin=mean_correct-sem_correct, ymax=mean_correct+sem_correct), width=0)+
+  geom_line()+
+  facet_wrap(~subnum)+
+  labs(x = "Day", y = "Accuracy", title="BC Task", color="")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom")+
+  scale_x_continuous(breaks=seq(1,11,1))+
+  scale_color_brewer(palette = "Dark2")
+```
+
 
 Y = Accuracy (For YN correct if Stim when Val Stim > Val Ref; for BC correct if chosen Val > unchosen Val)
 X = Value left - value right
