@@ -46,21 +46,25 @@ Columns according to a readme file:
 | reference | value of reference amount (if no chosen) can be 0 50 or -50 |
 | rt | response time |
 | fmri | 1 if the subject was in the scanner during that trial, 0 otherwise |
+| startFix | start fixation time when stimulus appears |
+| evtimeON | time of the eye tracker on | 
+| evtimeOFF | time eye tracker off | 
+| crossON | time when the fixation cross is in the middle |
 
 Not in the data that's read in even though it's listed above
 
+| Column      | 
+| ----------- | 
 | stimLettNum |
 
 Additional columns without descriptions
 
+| Column      | 
+| ----------- | 
 | inizialTime | 
 | endTime | 
 | inizialTimeResp | 
 | endTimeResp | 
-| startFix | 
-| evtimeON | 
-| evtimeOFF | 
-| crossON | 
 
 ```{r}
 names(data_yn)
@@ -80,17 +84,13 @@ Up to 11 sessions per subject
 unique(data_yn$day)
 ```
 
-All subjects have 800 trials (4 blocks) of the YN task on each day
+All subjects have 800 trials (4 blocks) of the YN task on each day **except for subject 621 on the 11th day**.
 
 ```{r}
-with(data_yn, table(subnum, day))
+with(data_yn %>% filter(session != -99), table(subnum, day))
 ```
 
-```{r}
-unique(data_yn$week)
-```
-
-All subjects are missing a fourth session in the last week (what should have been visit 12)
+All subjects are **missing a fourth session in the last week** (what should have been visit 12)
 
 ```{r}
 with(data_yn, table(subnum, week))
@@ -111,6 +111,7 @@ data_yn %>%
   group_by(subnum) %>%
   summarise(num_unique_stims = length(unique(stimNum)))
 ```
+
 ## Stim types
 
 On each day each subject encounters 480 HT stimuli and 320 RE stimuli
@@ -127,14 +128,13 @@ data_yn %>%
   group_by(subnum) %>%
   summarise(ht_stims = unique(stimNum), .groups="keep")
 ```
+
 ## Stims by features
 
-```{r}
-unique(data_yn$orientation)
-```
+Possible values for the orientation attribute:
 
 ```{r}
-length(unique(data_yn$orientation))
+sort(unique(data_yn$orientation))
 ```
 
 0 and 90 are the most common orientations
@@ -149,11 +149,13 @@ Subjects have differing frequencies of each orientation
 with(data_yn, table(subnum, orientation))
 ```
 
+Possible values for the the filling weight:
+
 ```{r}
-unique(data_yn$filling)
+sort(unique(data_yn$filling))
 ```
 
-*There are 9 unique filling values (not 11)*
+**There are 9 unique filling values (not 11)**
 
 ```{r}
 length(unique(data_yn$filling))
@@ -171,33 +173,43 @@ Subjects have differing frequencies of each filling weight. 0 is most common for
 with(data_yn, table(subnum, filling))
 ```
 
+Number of stims with each orientation and filling combination
+
 ```{r}
 with(data_yn, table(orientation, filling))
 ```
+
+Possible values for the stim shape
 
 ```{r}
 unique(data_yn$shape)
 ```
 
+Frequency of each shape across all data
+
 ```{r}
 table(data_yn$shape)
 ```
+
+Subjects see each shape with different frequencies.
 
 ```{r}
 with(data_yn, table(subnum, shape))
 ```
 
+Number of stimuli in each combination of orientation, filling weight and shape
+
 ```{r}
 with(data_yn, table(orientation, filling, shape))
 ```
+
+Possible values for the value weight of each orientation
 
 ```{r}
 unique(data_yn$valueO)
 ```
 
-```{r}
-length(unique(data_yn$valueO))
-```
+Frequency of each orientation value weight
 
 ```{r}
 table(data_yn$valueO)
@@ -209,13 +221,19 @@ table(data_yn$valueO)
 with(data_yn, table(valueO, orientation))
 ```
 
+Whether an orientation will have a positive or negative value weight varies for each subject.
+
+```{r}
+with(data_yn, table(valueO, orientation, subnum))
+```
+
+Possible values for the value weight of each filling weight
+
 ```{r}
 unique(data_yn$valueF)
 ```
 
-```{r}
-length(unique(data_yn$valueF))
-```
+Frequency of each filling value weight
 
 ```{r}
 table(data_yn$valueF)
@@ -227,20 +245,28 @@ Filling weight 0 has 0 value and the further away from 0 has larger gain/loss. A
 with(data_yn, table(valueF, filling))
 ```
 
+Whether a filling will have a positive or negative value weight varies for each subject.
+
+```{r}
+with(data_yn, table(valueF, filling, subnum))
+```
+
+Possible values for the value weight of each shape
+
 ```{r}
 unique(data_yn$valueS)
 ```
 
-```{r}
-length(unique(data_yn$valueS))
-```
+Frequency of each shape value weight
 
 ```{r}
 table(data_yn$valueS)
 ```
 
+Whether a shape will have a positive or negative value weight varies for each subject.
+
 ```{r}
-with(data_yn, table(valueS, shape))
+with(data_yn, table(valueS, shape, subnum))
 ```
 
 ## Session (Run)
@@ -280,54 +306,45 @@ with(data_yn, table(session, day))
 
 ## Choice
 
-Choice data is missing for one run so looking at choice only in dataset that excludes run 3 of day 11 for subnum 621.
+Choice data is missing for one run so looking at choice only in dataset that excludes run 3 of day 11 for subnum 621.  
+
+In the remaining data the only values for whether "Yes" was chosen are:  
 
 ```{r}
 unique(data_yn_clean$yesChosen)
 ```
 
-
-```{r}
-table(data_yn_clean$yesChosen)
-```
-
-Choice data is missing/mis-coded for the same run 
-
-```{r}
-with(data_yn_clean, table(subnum, yesChosen))
-```
+Response buttons
 
 ```{r}
 unique(data_yn_clean$response)
 ```
 
 ```{r}
-table(data_yn_clean$response)
+with(data_yn_clean, table(fmri,response))
 ```
 
+Yes button counterbalanced across subjects.
+
 ```{r}
-with(data_yn_clean, table(fmri,response))
+with(data_yn_clean, table(yesChosen,response, subnum))
 ```
 
 ## Payoff
 
+The actual payoffs are higher than the possiblePayoffs presumably because subjects initially reject gambling and learn about the possible payoffs of the stimuli and then choose to play gambles with positive expected value.
+
 ```{r}
-length(unique(data_yn_clean$payoff))
+summary(data_yn_clean$payoff)
 ```
 
 ```{r}
-length(unique(data_yn_clean$possiblePayoff))
+summary(data_yn_clean$possiblePayoff)
 ```
 
 ## Reference value
 
-```{r}
-unique(data_yn_clean$reference)
-```
-
-```{r}
-table(data_yn_clean$reference)
-```
+Frequency of the reference value for when subject chooses "No" for a stim:
 
 ```{r}
 with(data_yn_clean, table(subnum, reference))
@@ -349,6 +366,8 @@ with(data_yn_clean, table(subnum, reference, fmri))
 
 ## fMRI trials
 
+Number of trials for each run of the task in and out of the scanner across subjects
+
 ```{r}
 with(data_yn_clean, table(subnum, session, fmri))
 ```
@@ -359,7 +378,7 @@ All subjects have 400 trials (2 runs) per each of the 3 fmri visits
 with(data_yn_clean, table(subnum, day, fmri))
 ```
 
-Subjects completed 2nd to 4th sesssions in the scanner, never the first session.
+Subjects completed 2nd to 4th sesssions in the scanner, never the first session. **But I'm not sure if subjects who completed sessions 2 and 4 were taken out of the scanner for session 3.**
 
 ```{r}
 with(data_yn_clean %>% filter(fmri==1), table(subnum, session, day))
@@ -372,6 +391,8 @@ Any negative RTs? No.
 ```{r}
 sum(data_yn_clean$rt< 0)
 ```
+
+Distribution of the RTs.
 
 ```{r}
 summary(data_yn_clean$rt)
@@ -389,6 +410,7 @@ data_yn_clean %>%
   xlab("")+
   labs(title="RT>5s trials")
 ```
+
 Number of trials with longer than 5 s RTs for each subject across visits.
 
 ```{r}
@@ -410,19 +432,12 @@ round(with(data_yn_clean %>% filter(rt>5), table(subnum))/nrow(data_yn_clean %>%
 ## Blank columns
 
 ```{r}
-unique(data_yn$inizialTime)
-```
-
-```{r}
-unique(data_yn$endTime)
-```
-
-```{r}
-unique(data_yn$inizialTimeResp)
-```
-
-```{r}
-unique(data_yn$endTimeResp)
+for (i in 1:length(names(data_yn))){
+  cur_col = names(data_yn)[i]
+  if(unique(data_yn[,cur_col])[1] == "-99" && length(unique(data_yn[,cur_col]))==1){
+    print(cur_col)
+  }
+}
 ```
 
 Drop the above columns without data
@@ -432,7 +447,7 @@ data_yn_clean = data_yn_clean %>%
   select(-inizialTime, -inizialTimeResp, -endTime, -endTimeResp)
 ```
 
-## Columns with no description
+## Eyetracking columns with little description
 
 This is probably when each trial began but I don't know what it is in reference to.
 
@@ -492,17 +507,19 @@ Columns according to a readme file:
 | possiblePayoffRight | possible payoff from stimulus on the right | 
 | Rt | response time |  
 | fmri | 1 if the subject was in the scanner during that trial, 0 otherwise | 
+| startFix | start fixation time when stimulus appears |
+| evtimeON | time of the eye tracker on | 
+| evtimeOFF | time eye tracker off | 
+| crossON | time when the fixation cross is in the middle |
 
 Additional columns without descriptions
 
+| Column      | 
+| ----------- | 
 | inizialTime | 
 | endTime | 
 | inizialTimeResp | 
 | endTimeResp | 
-| startFix | 
-| evtimeON | 
-| evtimeOFF | 
-| crossON | 
 
 ```{r}
 names(data_bc)
@@ -519,17 +536,13 @@ unique(data_bc$subnum)
 Up to 11 sessions per subject
 
 ```{r}
-unique(data_bc$day)
+sort(unique(data_bc$day))
 ```
 
 All subjects have 200 trials of the BC task on each day
 
 ```{r}
 with(data_bc, table(subnum, day))
-```
-
-```{r}
-unique(data_bc$week)
 ```
 
 All subjects are missing a fourth session in the third week (what should have been visit 12)
@@ -583,46 +596,115 @@ On each day each subject encounters 66 HT stimuli and 134 RE stimuli
 
 ```{r}
 with(data_bc, table(subnum, day, typeLeft))
+# with(data_bc, table(subnum, day, typeRight)) #same as above since pairs are of same type
 ```
 
-```{r}
-with(data_bc, table(subnum, day, typeRight))
-```
-
-Are pairs of same type (ie. choice is either between two HT stimuli or two RE stimuli)? Yes.
+Are pairs of same type (ie. choice is either between *two* HT stimuli or *two* RE stimuli)? Yes.
 
 ```{r}
 with(data_bc, sum(typeLeft == typeRight)) == nrow(data_bc)
 ```
 
-## Stims by features
-
-## Session (Run)
-
 ## Choice
+
+Possible values for `leftChosen` column. Checking if there are missing trials.
+
+```{r}
+unique(data_bc$leftChosen)
+```
+
+Possible response buttons in and out of the scanner.
+
+```{r}
+unique(data_bc$response)
+```
+
+```{r}
+with(data_bc, table(response, fmri))
+```
+
+Left-right buttons same across subjects
+
+```{r}
+with(data_bc, table(response, leftChosen, fmri))
+```
 
 ## Payoff
 
+Distribution of the earned payoff compared to the possible pay off of each stimuli.
+
+```{r}
+summary(data_bc$payoff)
+```
+
+```{r}
+summary(data_bc$possiblePayoffleft)
+```
+
+```{r}
+summary(data_bc$possiblePayoffright)
+```
+
 ## fMRI trials
 
+```{r}
+with(data_bc, table(subnum, day, fmri))
+```
+
 ## RT
+
+Are there negative RTs? No.
+
+```{r}
+sum(data_bc$rt< 0)
+```
+
+There are again some trials with very long RTs
+
+```{r}
+summary(data_bc$rt)
+```
+
+There are some trials with very long RTs
+
+```{r}
+data_bc %>%
+  filter(rt>5) %>%
+  ggplot(aes(rt))+
+  geom_histogram(alpha=0.5, bins=30)+
+  theme(panel.grid = element_blank())+
+  facet_wrap(~subnum)+
+  xlab("")+
+  labs(title="RT>5s trials")
+```
+
+Number of trials with longer than 5 s RTs for each subject across visits.
+
+```{r}
+with(data_bc %>% filter(rt>5), table(subnum, day))
+```
+
+Proportion of all trials with RT > 5s
+
+```{r}
+nrow(data_bc %>% filter(rt>5))/nrow(data_bc)
+```
+
+What proportion of slow trials is from each subject? Subjects that has the most slow trials in the YN task also are the ones that have the most slow trials in the BC task as well.
+
+```{r}
+round(with(data_bc%>% filter(rt>5), table(subnum))/nrow(data_bc %>% filter(rt>5)), 3)
+```
 
 ## Blank columns
 
 ```{r}
-unique(data_bc$inizialTime)
-```
-
-```{r}
-unique(data_bc$endTime)
-```
-
-```{r}
-unique(data_bc$inizialTimeResp)
-```
-
-```{r}
-unique(data_bc$endTimeResp)
+for (i in 1:length(names(data_bc))){
+  cur_col = names(data_bc)[i]
+  if(unique(data_bc[,cur_col])[1] == "-99" && length(unique(data_bc[,cur_col]))==1){
+    print(cur_col)
+  }
+}
 ```
 
 Drop blank columns
@@ -632,7 +714,7 @@ data_bc_clean = data_bc_clean %>%
   select(-inizialTime, -inizialTimeResp, -endTime, -endTimeResp)
 ```
 
-## Columns with no description
+## Eyetracking columns with little description
 
 This is probably when each trial began but I don't know what it is in reference to.
 
