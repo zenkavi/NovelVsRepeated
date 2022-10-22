@@ -1,0 +1,107 @@
+---
+title: "Novel vs. repeated choice project: Understanding how fillings are created for experimental stimuli"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: 'hide'
+---
+
+# Set up environment and load in data
+
+```{r include=FALSE}
+library(tidyverse)
+library(here)
+theme_set(theme_bw())
+helpers_path = paste0(here(),'/analysis/helpers/')
+source(paste0(helpers_path, '01_clean_behavioral_data.R'))
+```
+
+```
+bothCol = [0.1 0.1 0.4 -99;
+            0.4 0.1 0.1 -99]; 
+
+if  mydata.filling(indextrial)>=0
+    colorStim = bothCol(1,:);
+    switch  abs(mydata.filling(indextrial))
+        case 0.4
+            colorStim(3)= 0.6;
+        case 0.6
+            colorStim(3)= 0.5;
+        case 0.85
+            colorStim(3)= 0.3;
+    end   
+else
+    colorStim = bothCol(2,:);
+    switch  abs(mydata.filling(indextrial))
+        case 0.4
+            colorStim(1)= 0.6;
+        case 0.6
+            colorStim(1)= 0.5;
+        case 0.85
+            colorStim(1)= 0.3;
+    end
+end
+colorStim(4)=abs(mydata.filling(indextrial));
+```
+
+```{r}
+unique(data_yn_clean$filling)
+```
+
+```{r}
+convertFVToHEX = function(fillingVal){
+  
+  bothCol = matrix(data = c(.1 , .1, .4, -99, .4, .1, .1, -99), byrow=T, nrow=2, ncol=4)
+  
+  if(fillingVal>=0){
+    colorStim = bothCol[1,]
+    colorStim[3] = ifelse(abs(fillingVal)==.4, .6, ifelse(abs(fillingVal)==.6,.5, ifelse(abs(fillingVal)==.85, .3, colorStim[3])))
+    
+  } else{
+    colorStim = bothCol[2,]
+    colorStim[1] = ifelse(abs(fillingVal)==.4, .6, ifelse(abs(fillingVal)==.6,.5, ifelse(abs(fillingVal)==.85, .3, colorStim[1])))
+  }
+  
+  colorStim[4] = abs(fillingVal)
+  
+  hex_code = rgb(colorStim[1], colorStim[2], colorStim[3], colorStim[4])
+  
+
+  return(hex_code)
+}
+```
+
+```{r}
+dat = data.frame(filling = unique(data_yn_clean$filling))
+
+for(i in 1:nrow(dat)){
+  dat$hex_code[i] = convertFVToHEX(dat$filling[i])
+}
+
+dat = dat %>%
+  arrange(filling)
+
+dat
+```
+
+```{r}
+ggplot()+
+  annotate("rect", xmin=c(1,2,3,1,2,3,1,2,3), xmax=c(2,3,4,2,3,4,2,3,4), ymin=c(1,1,1,2,2,2,3,3,3) , ymax=c(2,2,2,3,3,3,4,4,4), fill=c(dat$hex_code))+
+  annotate("text", x=c(1,2,3,1,2,3,1,2,3)+.5, y=c(1,1,1,2,2,2,3,3,3)+.5 , label=c(dat$filling))+
+  theme(axis.ticks = element_blank(),
+        axis.text = element_blank(),
+        panel.grid = element_blank(),
+        axis.title = element_blank(),
+        panel.border = element_blank())
+```
+
+The stimuli are not gambles. If they are chosen to be played they always yield the same reward.
+
+```{r}
+tmp = data_yn_clean %>%
+  filter(yesChosen == 1) %>%
+  select(possiblePayoff, payoff)
+
+sum(tmp$possiblePayoff == tmp$payoff) == nrow(tmp)
+```
