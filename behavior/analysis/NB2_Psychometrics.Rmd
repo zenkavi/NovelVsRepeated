@@ -394,3 +394,41 @@ p = data_bc_clean %>%
 p
 ggsave(file=paste0(fig_out_path, 'bc_RTOverValDiff.jpg'), p, height = 5, width=8, units="in")
 ```
+
+# Fixation Free RT
+
+What does the distribution of free RTs during the fixation look like?
+
+```{r}
+
+```
+
+# Eye-tracking 
+
+BC task only
+
+*Main question: Is hyper-training making a difference in the search process earlier on*
+
+y: p of first looking at better option 
+x: relative value difference
+color: HT vs RE
+
+```{r}
+
+```
+
+y: relative fixation time
+x: relative value difference
+color: HT vs RE
+
+```{r}
+
+```
+
+y: number of fixations (on each option?)
+x: relative value difference
+color: HT vs RE
+
+```{r}
+
+```

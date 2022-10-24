@@ -96,7 +96,7 @@ ggplot()+
         panel.border = element_blank())
 ```
 
-The stimuli are not gambles. If they are chosen to be played they always yield the same reward.
+The stimuli are not gambles. If they are chosen to be played they always yield the same reward. If they are not chosen then they yield the reference amount.
 
 ```{r}
 tmp = data_yn_clean %>%
@@ -104,4 +104,9 @@ tmp = data_yn_clean %>%
   select(possiblePayoff, payoff)
 
 sum(tmp$possiblePayoff == tmp$payoff) == nrow(tmp)
+```
+
+```{r}
+names(data_yn_clean)
+data_yn_clean$startFix
 ```
