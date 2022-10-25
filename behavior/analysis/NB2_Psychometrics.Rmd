@@ -399,8 +399,47 @@ ggsave(file=paste0(fig_out_path, 'bc_RTOverValDiff.jpg'), p, height = 5, width=8
 
 What does the distribution of free RTs during the fixation look like?
 
-```{r}
+For task_beah `startFix` is when the fixation comes on
 
+```{r}
+yn_fix_rt_data = data_yn_clean %>%
+  filter(fmri == 0) %>%
+  select(-evtimeON, -evtimeOFF, -fmri, -response, -valueO, -valueF, -valueS, -stimNum, -crossON) %>%
+  group_by(subnum, day, session) %>%
+  mutate(trialNum = 1:n(),
+         startFixDiff = c(diff(startFix), NA), 
+         rewardTime = ifelse(session == 1 & trialNum < 16, 2.4, ifelse(session == 1 & trialNum > 15 & trialNum < 36, 1.5, 1))) %>%
+  filter(!is.na(startFixDiff)) %>%
+  mutate(fixRt = startFixDiff - (rt+rewardTime))
+```
+
+There are some very long RTs during the fixation cross
+
+```{r}
+summary(yn_fix_rt_data$fixRt)
+```
+
+But less than 2% of all trials have fixations RTs slower than 1 second.
+
+```{r}
+sum(yn_fix_rt_data$fixRt>1)/nrow(yn_fix_rt_data)
+```
+
+Excluding slow fixation RTs for the plot
+
+```{r}
+yn_fix_rt_data %>%
+  filter(fixRt < 1) %>%
+  ggplot(aes(fixRt))+
+  geom_histogram(alpha=.5, bins=30)+
+  facet_wrap(~subnum)+
+  theme(panel.grid = element_blank())+
+  labs(y="", x = "Fixation RT")
+
+```
+
+```{r}
+head(diff(data_yn_clean$startFix))
 ```
 
 # Eye-tracking 
@@ -414,7 +453,7 @@ x: relative value difference
 color: HT vs RE
 
 ```{r}
-
+names(data_bc_clean)
 ```
 
 y: relative fixation time
