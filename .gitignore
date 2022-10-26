@@ -11,3 +11,4 @@ expdata/
 mcmc_chains/
 figure-html/
 test*
+*.asc

@@ -26,17 +26,17 @@ data_yn_clean = data_yn_clean %>%
   mutate(type = ifelse(type == 1, "HT", "RE"),
          week = ifelse(week == 1, "Week 1", ifelse(week == 2, "Week 2", ifelse(week == 3, "Week 3", NA))),
          week = factor(week, levels = c("Week 1", "Week 2", "Week 3"))) %>%
-   mutate(val_diff = possiblePayoff - reference,
+  mutate(val_diff = possiblePayoff - reference,
          val_diff_bin = round(val_diff/50),
          val_diff_bin_str = ifelse(val_diff_bin == 0, "-50:50", 
-                                    ifelse(val_diff_bin == 1, "50:100",
-                                           ifelse(val_diff_bin == -1, "-100:-50",
-                                                  ifelse(val_diff_bin == 2, "100:150",
-                                                         ifelse(val_diff_bin == -2, "-150:-100",
-                                                                ifelse(val_diff_bin == 3, "150:200",
-                                                                       ifelse(val_diff_bin == -3, "-200:-150",
-                                                                              ifelse(val_diff_bin == 4, "200:250", 
-                                                                                     ifelse(val_diff_bin == -4, "-250:-200", NA))))))))),
+                                   ifelse(val_diff_bin == 1, "50:100",
+                                          ifelse(val_diff_bin == -1, "-100:-50",
+                                                 ifelse(val_diff_bin == 2, "100:150",
+                                                        ifelse(val_diff_bin == -2, "-150:-100",
+                                                               ifelse(val_diff_bin == 3, "150:200",
+                                                                      ifelse(val_diff_bin == -3, "-200:-150",
+                                                                             ifelse(val_diff_bin == 4, "200:250", 
+                                                                                    ifelse(val_diff_bin == -4, "-250:-200", NA))))))))),
          val_diff_bin_str = factor(val_diff_bin_str, levels = c("-250:-200", "-200:-150", "-150:-100", "-100:-50", "-50:50", "50:100", "100:150", "150:200", "200:250")))
 
 data_bc_clean = data_bc_clean %>%
@@ -47,16 +47,16 @@ data_bc_clean = data_bc_clean %>%
   mutate(val_diff = possiblePayoffleft - possiblePayoffright,
          val_diff_bin = round(val_diff/50),
          val_diff_bin_str = ifelse(val_diff_bin == 0, "-50:50", 
-                                    ifelse(val_diff_bin == 1, "50:100",
-                                           ifelse(val_diff_bin == -1, "-100:-50",
-                                                  ifelse(val_diff_bin == 2, "100:150",
-                                                         ifelse(val_diff_bin == -2, "-150:-100",
-                                                                ifelse(val_diff_bin == 3, "150:200",
-                                                                       ifelse(val_diff_bin == -3, "-200:-150",
-                                                                              ifelse(val_diff_bin == 4, "200:250", 
-                                                                                     ifelse(val_diff_bin == -4, "-250:-200", 
-                                                                                            ifelse(val_diff_bin == 5, "250:300",
-                                                                                                   ifelse(val_diff_bin == -5, "-300:-250", NA))))))))))),
+                                   ifelse(val_diff_bin == 1, "50:100",
+                                          ifelse(val_diff_bin == -1, "-100:-50",
+                                                 ifelse(val_diff_bin == 2, "100:150",
+                                                        ifelse(val_diff_bin == -2, "-150:-100",
+                                                               ifelse(val_diff_bin == 3, "150:200",
+                                                                      ifelse(val_diff_bin == -3, "-200:-150",
+                                                                             ifelse(val_diff_bin == 4, "200:250", 
+                                                                                    ifelse(val_diff_bin == -4, "-250:-200", 
+                                                                                           ifelse(val_diff_bin == 5, "250:300",
+                                                                                                  ifelse(val_diff_bin == -5, "-300:-250", NA))))))))))),
          val_diff_bin_str = factor(val_diff_bin_str, levels = c("-300:-250", "-250:-200", "-200:-150", "-150:-100", "-100:-50", "-50:50", "50:100", "100:150", "150:200", "200:250", "250:300")))
 ```
 
@@ -232,7 +232,7 @@ ggsave(file=paste0(fig_out_path, 'yn_pYesByValDiffMRI.jpg'), p, height = 7, widt
 
 ```{r}
 p = data_bc_clean %>%
-    filter(abs(val_diff_bin) != 6) %>%
+  filter(abs(val_diff_bin) != 6) %>%
   group_by(subnum, week, val_diff_bin_str, type) %>%
   summarise(mean_left = mean(leftChosen),
             sem_left = sd(leftChosen)/sqrt(n()),
@@ -399,7 +399,9 @@ ggsave(file=paste0(fig_out_path, 'bc_RTOverValDiff.jpg'), p, height = 5, width=8
 
 What does the distribution of free RTs during the fixation look like?
 
-For task_beah `startFix` is when the fixation comes on
+## YN Task
+
+For task_beah (non-fmri sessions) `startFix` is when the fixation comes on
 
 ```{r}
 yn_fix_rt_data = data_yn_clean %>%
@@ -433,16 +435,95 @@ yn_fix_rt_data %>%
   ggplot(aes(fixRt))+
   geom_histogram(alpha=.5, bins=30)+
   facet_wrap(~subnum)+
-  theme(panel.grid = element_blank())+
-  labs(y="", x = "Fixation RT")
+  theme(panel.grid = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())+
+  labs(y="", x = "Fixation RT", title = "Y/N Task")
 
 ```
 
 ```{r}
-head(diff(data_yn_clean$startFix))
+yn_fix_rt_data %>%
+  filter(fixRt < 1) %>%
+  ungroup() %>%
+  group_by(subnum, day) %>%
+  summarise(.groups="keep",
+            mean_log_fix_rt = mean(log(fixRt)),
+            sem_log_fix_rt = sd(log(fixRt))/n()) %>%
+  ggplot(aes(day, mean_log_fix_rt))+
+  geom_point()+
+  geom_errorbar(aes(ymin=mean_log_fix_rt - sem_log_fix_rt, ymax = mean_log_fix_rt + sem_log_fix_rt), width= 0)+
+  geom_line()+
+  facet_wrap(~subnum)+
+  theme(panel.grid = element_blank())+
+  labs(x="Day", y = "Mean Log Fixation RT", title = "Y/N Task")+
+  scale_x_continuous(breaks=seq(1,11,1))
+
+```
+## BC Task
+
+```{r}
+bc_fix_rt_data = data_bc_clean %>%
+  filter(fmri == 0) %>%
+  select(subnum, day, rt, startFix) %>%
+  group_by(subnum, day) %>%
+  mutate(trialNum = 1:n(),
+         startFixDiff = c(diff(startFix), NA), 
+         rewardTime = 1.1) %>%
+  filter(!is.na(startFixDiff)) %>%
+  mutate(fixRt = startFixDiff - (rt+rewardTime))
+```
+
+```{r}
+summary(bc_fix_rt_data$fixRt)
+```
+
+But less than 2% of all trials have fixations RTs slower than 1 second.
+
+```{r}
+sum(bc_fix_rt_data$fixRt>1)/nrow(bc_fix_rt_data)
+```
+
+Excluding slow fixation RTs for the plot
+
+```{r}
+bc_fix_rt_data %>%
+  filter(fixRt < 1) %>%
+  ggplot(aes(fixRt))+
+  geom_histogram(alpha=.5, bins=30)+
+  facet_wrap(~subnum)+
+  theme(panel.grid = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())+
+  labs(y="", x = "Fixation RT", title = "BC Task")
+
+```
+
+```{r}
+bc_fix_rt_data %>%
+  filter(fixRt < 1) %>%
+  ungroup() %>%
+  group_by(subnum, day) %>%
+  summarise(.groups="keep",
+            mean_log_fix_rt = mean(log(fixRt)),
+            sem_log_fix_rt = sd(log(fixRt))/n()) %>%
+  ggplot(aes(day, mean_log_fix_rt))+
+  geom_point()+
+  geom_errorbar(aes(ymin=mean_log_fix_rt - sem_log_fix_rt, ymax = mean_log_fix_rt + sem_log_fix_rt), width= 0)+
+  geom_line()+
+  facet_wrap(~subnum)+
+  theme(panel.grid = element_blank())+
+  labs(x="Day", y = "Mean Log Fixation RT", title = "BC Task")+
+  scale_x_continuous(breaks=seq(1,11,1))
+
 ```
 
 # Eye-tracking 
+
+If you don't get preprocessing script from Zurich here are some resources
+https://github.com/uzh/edf-converter
+https://cran.r-project.org/web/packages/eyelinker/vignettes/basics.html
+https://github.com/alexander-pastukhov/eyelinkReader
 
 BC task only
 
