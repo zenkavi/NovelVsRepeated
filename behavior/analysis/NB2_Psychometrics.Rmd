@@ -520,11 +520,36 @@ bc_fix_rt_data %>%
 
 # Eye-tracking 
 
-If you don't get preprocessing script from Zurich here are some resources
-https://cran.r-project.org/web/packages/eyelinker/vignettes/basics.html
-https://github.com/alexander-pastukhov/eyelinkReader
+```{r}
+data_bc_fix = read.csv(paste0(helpers_path, '/inputs/data_fixBC.csv'))
 
-BC task only
+data_bc_fix = data_bc_fix %>%
+  mutate(correct = ifelse(possiblePayoffleft>possiblePayoffright & leftChosen == 1, 1, ifelse(possiblePayoffleft<possiblePayoffright & leftChosen == 0, 1, 0))) %>%
+  mutate(type = ifelse(typeLeft == 1, "HT", "RE")) %>%
+  mutate(val_diff = possiblePayoffleft - possiblePayoffright,
+         val_diff_bin = round(val_diff/50),
+         val_diff_bin_str = ifelse(val_diff_bin == 0, "-50:50", 
+                                   ifelse(val_diff_bin == 1, "50:100",
+                                          ifelse(val_diff_bin == -1, "-100:-50",
+                                                 ifelse(val_diff_bin == 2, "100:150",
+                                                        ifelse(val_diff_bin == -2, "-150:-100",
+                                                               ifelse(val_diff_bin == 3, "150:200",
+                                                                      ifelse(val_diff_bin == -3, "-200:-150",
+                                                                             ifelse(val_diff_bin == 4, "200:250", 
+                                                                                    ifelse(val_diff_bin == -4, "-250:-200", 
+                                                                                           ifelse(val_diff_bin == 5, "250:300",
+                                                                                                  ifelse(val_diff_bin == -5, "-300:-250", NA))))))))))),
+         val_diff_bin_str = factor(val_diff_bin_str, levels = c("-300:-250", "-250:-200", "-200:-150", "-150:-100", "-100:-50", "-50:50", "50:100", "100:150", "150:200", "200:250", "250:300")))
+```
+
+## BC task only
+
+Fixation preprocessing checks
+
+```{r}
+names(data_bc_fix)
+with(data_bc_fix, table(subnum, day, leftFix))
+```
 
 *Main question: Is hyper-training making a difference in the search process earlier on*
 
@@ -533,7 +558,24 @@ x: relative value difference
 color: HT vs RE
 
 ```{r}
-names(data_bc_clean)
+data_bc_fix %>%
+  filter(firstFix  == 1) %>%
+  mutate(fix_on_better_first = ifelse(possiblePayoffleft>possiblePayoffright & leftFix == 1, 1, ifelse(possiblePayoffleft < possiblePayoffright & leftFix == 0, 1, 0))) %>%
+  group_by(subnum, day, type) %>%
+  summarise(.groups="keep",
+            mean_fix_on_better_first = mean(fix_on_better_first),
+            sem_fix_on_better_first = sd(fix_on_better_first)/n()) %>%
+  ggplot(aes(day, mean_fix_on_better_first, color=type))+
+  geom_point()+
+  geom_errorbar(aes(ymin = mean_fix_on_better_first - sem_fix_on_better_first, ymax = mean_fix_on_better_first + sem_fix_on_better_first), width = 0)+
+  geom_line()+
+  facet_wrap(~subnum)+
+  scale_color_brewer(palette = "Dark2")+
+  labs(x = "Day", y = "p(First fix on better option)", title="BC Task", color="")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        legend.box.margin=margin(t = -10))+
+  scale_x_continuous(breaks = c(3, 7, 11))
 ```
 
 y: relative fixation time
@@ -541,7 +583,31 @@ x: relative value difference
 color: HT vs RE
 
 ```{r}
-
+data_bc_fix %>%
+  mutate(fix_on_better = ifelse(possiblePayoffleft>possiblePayoffright & leftFix == 1, "better_fix", ifelse(possiblePayoffleft < possiblePayoffright & leftFix == 0, "better_fix", "worse_fix"))) %>%
+  group_by(subnum, day, fix_on_better, type, trialNum) %>%
+  summarise(.groups="keep",
+            total_fix_duration = sum(fixDuration)) %>%
+  spread(fix_on_better, total_fix_duration) %>%
+  mutate(better_fix = ifelse(is.na(better_fix), 0, better_fix),
+         worse_fix = ifelse(is.na(worse_fix), 0, worse_fix),
+         rel_dur_on_better = better_fix/(better_fix+worse_fix)) %>%
+  ungroup() %>%
+  group_by(subnum, day, type) %>%
+  summarise(.groups = "keep",
+            mean_rel_dur_on_better = mean(rel_dur_on_better),
+            sem_rel_dur_on_better = sd(rel_dur_on_better)/n()) %>%
+  ggplot(aes(day, mean_rel_dur_on_better, color=type))+
+  geom_point()+
+  geom_errorbar(aes(ymin = mean_rel_dur_on_better - sem_rel_dur_on_better, ymax = mean_rel_dur_on_better + sem_rel_dur_on_better), width = 0)+
+  geom_line()+
+  facet_wrap(~subnum)+
+  scale_color_brewer(palette = "Dark2")+
+  labs(x = "Day", y = "Relative fixation duration on better option", title="BC Task", color="")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        legend.box.margin=margin(t = -10))+
+  scale_x_continuous(breaks = c(3, 7, 11))
 ```
 
 y: number of fixations (on each option?)
@@ -549,5 +615,27 @@ x: relative value difference
 color: HT vs RE
 
 ```{r}
-
+data_bc_fix %>%
+  mutate(fix_on_better = ifelse(possiblePayoffleft>possiblePayoffright & leftFix == 1, 1, ifelse(possiblePayoffleft < possiblePayoffright & leftFix == 0, 1, 0))) %>%
+  group_by(subnum, day, type, trialNum) %>%
+  summarise(.groups="keep",
+            total_better_fixes = sum(fix_on_better),
+            total_fixes = unique(numTotalFix)) %>%
+  mutate(relative_better_fixes = total_better_fixes/total_fixes) %>%
+  ungroup() %>%
+  group_by(subnum, day, type) %>%
+  summarise(.groups = "keep",
+            mean_rel_better_fix = mean(relative_better_fixes),
+            sem_rel_better_fix = sd(relative_better_fixes)/n()) %>%
+  ggplot(aes(day, mean_rel_better_fix, color=type))+
+  geom_point()+
+  geom_errorbar(aes(ymin = mean_rel_better_fix - sem_rel_better_fix, ymax = mean_rel_better_fix + sem_rel_better_fix), width = 0)+
+  geom_line()+
+  facet_wrap(~subnum)+
+  scale_color_brewer(palette = "Dark2")+
+  labs(x = "Day", y = "Relative number of fixations on better option", title="BC Task", color="")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        legend.box.margin=margin(t = -10))+
+  scale_x_continuous(breaks = c(3, 7, 11))
 ```

@@ -105,8 +105,3 @@ tmp = data_yn_clean %>%
 
 sum(tmp$possiblePayoff == tmp$payoff) == nrow(tmp)
 ```
-
-```{r}
-names(data_yn_clean)
-data_yn_clean$startFix
-```
