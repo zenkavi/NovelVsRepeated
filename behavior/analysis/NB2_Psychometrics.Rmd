@@ -521,7 +521,6 @@ bc_fix_rt_data %>%
 # Eye-tracking 
 
 If you don't get preprocessing script from Zurich here are some resources
-https://github.com/uzh/edf-converter
 https://cran.r-project.org/web/packages/eyelinker/vignettes/basics.html
 https://github.com/alexander-pastukhov/eyelinkReader
 
