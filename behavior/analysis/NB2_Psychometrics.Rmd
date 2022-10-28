@@ -68,6 +68,30 @@ data_bc_clean = data_bc_clean %>%
 p = data_yn_clean %>%
   group_by(subnum, day, type) %>%
   summarise(mean_correct = mean(correct),
+            .groups="keep") %>%
+  ungroup() %>%
+  group_by(day, type) %>%
+  summarise(sem_correct = sd(mean_correct)/sqrt(n()),
+            mean_correct = mean(mean_correct), .groups="keep") %>%
+  ggplot(aes(day, mean_correct, color=type))+
+  geom_point()+
+  geom_errorbar(aes(ymin=mean_correct-sem_correct, ymax=mean_correct+sem_correct), width=0)+
+  geom_line()+
+  labs(x = "Day", y = "Accuracy", title="Y/N Task", color="")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        legend.box.margin=margin(t = -10))+
+  scale_x_continuous(breaks=seq(1,11,1))+
+  scale_color_brewer(palette = "Dark2")
+
+p
+# ggsave(file=paste0(fig_out_path, 'yn_group_accuracyOverDays.jpg'), p, height = 5, width=8, units="in")
+```
+
+```{r}
+p = data_yn_clean %>%
+  group_by(subnum, day, type) %>%
+  summarise(mean_correct = mean(correct),
             sem_correct = sd(correct)/sqrt(n()),
             .groups="keep") %>%
   ggplot(aes(day, mean_correct, color=type))+
@@ -86,6 +110,30 @@ p
 ```
 
 ## BC Task
+
+```{r}
+p = data_bc_clean %>%
+  group_by(subnum, day, type) %>%
+  summarise(mean_correct = mean(correct),
+            .groups="keep") %>%
+  ungroup() %>%
+  group_by(day, type) %>%
+  summarise(sem_correct = sd(mean_correct)/sqrt(n()),
+            mean_correct = mean(mean_correct), .groups="keep") %>%
+  ggplot(aes(day, mean_correct, color=type))+
+  geom_point()+
+  geom_errorbar(aes(ymin=mean_correct-sem_correct, ymax=mean_correct+sem_correct), width=0)+
+  geom_line()+
+  labs(x = "Day", y = "Accuracy", title="BC Task", color="")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        legend.box.margin=margin(t = -10))+
+  scale_x_continuous(breaks=seq(1,11,1))+
+  scale_color_brewer(palette = "Dark2")
+
+p
+ggsave(file=paste0(fig_out_path, 'bc_group_accuracyOverDays.jpg'), p, height = 5, width=8, units="in")
+```
 
 ```{r}
 p = data_bc_clean %>%
@@ -117,11 +165,39 @@ p
 p = data_yn_clean %>%
   group_by(subnum, week, val_diff_bin_str, type) %>%
   summarise(mean_correct = mean(correct),
+            .groups="keep") %>%
+  ungroup() %>%
+  group_by(week, val_diff_bin_str, type) %>%
+  summarise(sem_correct = sd(mean_correct)/sqrt(n()),
+            mean_correct = mean(mean_correct), .groups="keep") %>%
+  ggplot(aes(val_diff_bin_str, mean_correct, color=type))+
+  geom_point()+
+  # geom_jitter(width=.2)+
+  geom_errorbar(aes(ymin=mean_correct-sem_correct, ymax=mean_correct+sem_correct), width=0)+
+  geom_line(aes(group=type))+
+  facet_grid(.~week)+
+  labs(x = "Value Stim - Value Reference", y = "Accuracy", title="Y/N Task", color="")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text.x = element_text(angle = 15, margin = margin(t = 5)),
+        legend.box.margin=margin(t = -10))+
+  scale_color_brewer(palette = "Dark2")+
+  scale_x_discrete(labels=c("-250:-200", "", "-150:-100", "", "-50:50", "", "100:150", "", "200:250"))+
+  scale_y_continuous(breaks = seq(.6,1,.2))
+
+p
+ggsave(file=paste0(fig_out_path, 'yn_group_accuracyByValDiff.jpg'), p, height = 3, width=9, units="in")
+```
+
+```{r}
+p = data_yn_clean %>%
+  group_by(subnum, week, val_diff_bin_str, type) %>%
+  summarise(mean_correct = mean(correct),
             sem_correct = sd(correct)/sqrt(n()),
             .groups="keep") %>%
   ggplot(aes(val_diff_bin_str, mean_correct, color=type))+
-  # geom_point()+
-  geom_jitter(width=.2)+
+  geom_point()+
+  # geom_jitter(width=.2)+
   geom_errorbar(aes(ymin=mean_correct-sem_correct, ymax=mean_correct+sem_correct), width=0)+
   geom_line(aes(group=type))+
   facet_grid(subnum~week)+
@@ -135,7 +211,7 @@ p = data_yn_clean %>%
   scale_y_continuous(breaks = seq(.6,1,.2))
 
 p
-# ggsave(file=paste0(fig_out_path, 'yn_accuracyByValDiff.jpg'), p, height = 7, width=8, units="in")
+ggsave(file=paste0(fig_out_path, 'yn_accuracyByValDiff.jpg'), p, height = 7, width=8, units="in")
 ```
 
 ## BC Task
@@ -145,11 +221,41 @@ p = data_bc_clean %>%
   filter(abs(val_diff_bin) != 6) %>%
   group_by(subnum, week, val_diff_bin_str, type) %>%
   summarise(mean_correct = mean(correct),
+            .groups="keep") %>%
+  ungroup() %>%
+  group_by(week, val_diff_bin_str, type) %>%
+  summarise(sem_correct = sd(mean_correct)/sqrt(n()),
+            mean_correct = mean(mean_correct), .groups="keep") %>%
+  ggplot(aes(val_diff_bin_str, mean_correct, color=type))+
+  geom_point()+
+  # geom_jitter(width=.2)+
+  geom_errorbar(aes(ymin=mean_correct-sem_correct, ymax=mean_correct+sem_correct), width=0)+
+  geom_line(aes(group=type))+
+  facet_grid(.~week)+
+  labs(x = "Value Left - Value Right", y = "Accuracy", title="BC Task", color="")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text.x = element_text(angle = 15, margin = margin(t = 5)),
+        legend.box.margin=margin(t = -10))+
+  scale_color_brewer(palette = "Dark2")+
+  scale_x_discrete(labels=c("", "-250:-200", "", "-150:-100", "", "-50:50", "", "100:150", "", "200:250", ""))+
+  scale_y_continuous(breaks = seq(.25,1,.25))
+
+p
+ggsave(file=paste0(fig_out_path, 'bc_group_accuracyByValDiff.jpg'), p, height = 3, width=9, units="in")
+
+```
+
+```{r}
+p = data_bc_clean %>%
+  filter(abs(val_diff_bin) != 6) %>%
+  group_by(subnum, week, val_diff_bin_str, type) %>%
+  summarise(mean_correct = mean(correct),
             sem_correct = sd(correct)/sqrt(n()),
             .groups="keep") %>%
   ggplot(aes(val_diff_bin_str, mean_correct, color=type))+
-  # geom_point()+
-  geom_jitter(width=.2)+
+  geom_point()+
+  # geom_jitter(width=.2)+
   geom_errorbar(aes(ymin=mean_correct-sem_correct, ymax=mean_correct+sem_correct), width=0)+
   geom_line(aes(group=type))+
   facet_grid(subnum~week)+
@@ -163,13 +269,75 @@ p = data_bc_clean %>%
   scale_y_continuous(breaks = seq(.25,1,.25))
 
 p
-# ggsave(file=paste0(fig_out_path, 'bc_accuracyByValDiff.jpg'), p, height = 7, width=8, units="in")
+ggsave(file=paste0(fig_out_path, 'bc_accuracyByValDiff.jpg'), p, height = 7, width=8, units="in")
 
 ```
 
 # Yes/Left depending on value difference
 
 ## YN Task
+
+```{r}
+p = data_yn_clean %>%
+  group_by(subnum, week, val_diff_bin_str, type) %>%
+  summarise(mean_yes = mean(yesChosen),
+            .groups="keep") %>%
+  ungroup() %>%
+  group_by(week, val_diff_bin_str, type) %>%
+  summarise(sem_yes = sd(mean_yes)/sqrt(n()),
+            mean_yes = mean(mean_yes), .groups="keep") %>%
+  ggplot(aes(val_diff_bin_str, mean_yes, color=type))+
+  geom_point()+
+  # geom_jitter(width=.2)+
+  geom_errorbar(aes(ymin=mean_yes-sem_yes, ymax=mean_yes+sem_yes), width=0)+
+  geom_line(aes(group=type))+
+  facet_grid(.~week)+
+  geom_hline(aes(yintercept=.5), color="gray", linetype = "longdash")+
+  geom_vline(aes(xintercept=5), color="gray", linetype = "longdash")+
+  labs(x = "Value Stim - Value Reference", y = "p(Yes)", title="Y/N Task", color="")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text.x = element_text(angle = 15, margin = margin(t = 5)),
+        legend.box.margin=margin(t = -10))+
+  scale_color_brewer(palette = "Dark2")+
+  scale_x_discrete(labels=c("-250:-200", "", "-150:-100", "", "-50:50", "", "100:150", "", "200:250"))+
+  scale_y_continuous(breaks = seq(0,1,.5))
+
+p
+ggsave(file=paste0(fig_out_path, 'yn_group_pYesByValDiff.jpg'), p, height = 3, width = 9, units="in")
+```
+
+```{r}
+p = data_yn_clean %>%
+  group_by(subnum, day, val_diff_bin_str, type) %>%
+  summarise(mean_yes = mean(yesChosen),
+            .groups="keep") %>%
+  ungroup() %>%
+  group_by(day, val_diff_bin_str, type) %>%
+  summarise(sem_yes = sd(mean_yes)/sqrt(n()),
+            mean_yes = mean(mean_yes), .groups="keep") %>%
+  mutate(day = paste0("Day ", day),
+         day = factor(day, levels = c("Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7", "Day 8", "Day 9", "Day 10", "Day 11"))) %>%
+  ggplot(aes(val_diff_bin_str, mean_yes, color=type))+
+  geom_point()+
+  # geom_jitter(width=.2)+
+  geom_errorbar(aes(ymin=mean_yes-sem_yes, ymax=mean_yes+sem_yes), width=0)+
+  geom_line(aes(group=type))+
+  facet_wrap(~day)+
+  geom_hline(aes(yintercept=.5), color="gray", linetype = "longdash")+
+  geom_vline(aes(xintercept=5), color="gray", linetype = "longdash")+
+  labs(x = "Value Stim - Value Reference", y = "p(Yes)", title="Y/N Task", color="")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text.x = element_text(angle = 15, margin = margin(t = 5)),
+        legend.box.margin=margin(t = -10))+
+  scale_color_brewer(palette = "Dark2")+
+  scale_x_discrete(labels=c("-250:-200", "", "-150:-100", "", "-50:50", "", "100:150", "", "200:250"))+
+  scale_y_continuous(breaks = seq(0,1,.5))
+
+p
+ggsave(file=paste0(fig_out_path, 'yn_group_pYesByValDiffByDay.jpg'), p, height = 6, width = 10, units="in")
+```
 
 ```{r}
 p = data_yn_clean %>%
@@ -229,6 +397,68 @@ p
 ```
 
 ## BC Task
+
+```{r}
+p = data_bc_clean %>%
+  filter(abs(val_diff_bin) != 6) %>%
+  group_by(subnum, week, val_diff_bin_str, type) %>%
+  summarise(mean_left = mean(leftChosen),.groups="keep") %>%
+  ungroup() %>%
+  group_by(week, val_diff_bin_str, type) %>%
+  summarise(sem_left = sd(mean_left)/sqrt(n()),
+            mean_left = mean(mean_left), .groups="keep") %>%
+  ggplot(aes(val_diff_bin_str, mean_left, color=type))+
+  geom_point()+
+  # geom_jitter(width=.2)+
+  geom_errorbar(aes(ymin=mean_left-sem_left, ymax=mean_left+sem_left), width=0)+
+  geom_line(aes(group=type))+
+  facet_grid(.~week)+
+  geom_hline(aes(yintercept=.5), color="gray", linetype = "longdash")+
+  geom_vline(aes(xintercept=6), color="gray", linetype = "longdash")+
+  labs(x = "Value Left - Value Right", y = "p(Left)", title="BC Task", color="")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text.x = element_text(angle = 15, margin = margin(t = 5)),
+        legend.box.margin=margin(t = -10))+
+  scale_color_brewer(palette = "Dark2")+
+  scale_x_discrete(labels=c("", "-250:-200", "", "-150:-100", "", "-50:50", "", "100:150", "", "200:250", ""))+
+  scale_y_continuous(breaks = seq(0,1,.5))
+
+p
+ggsave(file=paste0(fig_out_path, 'bc_group_pLeftByValDiff.jpg'), p, height = 3, width=9, units="in")
+```
+
+```{r}
+p = data_bc_clean %>%
+  filter(abs(val_diff_bin) != 6) %>%
+  group_by(subnum, day, val_diff_bin_str, type) %>%
+  summarise(mean_left = mean(leftChosen),.groups="keep") %>%
+  ungroup() %>%
+  group_by(day, val_diff_bin_str, type) %>%
+  summarise(sem_left = sd(mean_left)/sqrt(n()),
+            mean_left = mean(mean_left), .groups="keep") %>%
+    mutate(day = paste0("Day ", day),
+         day = factor(day, levels = c("Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7", "Day 8", "Day 9", "Day 10", "Day 11"))) %>%
+  ggplot(aes(val_diff_bin_str, mean_left, color=type))+
+  geom_point()+
+  # geom_jitter(width=.2)+
+  geom_errorbar(aes(ymin=mean_left-sem_left, ymax=mean_left+sem_left), width=0)+
+  geom_line(aes(group=type))+
+  facet_wrap(~day)+
+  geom_hline(aes(yintercept=.5), color="gray", linetype = "longdash")+
+  geom_vline(aes(xintercept=6), color="gray", linetype = "longdash")+
+  labs(x = "Value Left - Value Right", y = "p(Left)", title="BC Task", color="")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text.x = element_text(angle = 15, margin = margin(t = 5)),
+        legend.box.margin=margin(t = -10))+
+  scale_color_brewer(palette = "Dark2")+
+  scale_x_discrete(labels=c("", "-250:-200", "", "-150:-100", "", "-50:50", "", "100:150", "", "200:250", ""))+
+  scale_y_continuous(breaks = seq(0,1,.5))
+
+p
+ggsave(file=paste0(fig_out_path, 'bc_group_pLeftByValDiffByDay.jpg'), p, height = 6, width = 10, units="in")
+```
 
 ```{r}
 p = data_bc_clean %>%
@@ -296,6 +526,31 @@ p
 ```{r}
 p = data_yn_clean %>%
   group_by(subnum, day, type) %>%
+  summarise(mean_log_rt = mean(log(rt)), .groups="keep") %>%
+  ungroup() %>%
+  group_by(day, type) %>%
+  summarise(.groups = "keep",
+            sem_log_rt = sd(mean_log_rt)/sqrt(n()),
+            mean_log_rt = mean(mean_log_rt)) %>%
+  ggplot(aes(day, mean_log_rt, color=type))+
+  geom_point()+
+  geom_errorbar(aes(ymin=mean_log_rt-sem_log_rt, ymax=mean_log_rt+sem_log_rt), width=0)+
+  geom_line()+
+  # facet_wrap(~subnum)+
+  labs(x = "Day", y = "Mean Log RT", title="Y/N Task", color="")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        legend.box.margin=margin(t = -10))+
+  scale_x_continuous(breaks=seq(1,11,1))+
+  scale_color_brewer(palette = "Dark2")
+
+p
+ggsave(file=paste0(fig_out_path, 'yn_group_RTOverDays.jpg'), p, height = 3, width = 5, units="in")
+```
+
+```{r}
+p = data_yn_clean %>%
+  group_by(subnum, day, type) %>%
   summarise(mean_log_rt = mean(log(rt)),
             sem_log_rt = sd(log(rt))/sqrt(n()),
             .groups="keep") %>%
@@ -316,6 +571,29 @@ p
 ```
 
 ## BC Task
+
+```{r}
+p = data_bc_clean %>%
+  group_by(subnum, day, type) %>%
+  summarise(mean_log_rt = mean(log(rt)),.groups="keep") %>%
+  ungroup() %>%
+  group_by(day, type) %>%
+  summarise(sem_log_rt = sd(mean_log_rt)/sqrt(n()),
+            mean_log_rt = mean(mean_log_rt), .groups="keep") %>%
+  ggplot(aes(day, mean_log_rt, color=type))+
+  geom_point()+
+  geom_errorbar(aes(ymin=mean_log_rt-sem_log_rt, ymax=mean_log_rt+sem_log_rt), width=0)+
+  geom_line()+
+  labs(x = "Day", y = "Mean Log RT", title="BC Task", color="")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        legend.box.margin=margin(t = -10))+
+  scale_x_continuous(breaks=seq(1,11,1))+
+  scale_color_brewer(palette = "Dark2")
+
+p
+ggsave(file=paste0(fig_out_path, 'bc_RTOverDays.jpg'), p, height = 3, width = 5, units="in")
+```
 
 ```{r}
 p = data_bc_clean %>%
@@ -342,6 +620,34 @@ p
 # RT depending on value difference
 
 ## YN Task
+
+```{r}
+p = data_yn_clean %>%
+  group_by(subnum, week, val_diff_bin_str, type) %>%
+  summarise(mean_log_rt = mean(log(rt)),
+            .groups="keep") %>%
+  ungroup() %>%
+  group_by(week, val_diff_bin_str, type) %>%
+  summarise(sem_log_rt = sd(mean_log_rt)/sqrt(n()),
+            mean_log_rt = mean(mean_log_rt), .groups = "keep") %>%
+  ggplot(aes(val_diff_bin_str, mean_log_rt, color=type))+
+  geom_point()+
+  # geom_jitter(width=.2)+
+  geom_errorbar(aes(ymin=mean_log_rt-sem_log_rt, ymax=mean_log_rt+sem_log_rt), width=0)+
+  geom_line(aes(group=type))+
+  facet_grid(.~week)+
+  labs(x = "Value Stim - Value Reference", y = "Mean Log RT", title="Y/N Task", color="")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text.x = element_text(angle = 15, margin = margin(t = 5)),
+        legend.box.margin=margin(t = -10))+
+  scale_color_brewer(palette = "Dark2")+
+  scale_x_discrete(labels=c("-250:-200", "", "-150:-100", "", "-50:50", "", "100:150", "", "200:250"))+
+  scale_y_continuous(breaks = seq(-1,.5,.5))
+
+p
+ggsave(file=paste0(fig_out_path, 'yn_group_RTOverValDiff.jpg'), p, height = 3, width=9, units="in")
+```
 
 ```{r}
 p = data_yn_clean %>%
@@ -375,14 +681,17 @@ p = data_bc_clean %>%
   filter(abs(val_diff_bin) != 6) %>%
   group_by(subnum, week, val_diff_bin_str, type) %>%
   summarise(mean_log_rt = mean(log(rt)),
-            sem_log_rt = sd(log(rt))/sqrt(n()),
             .groups="keep") %>%
+  ungroup() %>%
+  group_by(week, val_diff_bin_str, type) %>%
+  summarise(sem_log_rt = sd(mean_log_rt)/sqrt(n()),
+            mean_log_rt = mean(mean_log_rt), .groups = "keep") %>%
   ggplot(aes(val_diff_bin_str, mean_log_rt, color=type))+
   geom_point()+
   geom_errorbar(aes(ymin=mean_log_rt-sem_log_rt, ymax=mean_log_rt+sem_log_rt), width=0)+
   geom_line(aes(group=type))+
-  facet_grid(subnum~week)+
-  labs(x = "Value Left - Value Right", y = "Accuracy", title="BC Task", color="")+
+  facet_grid(.~week)+
+  labs(x = "Value Left - Value Right", y = "Mean Log RT", title="BC Task", color="")+
   theme(panel.grid = element_blank(),
         legend.position = "bottom",
         axis.text.x = element_text(angle = 15, margin = margin(t = 5)),
@@ -392,7 +701,32 @@ p = data_bc_clean %>%
   scale_y_continuous(breaks = seq(-1,.5,.5))
 
 p
-# ggsave(file=paste0(fig_out_path, 'bc_RTOverValDiff.jpg'), p, height = 5, width=8, units="in")
+ggsave(file=paste0(fig_out_path, 'bc_group_RTOverValDiff.jpg'), p, height = 3, width=9, units="in")
+```
+
+```{r}
+p = data_bc_clean %>%
+  filter(abs(val_diff_bin) != 6) %>%
+  group_by(subnum, week, val_diff_bin_str, type) %>%
+  summarise(mean_log_rt = mean(log(rt)),
+            sem_log_rt = sd(log(rt))/sqrt(n()),
+            .groups="keep") %>%
+  ggplot(aes(val_diff_bin_str, mean_log_rt, color=type))+
+  geom_point()+
+  geom_errorbar(aes(ymin=mean_log_rt-sem_log_rt, ymax=mean_log_rt+sem_log_rt), width=0)+
+  geom_line(aes(group=type))+
+  facet_grid(subnum~week)+
+  labs(x = "Value Left - Value Right", y = "Mean Log RT", title="BC Task", color="")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text.x = element_text(angle = 15, margin = margin(t = 5)),
+        legend.box.margin=margin(t = -10))+
+  scale_color_brewer(palette = "Dark2")+
+  scale_x_discrete(labels=c("", "-250:-200", "", "-150:-100", "", "-50:50", "", "100:150", "", "200:250", ""))+
+  scale_y_continuous(breaks = seq(-1,.5,.5))
+
+p
+ggsave(file=paste0(fig_out_path, 'bc_RTOverValDiff.jpg'), p, height = 5, width=8, units="in")
 ```
 
 # Fixation Cross Free RT
@@ -443,23 +777,30 @@ yn_fix_rt_data %>%
 ```
 
 ```{r}
-yn_fix_rt_data %>%
+p = yn_fix_rt_data %>%
   filter(fixRt < 1) %>%
   ungroup() %>%
   group_by(subnum, day) %>%
   summarise(.groups="keep",
             mean_log_fix_rt = mean(log(fixRt)),
             sem_log_fix_rt = sd(log(fixRt))/sqrt(n())) %>%
-  ggplot(aes(day, mean_log_fix_rt))+
+  mutate(subnum = as.factor(subnum)) %>%
+  ggplot(aes(day, mean_log_fix_rt, color=subnum))+
   geom_point()+
   geom_errorbar(aes(ymin=mean_log_fix_rt - sem_log_fix_rt, ymax = mean_log_fix_rt + sem_log_fix_rt), width= 0)+
   geom_line()+
-  facet_wrap(~subnum)+
-  theme(panel.grid = element_blank())+
   labs(x="Day", y = "Mean Log Fixation Cross RT", title = "Y/N Task")+
-  scale_x_continuous(breaks=seq(1,11,1))
+  scale_x_continuous(breaks=seq(1,11,1))+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text.x = element_text(angle = 15, margin = margin(t = 5)),
+        legend.box.margin=margin(t = -10))+
+  scale_color_brewer(palette = "Dark2")
 
+p
+ggsave(file=paste0(fig_out_path, 'yn_fixRTOverDays.jpg'), p, height = 3, width=5, units="in")
 ```
+
 ## BC Task
 
 ```{r}
@@ -500,21 +841,30 @@ bc_fix_rt_data %>%
 ```
 
 ```{r}
-bc_fix_rt_data %>%
+p = bc_fix_rt_data %>%
   filter(fixRt < 1) %>%
   ungroup() %>%
   group_by(subnum, day) %>%
   summarise(.groups="keep",
             mean_log_fix_rt = mean(log(fixRt)),
             sem_log_fix_rt = sd(log(fixRt))/sqrt(n())) %>%
-  ggplot(aes(day, mean_log_fix_rt))+
+  mutate(subnum = as.factor(subnum)) %>%
+  ggplot(aes(day, mean_log_fix_rt, color=subnum))+
   geom_point()+
   geom_errorbar(aes(ymin=mean_log_fix_rt - sem_log_fix_rt, ymax = mean_log_fix_rt + sem_log_fix_rt), width= 0)+
   geom_line()+
-  facet_wrap(~subnum)+
+  # facet_wrap(~subnum)+
   theme(panel.grid = element_blank())+
   labs(x="Day", y = "Mean Log Fixation Cross RT", title = "BC Task")+
-  scale_x_continuous(breaks=seq(1,11,1))
+  scale_x_continuous(breaks=seq(1,11,1))+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text.x = element_text(angle = 15, margin = margin(t = 5)),
+        legend.box.margin=margin(t = -10))+
+  scale_color_brewer(palette = "Dark2")
+
+p
+ggsave(file=paste0(fig_out_path, 'bc_fixRTOverDays.jpg'), p, height = 3, width=5, units="in")
 
 ```
 

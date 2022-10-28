@@ -32,15 +32,26 @@ for(i in 1:length(subnums)){
       filter(as.character(subnum) == cur_sub & as.character(day) == cur_day) %>%
       mutate(trialNum = 1:n())
 
-    cur_eye_dat = read.asc(cur_fn, samples = F)
+    cur_eye_dat = read.asc(cur_fn, samples = F, parse_all = T)
     half_screen_width = cur_eye_dat$info$screen.x/2
 
-    cur_fix = cur_eye_dat$fix
+    cur_all_fix = cur_eye_dat$fix %>%
+      mutate(trialNum = block - 1)
 
-    cur_fix_clean = cur_fix %>%
+    # Get timing info for decision fixations (after cross)
+    cur_dec_fix_info = cur_eye_dat$msg %>%
+      filter(grepl("decision", text)) %>%
+      mutate(text = ifelse(!grepl("end", text), paste0(text, " start"), text)) %>%
+      separate(text, into = c("drop", "trialNum", "event")) %>% select(-block, -drop) %>%
+      spread(event, time) %>%
+      mutate(trialNum = as.numeric(trialNum) - 100)
+
+
+    cur_fix_clean = cur_all_fix %>%
+      left_join(cur_dec_fix_info, by = "trialNum") %>%
+      filter(stime >= start & etime <= end) %>%
       mutate(subnum = as.numeric(cur_sub),
-             day = as.numeric(cur_day),
-             trialNum = block - 1) %>%
+             day = as.numeric(cur_day)) %>%
       group_by(trialNum) %>%
       mutate(fixDuration = dur,
              leftFix = ifelse(axp < half_screen_width, 1, 0), #check if this is too lenient

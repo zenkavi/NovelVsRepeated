@@ -18,18 +18,6 @@ helpers_path = paste0(here(),'/analysis/helpers/')
 fig_out_path = paste0(here(), '/outputs/fig/')
 ```
 
-```{r}
-data_bc_clean %>%
-  filter(fmri == 1) %>%
-  select(subnum, day, rt, startFix) %>%
-  group_by(subnum, day) %>%
-  mutate(trialNum = 1:n(),
-         startFixDiff = c(diff(startFix), NA), 
-         rewardTime = 1.1) %>%
-  filter(!is.na(startFixDiff)) %>%
-  mutate(fixRt = startFixDiff - (rt+rewardTime))
-```
-
 # Eye-tracking 
 
 ```{r}
@@ -90,7 +78,44 @@ p = data_bc_fix %>%
   scale_x_discrete(labels=c("", "-250:-200", "", "-150:-100", "", "-50:50", "", "100:150", "", "200:250", ""))+
   scale_y_continuous(breaks = seq(0,1,.5))
 
-# ggsave(file=paste0(fig_out_path, 'bc_pLeftOverValDiffByLastFix.jpg'), p, height = 5, width=8, units="in")
+ggsave(file=paste0(fig_out_path, 'bc_pLeftOverValDiffByLastFix.jpg'), p, height = 5, width=8, units="in")
+p
+```
+
+```{r}
+p = data_bc_fix %>%
+  filter(!is.na(val_diff_bin_str)) %>%
+  filter(lastFix == 1) %>%
+  group_by(subnum, day, val_diff_bin_str, leftFix) %>%
+  summarise(.groups = 'keep',
+            mean_left_choice = mean(leftChosen)) %>%
+  ungroup() %>%
+  mutate(lastFixLeft = ifelse(leftFix == 1, "Left", "Right")) %>%
+  select(-leftFix) %>%
+  group_by(day, val_diff_bin_str, lastFixLeft) %>%
+  summarise(.groups = 'keep',
+            sem_left_choice = sd(mean_left_choice)/sqrt(n()),
+            mean_left_choice = mean(mean_left_choice)) %>%
+  mutate(day = paste0("Day ", day),
+         day = factor(day, levels = c("Day 3", "Day 7", "Day 11")),
+         sem_left_choice = ifelse(is.na(sem_left_choice), 0, sem_left_choice)) %>%
+    ggplot(aes(val_diff_bin_str, mean_left_choice, color = lastFixLeft))+
+  geom_point()+
+  geom_errorbar(aes(ymin = mean_left_choice - sem_left_choice, ymax = mean_left_choice + sem_left_choice), width = 0)+
+  geom_line(aes(group = lastFixLeft))+
+  labs(title = "BC Task", x = "Value Left - Value Right", y = "p(Left Choice)", color="Last Fixation")+
+  geom_hline(aes(yintercept=.5), color="gray", linetype = "longdash")+
+  geom_vline(aes(xintercept=6), color="gray", linetype = "longdash")+
+  facet_grid(. ~ day)+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text.x = element_text(angle = 15, margin = margin(t = 5)),
+        legend.box.margin=margin(t = -10))+
+  scale_color_brewer(palette = "Set1")+
+  scale_x_discrete(labels=c("", "-250:-200", "", "-150:-100", "", "-50:50", "", "100:150", "", "200:250", ""))+
+  scale_y_continuous(breaks = seq(0,1,.5))
+
+ggsave(file=paste0(fig_out_path, 'bc_group_pLeftOverValDiffByLastFix.jpg'), p, height = 3, width=9, units="in")
 p
 ```
 
@@ -122,7 +147,7 @@ p = data_bc_fix %>%
   scale_x_discrete(labels=c("", "-250:-200", "", "-150:-100", "", "-50:50", "", "100:150", "", "200:250", ""))+
   scale_y_continuous(breaks = seq(0,1,.5))
 
-# ggsave(file=paste0(fig_out_path, 'bc_pLeftOverValDiffByLastFixHTStim.jpg'), p, height = 5, width=8, units="in")
+ggsave(file=paste0(fig_out_path, 'bc_pLeftOverValDiffByLastFixHTStim.jpg'), p, height = 5, width=8, units="in")
 p
 ```
 
@@ -154,36 +179,35 @@ p = data_bc_fix %>%
   scale_x_discrete(labels=c("", "-250:-200", "", "-150:-100", "", "-50:50", "", "100:150", "", "200:250", ""))+
   scale_y_continuous(breaks = seq(0,1,.5))
 
-# ggsave(file=paste0(fig_out_path, 'bc_pLeftOverValDiffByLastFixREStim.jpg'), p, height = 5, width=8, units="in")
+ggsave(file=paste0(fig_out_path, 'bc_pLeftOverValDiffByLastFixREStim.jpg'), p, height = 5, width=8, units="in")
 p
 ```
-Fixation advantage 
 
 ```{r}
 p = data_bc_fix %>%
   filter(!is.na(val_diff_bin_str)) %>%
-  group_by(subnum, day, trialNum) %>%
+  filter(lastFix == 1) %>%
+  group_by(subnum, day, val_diff_bin_str, leftFix, type) %>%
   summarise(.groups = 'keep',
-            totalLeftFix = sum(leftFix),
-            totalFix = unique(numTotalFix),
-            val_diff_bin_str = unique(val_diff_bin_str),
-            leftChosen = unique(leftChosen)) %>%
-  mutate(fixAdv = ifelse( (totalLeftFix / totalFix) > .5, "Left", "Right")) %>%
+            mean_left_choice = mean(leftChosen)) %>%
   ungroup() %>%
-  group_by(subnum, day, val_diff_bin_str, fixAdv) %>%
+  mutate(lastFixLeft = ifelse(leftFix == 1, "Left", "Right")) %>%
+  select(-leftFix) %>%
+  group_by(day, val_diff_bin_str, lastFixLeft, type) %>%
   summarise(.groups = 'keep',
-            mean_left_choice = mean(leftChosen),
-            sem_left_choice = sd(leftChosen)/sqrt(n())) %>%
+            sem_left_choice = sd(mean_left_choice)/sqrt(n()),
+            mean_left_choice = mean(mean_left_choice)) %>%
   mutate(day = paste0("Day ", day),
-         day = factor(day, levels = c("Day 3", "Day 7", "Day 11"))) %>%
-  ggplot(aes(val_diff_bin_str, mean_left_choice, color = fixAdv))+
+         day = factor(day, levels = c("Day 3", "Day 7", "Day 11")),
+         sem_left_choice = ifelse(is.na(sem_left_choice), 0, sem_left_choice)) %>%
+    ggplot(aes(val_diff_bin_str, mean_left_choice, color = lastFixLeft))+
   geom_point()+
   geom_errorbar(aes(ymin = mean_left_choice - sem_left_choice, ymax = mean_left_choice + sem_left_choice), width = 0)+
-  geom_line(aes(group = fixAdv))+
-  labs(title = "BC Task", x = "Value Left - Value Right", y = "p(Left Choice)", color="Fixation Advantage")+
+  geom_line(aes(group = lastFixLeft))+
+  labs(title = "BC Task - RE Stim", x = "Value Left - Value Right", y = "p(Left Choice)", color="Last Fixation")+
   geom_hline(aes(yintercept=.5), color="gray", linetype = "longdash")+
   geom_vline(aes(xintercept=6), color="gray", linetype = "longdash")+
-  facet_grid(subnum ~ day)+
+  facet_grid(type ~ day)+
   theme(panel.grid = element_blank(),
         legend.position = "bottom",
         axis.text.x = element_text(angle = 15, margin = margin(t = 5)),
@@ -192,85 +216,14 @@ p = data_bc_fix %>%
   scale_x_discrete(labels=c("", "-250:-200", "", "-150:-100", "", "-50:50", "", "100:150", "", "200:250", ""))+
   scale_y_continuous(breaks = seq(0,1,.5))
 
-# ggsave(file=paste0(fig_out_path, 'bc_pLeftOverValDiffByFixAdv.jpg'), p, height = 5, width=8, units="in")
+ggsave(file=paste0(fig_out_path, 'bc_group_pLeftOverValDiffByLastFixByStim.jpg'), p, height = 5, width=9, units="in")
 p
 ```
 
-```{r}
-p = data_bc_fix %>%
-  filter(!is.na(val_diff_bin_str)) %>%
-  filter(type == "HT") %>%
-  group_by(subnum, day, trialNum) %>%
-  summarise(.groups = 'keep',
-            totalLeftFix = sum(leftFix),
-            totalFix = unique(numTotalFix),
-            val_diff_bin_str = unique(val_diff_bin_str),
-            leftChosen = unique(leftChosen)) %>%
-  mutate(fixAdv = ifelse( (totalLeftFix / totalFix) > .5, "Left", "Right")) %>%
-  ungroup() %>%
-  group_by(subnum, day, val_diff_bin_str, fixAdv) %>%
-  summarise(.groups = 'keep',
-            mean_left_choice = mean(leftChosen),
-            sem_left_choice = sd(leftChosen)/sqrt(n())) %>%
-  mutate(day = paste0("Day ", day),
-         day = factor(day, levels = c("Day 3", "Day 7", "Day 11"))) %>%
-  ggplot(aes(val_diff_bin_str, mean_left_choice, color = fixAdv))+
-  geom_point()+
-  geom_errorbar(aes(ymin = mean_left_choice - sem_left_choice, ymax = mean_left_choice + sem_left_choice), width = 0)+
-  geom_line(aes(group = fixAdv))+
-  labs(title = "BC Task - HT stimuli", x = "Value Left - Value Right", y = "p(Left Choice)", color="Fixation Advantage")+
-  geom_hline(aes(yintercept=.5), color="gray", linetype = "longdash")+
-  geom_vline(aes(xintercept=6), color="gray", linetype = "longdash")+
-  facet_grid(subnum ~ day)+
-  theme(panel.grid = element_blank(),
-        legend.position = "bottom",
-        axis.text.x = element_text(angle = 15, margin = margin(t = 5)),
-        legend.box.margin=margin(t = -10))+
-  scale_color_brewer(palette = "Set1")+
-  scale_x_discrete(labels=c("", "-250:-200", "", "-150:-100", "", "-50:50", "", "100:150", "", "200:250", ""))+
-  scale_y_continuous(breaks = seq(0,1,.5))
-
-# ggsave(file=paste0(fig_out_path, 'bc_pLeftOverValDiffByFixAdvHTStim.jpg'), p, height = 5, width=8, units="in")
-p
-```
-
+Logit fit
 
 ```{r}
-p = data_bc_fix %>%
-  filter(!is.na(val_diff_bin_str)) %>%
-  filter(type == "RE") %>%
-  group_by(subnum, day, trialNum) %>%
-  summarise(.groups = 'keep',
-            totalLeftFix = sum(leftFix),
-            totalFix = unique(numTotalFix),
-            val_diff_bin_str = unique(val_diff_bin_str),
-            leftChosen = unique(leftChosen)) %>%
-  mutate(fixAdv = ifelse( (totalLeftFix / totalFix) > .5, "Left", "Right")) %>%
-  ungroup() %>%
-  group_by(subnum, day, val_diff_bin_str, fixAdv) %>%
-  summarise(.groups = 'keep',
-            mean_left_choice = mean(leftChosen),
-            sem_left_choice = sd(leftChosen)/sqrt(n())) %>%
-  mutate(day = paste0("Day ", day),
-         day = factor(day, levels = c("Day 3", "Day 7", "Day 11"))) %>%
-  ggplot(aes(val_diff_bin_str, mean_left_choice, color = fixAdv))+
-  geom_point()+
-  geom_errorbar(aes(ymin = mean_left_choice - sem_left_choice, ymax = mean_left_choice + sem_left_choice), width = 0)+
-  geom_line(aes(group = fixAdv))+
-  labs(title = "BC Task - HT stimuli", x = "Value Left - Value Right", y = "p(Left Choice)", color="Fixation Advantage")+
-  geom_hline(aes(yintercept=.5), color="gray", linetype = "longdash")+
-  geom_vline(aes(xintercept=6), color="gray", linetype = "longdash")+
-  facet_grid(subnum ~ day)+
-  theme(panel.grid = element_blank(),
-        legend.position = "bottom",
-        axis.text.x = element_text(angle = 15, margin = margin(t = 5)),
-        legend.box.margin=margin(t = -10))+
-  scale_color_brewer(palette = "Set1")+
-  scale_x_discrete(labels=c("", "-250:-200", "", "-150:-100", "", "-50:50", "", "100:150", "", "200:250", ""))+
-  scale_y_continuous(breaks = seq(0,1,.5))
-
-# ggsave(file=paste0(fig_out_path, 'bc_pLeftOverValDiffByFixAdvREStim.jpg'), p, height = 5, width=8, units="in")
-p
+lme4::glmer()
 ```
 
 ## p(First Fix == Left)
@@ -300,7 +253,7 @@ p = data_bc_fix %>%
   scale_x_discrete(labels=c("", "-250:-200", "", "-150:-100", "", "-50:50", "", "100:150", "", "200:250", ""))+
   scale_y_continuous(breaks = seq(0,1,.5))
 
-# ggsave(file=paste0(fig_out_path, 'bc_pFirstFixLeftOverValDiff.jpg'), p, height = 5, width=8, units="in")
+ggsave(file=paste0(fig_out_path, 'bc_pFirstFixLeftOverValDiff.jpg'), p, height = 5, width=8, units="in")
 p
 ```
 
@@ -332,9 +285,10 @@ p = data_bc_fix %>%
   scale_x_discrete(labels=c("", "-250:-200", "", "-150:-100", "", "-50:50", "", "100:150", "", "200:250", ""))+
   scale_y_continuous(breaks = seq(0,1,.5))
 
-# ggsave(file=paste0(fig_out_path, 'bc_pFirstFixBestOverValDiff.jpg'), p, height = 5, width=8, units="in")
+ggsave(file=paste0(fig_out_path, 'bc_pFirstFixBestOverValDiff.jpg'), p, height = 5, width=8, units="in")
 p
 ```
+
 ## Mean number of fixations
 
 ```{r}
@@ -361,7 +315,7 @@ p = data_bc_fix %>%
   scale_color_brewer(palette = "Dark2")+
   scale_x_discrete(labels=c("", "-250:-200", "", "-150:-100", "", "-50:50", "", "100:150", "", "200:250", ""))
 
-# ggsave(file=paste0(fig_out_path, 'bc_meanNumFixOverValDiff.jpg'), p, height = 5, width=8, units="in")
+ggsave(file=paste0(fig_out_path, 'bc_meanNumFixOverValDiff.jpg'), p, height = 5, width=8, units="in")
 p
 ```
 
@@ -386,7 +340,7 @@ p = data_bc_fix %>%
   scale_color_brewer(palette = "Dark2")+
   scale_x_continuous(breaks = c(3, 7, 11))
 
-# ggsave(file=paste0(fig_out_path, 'bc_meanNumFixOverDays.jpg'), p, height = 5, width=8, units="in")
+ggsave(file=paste0(fig_out_path, 'bc_meanNumFixOverDays.jpg'), p, height = 5, width=8, units="in")
 p
 ```
 
@@ -425,6 +379,6 @@ p = data_bc_fix %>%
   scale_color_brewer(palette = "Dark2")+
   scale_x_discrete(labels=c("", "-250:-200", "", "-150:-100", "", "-50:50", "", "100:150", "", "200:250", ""))
 
-# ggsave(file=paste0(fig_out_path, 'bc_propLeftFixDurOverValDiff.jpg'), p, height = 5, width=8, units="in")
+ggsave(file=paste0(fig_out_path, 'bc_propLeftFixDurOverValDiff.jpg'), p, height = 5, width=8, units="in")
 p
 ```
