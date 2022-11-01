@@ -237,21 +237,22 @@ p = data_bc_fix %>%
   spread(leftFix, totalFixDuration) %>%
   select(-rightDur) %>%
   filter(!is.na(leftDur)) %>%
-  mutate(logLeftDur = log(leftDur),
-         logLeftDurBin = round(logLeftDur)) %>%
+  mutate(leftDurBin = round(leftDur/400),
+         leftDurBin = ifelse(leftDurBin == 0, "<400", ifelse(leftDurBin == 1, "400-800", ifelse(leftDurBin == 2, "800-1200", ifelse(leftDurBin == 3, "1200-1600", ifelse(leftDurBin == 4, "1600-2000", ">2000"))))),
+         leftDurBin = factor(leftDurBin, levels = c("<400", "400-800", "800-1200", "1200-1600", "1600-2000", ">2000")))%>%
   ungroup() %>%
-  group_by(subnum, day, type, logLeftDurBin) %>%
+  group_by(subnum, day, type, leftDurBin) %>%
   summarise(.groups = 'keep',
-            mean_left_choice = mean(leftChosen)) %>%
+            mean_left_choice = mean(leftChosen),
+            num_trials = n()) %>%
   ungroup() %>%
-  group_by(day, type, logLeftDurBin) %>%
+  group_by(day, type, leftDurBin) %>%
   summarise(.groups = 'keep',
             sem_left_choice = sd(mean_left_choice)/sqrt(n()),
             mean_left_choice = mean(mean_left_choice)) %>%
   mutate(day = paste0("Day ", day),
-         day = factor(day, levels = c("Day 3", "Day 7", "Day 11")),
-         expLogLeftDurBin = round(exp(logLeftDurBin))) %>%
-  ggplot(aes(as.factor(expLogLeftDurBin), mean_left_choice, color = type))+
+         day = factor(day, levels = c("Day 3", "Day 7", "Day 11"))) %>%
+  ggplot(aes(leftDurBin, mean_left_choice, color = type))+
   geom_point()+
   geom_errorbar(aes(ymin = mean_left_choice - sem_left_choice, ymax = mean_left_choice + sem_left_choice), width = 0)+
   geom_line(aes(group = type))+
@@ -260,7 +261,7 @@ p = data_bc_fix %>%
   facet_grid(. ~ day)+
   theme(panel.grid = element_blank(),
         legend.position = "bottom",
-        axis.text.x = element_text(margin = margin(t = 5)),
+        axis.text.x = element_text(angle = 20, margin = margin(t = 5)),
         legend.box.margin=margin(t = -10))+
   scale_color_brewer(palette = "Dark2")
 
@@ -279,17 +280,17 @@ p = data_bc_fix %>%
   spread(leftFix, totalFixDuration) %>%
   select(-rightDur) %>%
   filter(!is.na(leftDur)) %>%
-  mutate(logLeftDur = log(leftDur),
-         logLeftDurBin = round(logLeftDur)) %>%
+  mutate(leftDurBin = round(leftDur/400),
+         leftDurBin = ifelse(leftDurBin == 0, "<400", ifelse(leftDurBin == 1, "400-800", ifelse(leftDurBin == 2, "800-1200", ifelse(leftDurBin == 3, "1200-1600", ifelse(leftDurBin == 4, "1600-2000", ">2000"))))),
+         leftDurBin = factor(leftDurBin, levels = c("<400", "400-800", "800-1200", "1200-1600", "1600-2000", ">2000")))%>%
   ungroup() %>%
-  group_by(subnum, day, type, logLeftDurBin) %>%
+  group_by(subnum, day, type, leftDurBin) %>%
   summarise(.groups = 'keep',
             sem_left_choice = sd(leftChosen)/sqrt(n()),
             mean_left_choice = mean(leftChosen)) %>%
   mutate(day = paste0("Day ", day),
-         day = factor(day, levels = c("Day 3", "Day 7", "Day 11")),
-         expLogLeftDurBin = round(exp(logLeftDurBin))) %>%
-  ggplot(aes(as.factor(expLogLeftDurBin), mean_left_choice, color = type))+
+         day = factor(day, levels = c("Day 3", "Day 7", "Day 11"))) %>%
+  ggplot(aes(leftDurBin, mean_left_choice, color = type))+
   geom_point()+
   geom_errorbar(aes(ymin = mean_left_choice - sem_left_choice, ymax = mean_left_choice + sem_left_choice), width = 0)+
   geom_line(aes(group = type))+
@@ -298,7 +299,7 @@ p = data_bc_fix %>%
   facet_grid(subnum ~ day)+
   theme(panel.grid = element_blank(),
         legend.position = "bottom",
-        axis.text.x = element_text(margin = margin(t = 5)),
+        axis.text.x = element_text(angle = 20, margin = margin(t = 5)),
         legend.box.margin=margin(t = -10))+
   scale_color_brewer(palette = "Dark2")
 
@@ -308,14 +309,70 @@ p
 
 ## p(Choice == First fixated)
 
+on first fixation duration
+
 ```{r}
-data_bc_fix %>%
+p = data_bc_fix %>%
   filter(firstFix == 1) %>%
-  mutate(firstFixChosen = ifelse(leftFix == leftChosen, 1, 0))
+  mutate(firstFixChosen = ifelse(leftFix == leftChosen, 1, 0),
+         firstFixDurBin = round(fixDuration/100),
+         firstFixDurBin = ifelse(firstFixDurBin == 0, "<100",  ifelse(firstFixDurBin == 1, "100-200", ifelse(firstFixDurBin == 2, "200-300", ifelse(firstFixDurBin == 3, "300-400", ifelse(firstFixDurBin == 4, "400-500", ">500"))))),
+         firstFixDurBin = factor(firstFixDurBin, levels = c("<100", "100-200", "200-300", "300-400", "400-500", ">500"))) %>%
+  group_by(subnum, day, firstFixDurBin, type) %>%
+  summarise(.groups = 'keep',
+            mean_choice_firstFix = mean(firstFixChosen)) %>%
+  ungroup() %>%
+  group_by(day, firstFixDurBin, type) %>%
+  summarise(sem_choice_firstFix = sd(mean_choice_firstFix)/sqrt(n()),
+            mean_choice_firstFix = mean(mean_choice_firstFix), .groups = 'keep') %>%
+  mutate(day = paste0("Day ", day),
+         day = factor(day, levels = c("Day 3", "Day 7", "Day 11"))) %>%
+  ggplot(aes(firstFixDurBin, mean_choice_firstFix, color = type))+
+  geom_point()+
+  geom_errorbar(aes(ymin = mean_choice_firstFix - sem_choice_firstFix, ymax = mean_choice_firstFix + sem_choice_firstFix), width = 0)+
+  geom_line(aes(group = type))+
+  labs(title = "BC Task", y = "p(Choice == First Fixated)", x = "First Fixation Duration", color="")+
+  geom_hline(aes(yintercept=.5), color="gray", linetype = "longdash")+
+  facet_grid(. ~ day)+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text.x = element_text(angle = 20, margin = margin(t = 5)),
+        legend.box.margin=margin(t = -10))+
+  scale_color_brewer(palette = "Dark2")
 
 
-# ggsave(file=paste0(fig_out_path, 'bc_pFirstFixatedOverFirstFixDurByStim.jpg'), p, height = 3, width=9, units="in")
-# p
+ggsave(file=paste0(fig_out_path, 'bc_group_pFirstFixatedOverFirstFixDurByStim.jpg'), p, height = 3, width=9, units="in")
+p
+```
+
+```{r}
+p = data_bc_fix %>%
+  filter(firstFix == 1) %>%
+  mutate(firstFixChosen = ifelse(leftFix == leftChosen, 1, 0),
+         firstFixDurBin = round(fixDuration/100),
+         firstFixDurBin = ifelse(firstFixDurBin == 0, "<100",  ifelse(firstFixDurBin == 1, "100-200", ifelse(firstFixDurBin == 2, "200-300", ifelse(firstFixDurBin == 3, "300-400", ifelse(firstFixDurBin == 4, "400-500", ">500"))))),
+         firstFixDurBin = factor(firstFixDurBin, levels = c("<100", "100-200", "200-300", "300-400", "400-500", ">500"))) %>%
+  group_by(subnum, day, firstFixDurBin, type) %>%
+  summarise(sem_choice_firstFix = sd(firstFixChosen)/sqrt(n()),
+            mean_choice_firstFix = mean(firstFixChosen), .groups = 'keep') %>%
+  mutate(day = paste0("Day ", day),
+         day = factor(day, levels = c("Day 3", "Day 7", "Day 11"))) %>%
+  ggplot(aes(firstFixDurBin, mean_choice_firstFix, color = type))+
+  geom_point()+
+  geom_errorbar(aes(ymin = mean_choice_firstFix - sem_choice_firstFix, ymax = mean_choice_firstFix + sem_choice_firstFix), width = 0)+
+  geom_line(aes(group = type))+
+  labs(title = "BC Task", y = "p(Choice == First Fixated)", x = "First Fixation Duration", color="")+
+  geom_hline(aes(yintercept=.5), color="gray", linetype = "longdash")+
+  facet_grid(subnum ~ day)+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text.x = element_text(angle = 20, margin = margin(t = 5)),
+        legend.box.margin=margin(t = -10))+
+  scale_color_brewer(palette = "Dark2")
+
+
+ggsave(file=paste0(fig_out_path, 'bc_pFirstFixatedOverFirstFixDurByStim.jpg'), p, height = 5, width=8, units="in")
+p
 ```
 
 ## p(First Fix == Left)
@@ -325,7 +382,8 @@ p = data_bc_fix %>%
   filter(!is.na(val_diff_bin_str)) %>%
   filter(firstFix == 1) %>%
   group_by(subnum, day, type, val_diff_bin_str) %>%
-  summarise(mean_first_fix_left = mean(leftFix), .groups="keep") %>%
+  summarise(mean_first_fix_left = mean(leftFix),
+            num_trials = n(), .groups="keep") %>%
   ungroup() %>%
   group_by(day, type, val_diff_bin_str) %>%
   summarise(.groups = 'keep',
@@ -349,7 +407,7 @@ p = data_bc_fix %>%
   scale_x_discrete(labels=c("", "-250:-200", "", "-150:-100", "", "-50:50", "", "100:150", "", "200:250", ""))+
   scale_y_continuous(breaks = seq(0,1,.5))
 
-ggsave(file=paste0(fig_out_path, 'bc_group_pFirstFixLeftOverValDiff.jpg'), p, height = 3, width=9, units="in")
+# ggsave(file=paste0(fig_out_path, 'bc_group_pFirstFixLeftOverValDiff.jpg'), p, height = 3, width=9, units="in")
 p
 ```
 
@@ -379,6 +437,41 @@ p = data_bc_fix %>%
   scale_y_continuous(breaks = seq(0,1,.5))
 
 ggsave(file=paste0(fig_out_path, 'bc_pFirstFixLeftOverValDiff.jpg'), p, height = 5, width=8, units="in")
+p
+```
+
+```{r}
+p = data_bc_fix %>%
+  filter(!is.na(val_diff_bin_str)) %>%
+  filter(firstFix == 1) %>%
+  group_by(subnum, day, type, abs_val_diff_bin_str) %>%
+  summarise(mean_first_fix_left = mean(leftFix),
+            num_trials = n(), .groups="keep") %>%
+  filter(num_trials>2) %>%
+  ungroup() %>%
+  group_by(day, type, abs_val_diff_bin_str) %>%
+  summarise(.groups = 'keep',
+            sem_first_fix_left = sd(mean_first_fix_left)/sqrt(n()),
+            mean_first_fix_left = mean(mean_first_fix_left)) %>%
+  mutate(day = paste0("Day ", day),
+         day = factor(day, levels = c("Day 3", "Day 7", "Day 11"))) %>%
+  ggplot(aes(abs_val_diff_bin_str, mean_first_fix_left, color = type))+
+  geom_point()+
+  geom_errorbar(aes(ymin = mean_first_fix_left - sem_first_fix_left, ymax = mean_first_fix_left + sem_first_fix_left), width = 0)+
+  geom_line(aes(group = type))+
+  labs(title = "BC Task", x = "Value Better - Value Worse", y = "p(First Fixation == Left)", color="")+
+  geom_hline(aes(yintercept=.5), color="gray", linetype = "longdash")+
+  geom_vline(aes(xintercept=6), color="gray", linetype = "longdash")+
+  facet_grid(. ~ day)+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text.x = element_text(angle = 15, margin = margin(t = 5)),
+        legend.box.margin=margin(t = -10))+
+  scale_color_brewer(palette = "Dark2")+
+  # scale_x_discrete(labels=c("", "-250:-200", "", "-150:-100", "", "-50:50", "", "100:150", "", "200:250", ""))+
+  scale_y_continuous(breaks = seq(0,1,.5))
+
+ggsave(file=paste0(fig_out_path, 'bc_group_pFirstFixLeftOverValBestDiff.jpg'), p, height = 3, width=9, units="in")
 p
 ```
 
@@ -446,6 +539,78 @@ p = data_bc_fix %>%
   scale_y_continuous(breaks = seq(0,1,.5))
 
 ggsave(file=paste0(fig_out_path, 'bc_pFirstFixBestOverValDiff.jpg'), p, height = 5, width=8, units="in")
+p
+```
+
+```{r}
+p = data_bc_fix %>%
+  filter(!is.na(val_diff_bin_str)) %>%
+  filter(firstFix == 1) %>%
+  mutate(firstFixToBest = ifelse(leftFix == 1 & val_diff > 0, 1, ifelse(leftFix == 0 & val_diff < 0, 1, 0))) %>%
+  group_by(subnum, day, type, abs_val_diff_bin_str) %>%
+  summarise(mean_first_fix_best = mean(firstFixToBest), 
+            num_trials = n(), .groups="keep") %>%
+  # arrange(num_trials)
+  filter(num_trials > 2) %>%
+  ungroup() %>%
+  group_by(day, type, abs_val_diff_bin_str) %>%
+  summarise(.groups = 'keep',
+            sem_first_fix_best = sd(mean_first_fix_best)/sqrt(n()),
+            mean_first_fix_best = mean(mean_first_fix_best)) %>%
+  mutate(day = paste0("Day ", day),
+         day = factor(day, levels = c("Day 3", "Day 7", "Day 11")))%>%
+  ggplot(aes(abs_val_diff_bin_str, mean_first_fix_best, color = type))+
+  geom_point()+
+  geom_errorbar(aes(ymin = mean_first_fix_best - sem_first_fix_best, ymax = mean_first_fix_best + sem_first_fix_best), width = 0)+
+  geom_line(aes(group = type))+
+  labs(title = "BC Task", x = "Value Better - Value Worse", y = "p(First Fixation == Better Option)", color="")+
+  geom_hline(aes(yintercept=.5), color="gray", linetype = "longdash")+
+  facet_grid(.~ day)+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text.x = element_text(angle = 15, margin = margin(t = 5)),
+        legend.box.margin=margin(t = -10))+
+  scale_color_brewer(palette = "Dark2")+
+  # scale_x_discrete(labels=c("", "-250:-200", "", "-150:-100", "", "-50:50", "", "100:150", "", "200:250", ""))+
+  scale_y_continuous(breaks = seq(0,1,.5))
+
+ggsave(file=paste0(fig_out_path, 'bc_group_pFirstFixBestOverValBestDiff.jpg'), p, height = 3, width=9, units="in")
+p
+```
+
+```{r}
+p = data_bc_fix %>%
+  filter(!is.na(val_diff_bin_str)) %>%
+  filter(firstFix == 1) %>%
+  mutate(firstFixToBest = ifelse(leftFix == 1 & val_diff > 0, 1, ifelse(leftFix == 0 & val_diff < 0, 1, 0))) %>%
+  group_by(subnum, day, type, abs_val_diff_bin_str) %>%
+  summarise(mean_first_fix_best = mean(firstFixToBest), 
+            num_trials = n(), .groups="keep") %>%
+  # arrange(num_trials)
+  filter(num_trials > 2) %>%
+  ungroup() %>%
+  group_by(day, type, abs_val_diff_bin_str) %>%
+  summarise(.groups = 'keep',
+            sem_first_fix_best = sd(mean_first_fix_best)/sqrt(n()),
+            mean_first_fix_best = mean(mean_first_fix_best)) %>%
+  mutate(day = paste0("Day ", day),
+         day = factor(day, levels = c("Day 3", "Day 7", "Day 11")))%>%
+  ggplot(aes(abs_val_diff_bin_str, mean_first_fix_best, color = type))+
+  geom_point()+
+  geom_errorbar(aes(ymin = mean_first_fix_best - sem_first_fix_best, ymax = mean_first_fix_best + sem_first_fix_best), width = 0)+
+  geom_line(aes(group = type))+
+  labs(title = "BC Task", x = "Value Better - Value Worse", y = "p(First Fixation == Better Option)", color="")+
+  geom_hline(aes(yintercept=.5), color="gray", linetype = "longdash")+
+  facet_grid(.~ day)+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text.x = element_text(angle = 15, margin = margin(t = 5)),
+        legend.box.margin=margin(t = -10))+
+  scale_color_brewer(palette = "Dark2")+
+  # scale_x_discrete(labels=c("", "-250:-200", "", "-150:-100", "", "-50:50", "", "100:150", "", "200:250", ""))+
+  scale_y_continuous(breaks = seq(0,1,.5))
+
+ggsave(file=paste0(fig_out_path, 'bc_group_pFirstFixBestOverValBestDiff.jpg'), p, height = 3, width=9, units="in")
 p
 ```
 
@@ -641,5 +806,106 @@ p = data_bc_fix %>%
   scale_x_discrete(labels=c("", "-250:-200", "", "-150:-100", "", "-50:50", "", "100:150", "", "200:250", ""))
 
 ggsave(file=paste0(fig_out_path, 'bc_propLeftFixDurOverValDiff.jpg'), p, height = 5, width=8, units="in")
+p
+```
+
+# P(Fixation == Best)
+
+```{r}
+p = data_bc_fix %>%
+  filter(!is.na(abs_val_diff_bin_str)) %>%
+  mutate(fixOnBest = ifelse( (val_diff > 1 & leftFix == 1), 1, ifelse( (val_diff < 0 & leftFix == 0), 1, 0))) %>%
+  group_by(subnum, day, trialNum) %>%
+  summarise(.groups = 'keep',
+            sumFixOnBest = sum(fixOnBest), 
+            totalFix = unique(numTotalFix),
+            propFixOnBest = sumFixOnBest/totalFix,
+            type = unique(type),
+            abs_val_diff_bin_str = unique(abs_val_diff_bin_str)) %>%
+  ungroup() %>%
+  group_by(subnum, day, abs_val_diff_bin_str, type) %>%
+  summarise(.groups = "keep",
+            mean_propFixOnBest = mean(propFixOnBest)) %>%
+  ungroup() %>%
+  group_by(day, abs_val_diff_bin_str, type) %>%
+  summarise(.groups = "keep", 
+            sem_propFixOnBest = sd(mean_propFixOnBest)/sqrt(n()),
+            mean_propFixOnBest = mean(mean_propFixOnBest),
+            num_trials = n()) %>%
+  filter(num_trials > 3 ) %>%
+  mutate(day = paste0("Day ", day),
+         day = factor(day, levels = c("Day 3", "Day 7", "Day 11")))%>%
+  ggplot(aes(abs_val_diff_bin_str, mean_propFixOnBest, color = type))+
+  geom_point()+
+  geom_errorbar(aes(ymin = mean_propFixOnBest - sem_propFixOnBest, ymax = mean_propFixOnBest + sem_propFixOnBest), width = 0)+
+  geom_line(aes(group = type))+
+  labs(title = "BC Task", x = "Value Better - Value Worse", y = "Proportion of Fixations\n on Best Option", color="")+
+  geom_hline(aes(yintercept=.5), color="gray", linetype = "longdash")+
+  facet_grid(.~ day)+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text.x = element_text(angle = 15, margin = margin(t = 5)),
+        legend.box.margin=margin(t = -10))+
+  scale_color_brewer(palette = "Dark2")
+
+ggsave(file=paste0(fig_out_path, 'bc_group_propBestFixOverValBestDiff.jpg'), p, height = 3, width = 9, units="in")
+p
+
+```
+
+# P(Fixation == Chosen)
+
+
+```{r}
+p = data_bc_fix %>%
+  mutate(val_chosen_diff = ifelse(leftChosen == 1, possiblePayoffleft - possiblePayoffright, ifelse(leftChosen == 0, possiblePayoffright - possiblePayoffleft, NA)) ,
+         val_chosen_diff_bin = round(val_chosen_diff/50),
+         val_chosen_diff_bin_str = ifelse(val_chosen_diff_bin == 0, "-50:50", 
+                                   ifelse(val_chosen_diff_bin == 1, "50:100",
+                                          ifelse(val_chosen_diff_bin == -1, "-100:-50",
+                                                 ifelse(val_chosen_diff_bin == 2, "100:150",
+                                                        ifelse(val_chosen_diff_bin == -2, "-150:-100",
+                                                               ifelse(val_chosen_diff_bin == 3, "150:200",
+                                                                      ifelse(val_chosen_diff_bin == -3, "-200:-150",
+                                                                             ifelse(val_chosen_diff_bin == 4, "200:250", 
+                                                                                    ifelse(val_chosen_diff_bin == -4, "-250:-200", 
+                                                                                           ifelse(val_chosen_diff_bin == 5, "250:300",
+                                                                                                  ifelse(val_chosen_diff_bin == -5, "-300:-250", NA))))))))))),
+         val_chosen_diff_bin_str = factor(val_chosen_diff_bin_str, levels = c("-300:-250", "-250:-200", "-200:-150", "-150:-100", "-100:-50", "-50:50", "50:100", "100:150", "150:200", "200:250", "250:300")),
+         fixOnChosen = ifelse(leftFix == leftChosen, 1, 0)) %>%
+  group_by(subnum, day, trialNum) %>%
+  summarise(.groups = 'keep',
+            sumFixOnChosen = sum(fixOnChosen), 
+            totalFix = unique(numTotalFix),
+            propFixOnChosen = sumFixOnChosen/totalFix,
+            type = unique(type),
+            val_chosen_diff_bin_str = unique(val_chosen_diff_bin_str)) %>%
+  ungroup() %>%
+  group_by(subnum, day, val_chosen_diff_bin_str, type) %>%
+  summarise(.groups = "keep",
+            mean_propFixOnChosen = mean(propFixOnChosen)) %>%
+  ungroup() %>%
+  group_by(day, val_chosen_diff_bin_str, type) %>%
+  summarise(.groups = "keep", 
+            sem_propFixOnChosen = sd(mean_propFixOnChosen)/sqrt(n()),
+            mean_propFixOnChosen = mean(mean_propFixOnChosen),
+            num_trials = n()) %>%
+  filter(num_trials > 3 ) %>%
+  mutate(day = paste0("Day ", day),
+         day = factor(day, levels = c("Day 3", "Day 7", "Day 11")))%>%
+  ggplot(aes(val_chosen_diff_bin_str, mean_propFixOnChosen, color = type))+
+  geom_point()+
+  geom_errorbar(aes(ymin = mean_propFixOnChosen - sem_propFixOnChosen, ymax = mean_propFixOnChosen + sem_propFixOnChosen), width = 0)+
+  geom_line(aes(group = type))+
+  labs(title = "BC Task", x = "Value Chosen - Value Unchosen", y = "Proportion of Fixations\n on Chosen Option", color="")+
+  geom_hline(aes(yintercept=.5), color="gray", linetype = "longdash")+
+  facet_grid(.~ day)+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text.x = element_text(angle = 15, margin = margin(t = 5)),
+        legend.box.margin=margin(t = -10))+
+  scale_color_brewer(palette = "Dark2")
+
+ggsave(file=paste0(fig_out_path, 'bc_group_propChosenFixOverValChosenDiff.jpg'), p, height = 3, width = 9, units="in")
 p
 ```
