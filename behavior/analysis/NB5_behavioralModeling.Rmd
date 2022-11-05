@@ -1,0 +1,27 @@
+---
+title: "Novel vs. repeated choice project: Behavioral Modeling"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: 'hide'
+---
+
+# Set up environment and load in data
+
+```{r include=FALSE}
+library(tidyverse)
+library(here)
+theme_set(theme_bw())
+helpers_path = paste0(here(),'/analysis/helpers/')
+source(paste0(helpers_path, '01_clean_behavioral_data.R'))
+fig_out_path = paste0(here(), '/outputs/fig/')
+```
+
+Logits for choice in Y/N and BC
+
+RT slope for YN and BC
+
+DDM for YN
+
+aDDM for BC

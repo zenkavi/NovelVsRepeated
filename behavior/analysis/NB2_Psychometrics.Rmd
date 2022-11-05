@@ -321,7 +321,7 @@ p = data_yn_clean %>%
   ggplot(aes(val_diff_bin_str, mean_yes, color=type))+
   geom_hline(aes(yintercept=.5), color="gray")+
   geom_vline(aes(xintercept=5), color="gray")+
-  geom_point(size = 2)+
+  geom_point(size = 2.5)+
   geom_errorbar(aes(ymin=mean_yes-sem_yes, ymax=mean_yes+sem_yes), width=0, size = 1)+
   geom_line(aes(group=type))+
   facet_wrap(~day)+
