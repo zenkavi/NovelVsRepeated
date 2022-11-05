@@ -26,25 +26,10 @@ data_bc_fix = data_bc_fix %>%
   mutate(type = ifelse(typeLeft == 1, "HT", "RE")) %>%
   mutate(val_diff = possiblePayoffleft - possiblePayoffright,
          val_diff_bin = round(val_diff/50),
-         val_diff_bin_str = ifelse(val_diff_bin == 0, "-50:50", 
-                                   ifelse(val_diff_bin == 1, "50:100",
-                                          ifelse(val_diff_bin == -1, "-100:-50",
-                                                 ifelse(val_diff_bin == 2, "100:150",
-                                                        ifelse(val_diff_bin == -2, "-150:-100",
-                                                               ifelse(val_diff_bin == 3, "150:200",
-                                                                      ifelse(val_diff_bin == -3, "-200:-150",
-                                                                             ifelse(val_diff_bin == 4, "200:250", 
-                                                                                    ifelse(val_diff_bin == -4, "-250:-200", 
-                                                                                           ifelse(val_diff_bin == 5, "250:300",
-                                                                                                  ifelse(val_diff_bin == -5, "-300:-250", NA))))))))))),
-         val_diff_bin_str = factor(val_diff_bin_str, levels = c("-300:-250", "-250:-200", "-200:-150", "-150:-100", "-100:-50", "-50:50", "50:100", "100:150", "150:200", "200:250", "250:300")),
-         abs_val_diff_bin_str = ifelse(val_diff_bin == 0, "0:50", 
-                                       ifelse(abs(val_diff_bin) == 1, "50:100", 
-                                              ifelse(abs(val_diff_bin) == 2, "100:150",
-                                                     ifelse(abs(val_diff_bin) == 3, "150:200",
-                                                            ifelse(abs(val_diff_bin) == 4, "200:250", 
-                                                                   ifelse(abs(val_diff_bin) == 5, "250:300", NA)))))),
-         abs_val_diff_bin_str = factor(abs_val_diff_bin_str, levels = c("0:50", "50:100", "100:150", "150:200", "200:250", "250:300")))
+         val_diff_bin_str = paste0(val_diff_bin*50-25,":",val_diff_bin*50+25),
+         val_diff_bin_str = factor(val_diff_bin_str, levels = c("-275:-225","-225:-175", "-175:-125", "-125:-75", "-75:-25", "-25:25", "25:75", "75:125", "125:175", "175:225", "225:275")),
+         abs_val_diff_bin_str =  paste0(abs(val_diff_bin)*50-25,":",abs(val_diff_bin)*50+25),
+         abs_val_diff_bin_str = factor(abs_val_diff_bin_str, levels = c("0:25", "25:75", "75:125", "125:175", "175:225", "225:275")))
 ```
 
 # Effects of fixation patterns on choice

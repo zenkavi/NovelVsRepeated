@@ -18,10 +18,40 @@ source(paste0(helpers_path, '01_clean_behavioral_data.R'))
 fig_out_path = paste0(here(), '/outputs/fig/')
 ```
 
-Logits for choice in Y/N and BC
+Add columns that will be used for plots below.
 
-RT slope for YN and BC
+```{r}
+data_yn_clean = data_yn_clean %>%
+  mutate(correct = ifelse(possiblePayoff>reference & yesChosen == 1, 1, ifelse(possiblePayoff < reference & yesChosen == 0, 1, 0))) %>%
+  mutate(type = ifelse(type == 1, "HT", "RE"),
+         week = ifelse(week == 1, "Week 1", ifelse(week == 2, "Week 2", ifelse(week == 3, "Week 3", NA))),
+         week = factor(week, levels = c("Week 1", "Week 2", "Week 3"))) %>%
+  mutate(val_diff = possiblePayoff - reference,
+         val_diff_bin = round(val_diff/50),
+         val_diff_bin_str = paste0(val_diff_bin*50-25,":",val_diff_bin*50+25),
+         val_diff_bin_str = factor(val_diff_bin_str, levels = c("-225:-175", "-175:-125", "-125:-75", "-75:-25", "-25:25", "25:75", "75:125", "125:175", "175:225")))
 
-DDM for YN
+data_bc_clean = data_bc_clean %>%
+  mutate(correct = ifelse(possiblePayoffleft>possiblePayoffright & leftChosen == 1, 1, ifelse(possiblePayoffleft<possiblePayoffright & leftChosen == 0, 1, 0))) %>%
+  mutate(type = ifelse(typeLeft == 1, "HT", "RE"),
+         week = ifelse(week == 1, "Week 1", ifelse(week == 2, "Week 2", ifelse(week == 3, "Week 3", NA))),
+         week = factor(week, levels = c("Week 1", "Week 2", "Week 3"))) %>%
+  mutate(val_diff = possiblePayoffleft - possiblePayoffright,
+         val_diff_bin = round(val_diff/50),
+         val_diff_bin_str = paste0(val_diff_bin*50-25,":",val_diff_bin*50+25),
+         val_diff_bin_str = factor(val_diff_bin_str, levels = c("-275:-225","-225:-175", "-175:-125", "-125:-75", "-75:-25", "-25:25", "25:75", "75:125", "125:175", "175:225", "225:275"))) %>%
+  filter(!is.na(val_diff_bin_str))
+```
 
-aDDM for BC
+
+# Logits for choice in Y/N and BC
+
+```{r}
+
+```
+
+# RT slope for YN and BC
+
+# DDM for YN
+
+# aDDM for BC
