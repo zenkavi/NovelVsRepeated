@@ -9,8 +9,9 @@ output:
 
 # Set up environment and load in data
 
-```{r include=FALSE}
+```{r include=FALSE, message=FALSE}
 library(tidyverse)
+library(brms)
 library(here)
 theme_set(theme_bw())
 helpers_path = paste0(here(),'/analysis/helpers/')
@@ -43,15 +44,83 @@ data_bc_clean = data_bc_clean %>%
   filter(!is.na(val_diff_bin_str))
 ```
 
-
 # Logits for choice in Y/N and BC
+
+## YN task
+
+Does the logit slope change across days? (value_diff:day interaction)
+Is the logit slope different depending on the stim type? (value_diff:type interaction)
+Does it change differently depending on the stim type? (value_diff:day:type interaction)
+
+**Center variables!**
+The brms output is huge. Extract only what you need from it to make the following plots!
+
+```{r}
+# yn_logit <- brm(formula = yesChosen ~ val_diff * day * type + (1|subnum),  
+#                    data= data_yn_clean, 
+#                    family = bernoulli(link = "logit"),
+#                    warmup = 500, 
+#                    iter = 2500, 
+#                    chains = 4, 
+#                    init = "0", 
+#                    cores=4,
+#                    seed = 3253)
+
+yn_logit <- brm(formula = yesChosen ~ val_diff * day * type,
+                   data= data_yn_clean %>% filter(subnum == "601"),
+                   family = bernoulli(link = "logit"),
+                   warmup = 500,
+                   iter = 2500,
+                   chains = 4,
+                   init = "0",
+                   cores = 4,
+                   seed = 389253)
+```
+
+Examine chains
+
+```{r}
+mcmc_plot(yn_logit, type = "trace")
+```
+
+Examine autocorrelation in 
+
+```{r}
+mcmc_plot(yn_logit, type = "acf_bar")
+```
+
+Examine parameter distributions
+
+```{r}
+mcmc_plot(yn_logit, type = "areas", prob = 0.95)
+```
+
+Plot predicted plots on top of observed data
 
 ```{r}
 
 ```
 
+## BC task
+
+```{r}
+leftChosen ~ value_diff * day * type + (1|subnum)
+```
+
 # RT slope for YN and BC
+
+```{r}
+
+```
 
 # DDM for YN
 
+```{r}
+
+```
+
 # aDDM for BC
+
+```{r}
+
+```
