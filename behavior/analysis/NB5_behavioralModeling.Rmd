@@ -48,54 +48,125 @@ data_bc_clean = data_bc_clean %>%
 
 ## YN task
 
-Does the logit slope change across days? (value_diff:day interaction)
-Is the logit slope different depending on the stim type? (value_diff:type interaction)
-Does it change differently depending on the stim type? (value_diff:day:type interaction)
+Does the logit slope change across days? (value_diff:day interaction)  
+Is the logit slope different depending on the stim type? (value_diff:type interaction)  
+Does it change differently depending on the stim type? (value_diff:day:type interaction)  
 
-**Center variables!**
-The brms output is huge. Extract only what you need from it to make the following plots!
+Center variables!
 
 ```{r}
-# yn_logit <- brm(formula = yesChosen ~ val_diff * day * type + (1|subnum),  
-#                    data= data_yn_clean, 
-#                    family = bernoulli(link = "logit"),
-#                    warmup = 500, 
-#                    iter = 2500, 
-#                    chains = 4, 
-#                    init = "0", 
-#                    cores=4,
-#                    seed = 3253)
-
-yn_logit <- brm(formula = yesChosen ~ val_diff * day * type,
-                   data= data_yn_clean %>% filter(subnum == "601"),
-                   family = bernoulli(link = "logit"),
-                   warmup = 500,
-                   iter = 2500,
-                   chains = 4,
-                   init = "0",
-                   cores = 4,
-                   seed = 389253)
+data_yn_clean = data_yn_clean %>%
+  mutate(day_std = (day - mean(day))/sd(day)) %>%
+  group_by(subnum) %>%
+  mutate(val_diff_std = (val_diff - mean(val_diff))/sd(val_diff))
 ```
 
-Examine chains
+The brms output is huge. Extract only the posterior draws to make the diagnostic plots below.
 
 ```{r}
-mcmc_plot(yn_logit, type = "trace")
+
+fn = paste0(helpers_path, '/inputs/yn_logit_draws.csv')
+
+if(file.exists(fn)){
+  yn_logit_draws = read.csv(fn)
+} else{
+  subnums = unique(data_yn_clean$subnum)
+  
+  yn_logit_draws = data_frame()
+  
+  for(i in 1:length(subnums)){
+    cur_sub = subnums[i]
+    
+    cur_yn_logit <- brm(formula = yesChosen ~ val_diff_std * day_std * type,
+                        data= data_yn_clean %>% filter(subnum == cur_sub),
+                        family = bernoulli(link = "logit"),
+                        warmup = 500,
+                        iter = 2500,
+                        chains = 4,
+                        init = "0",
+                        cores = 4,
+                        seed = 389253)
+    
+    cur_draws = as_draws_df(cur_yn_logit)
+    cur_draws$subnum = cur_sub
+    
+    yn_logit_draws = rbind(yn_logit_draws, cur_draws)
+  }
+  names(yn_logit_draws) = gsub(":", ".", names(yn_logit_draws))
+  write.csv(yn_logit_draws, fn, row.names = F)
+}
+
 ```
 
-Examine autocorrelation in 
+Examine chains for the three variables of interest  
 
 ```{r}
-mcmc_plot(yn_logit, type = "acf_bar")
+as.data.frame(yn_logit_draws) %>%
+  select("b_val_diff_std.day_std", "b_val_diff_std.typeRE", "b_val_diff_std.day_std.typeRE", subnum, .chain, .iteration) %>%
+  gather(key, value, -subnum, -.chain, -.iteration) %>%
+  ggplot(aes(.iteration, value, color = as.factor(.chain)))+
+  geom_line()+
+  facet_grid(subnum ~ key, scales = 'free_y')+
+  labs(x = "", y = "") +
+  theme(legend.position = "none",
+        panel.grid = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_blank())
+  
+```
+
+Examine autocorrelation in the variables of interest.  
+
+```{r}
+as.data.frame(yn_logit_draws) %>%
+  select("b_val_diff_std.day_std", "b_val_diff_std.typeRE", "b_val_diff_std.day_std.typeRE", subnum, .chain, .iteration) %>%
+  gather(key, value, -subnum, -.chain, -.iteration) %>%
+  group_by(subnum, .chain, key) %>%
+  summarise(lag0 = acf(value, lag.max=1, plot = F)[["acf"]][1],
+            lag1 = acf(value, lag.max=1, plot = F)[["acf"]][2],
+            lag2 = acf(value, lag.max=2, plot = F)[["acf"]][3],
+            lag3 = acf(value, lag.max=3, plot = F)[["acf"]][4],
+            lag4 = acf(value, lag.max=4, plot = F)[["acf"]][5],
+            lag5 = acf(value, lag.max=5, plot = F)[["acf"]][6],
+            lag6 = acf(value, lag.max=6, plot = F)[["acf"]][7],
+            lag7 = acf(value, lag.max=7, plot = F)[["acf"]][8],
+            lag8 = acf(value, lag.max=8, plot = F)[["acf"]][9],
+            lag9 = acf(value, lag.max=9, plot = F)[["acf"]][10],
+            lag10 = acf(value, lag.max=10, plot = F)[["acf"]][11],
+            lag11 = acf(value, lag.max=11, plot = F)[["acf"]][12], .groups = 'keep') %>%
+  gather(lag, cor, -subnum, -.chain, -key) %>%
+  mutate(lag = gsub("lag", "", lag),
+         lag = as.numeric(lag)) %>%
+  ggplot(aes(lag, cor, fill = as.factor(.chain)))+
+  geom_bar(stat = "identity", alpha=.5, position = "identity", color = NA)+
+  facet_grid(subnum ~ key)+
+  labs(x = "Lag", y = "Correlation") +
+  theme(legend.position = "none",
+        panel.grid = element_blank())+
+  scale_x_continuous(breaks = c(0, 5, 10))+
+  scale_y_continuous(breaks = c(0, .5, 1))
 ```
 
 Examine parameter distributions
 
 ```{r}
-mcmc_plot(yn_logit, type = "areas", prob = 0.95)
+as.data.frame(yn_logit_draws) %>%
+  select("b_val_diff_std.day_std", "b_val_diff_std.typeRE", "b_val_diff_std.day_std.typeRE", subnum, .chain, .iteration) %>%
+  gather(key, value, -subnum, -.chain, -.iteration) %>%
+  mutate(key = ifelse(key == "b_val_diff_std.day_std", "Value Diff * Day", ifelse(key == "b_val_diff_std.typeRE", "Value Diff * Type", ifelse(key == "b_val_diff_std.day_std.typeRE", "Value Diff * Day * Type", NA))),
+         key = factor(key, levels = c("Value Diff * Type", "Value Diff * Day", "Value Diff * Day * Type"))) %>%
+  ggplot(aes(value, fill = as.factor(.chain))) +
+  geom_density(position="identity", alpha=.5, color=NA) +
+  geom_vline(aes(xintercept = 0), color = "light gray") + 
+  facet_grid(subnum ~ key) +
+  labs(x = "", y = "") +
+  theme(legend.position = "none",
+        panel.grid = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_blank())
 ```
 
-Plot predicted plots on top of observed data
+**Plot predicted plots on top of observed data**
 
 ```{r}
 
@@ -104,8 +175,120 @@ Plot predicted plots on top of observed data
 ## BC task
 
 ```{r}
-leftChosen ~ value_diff * day * type + (1|subnum)
+data_bc_clean = data_bc_clean %>%
+  mutate(day_std = (day - mean(day))/sd(day)) %>%
+  group_by(subnum) %>%
+  mutate(val_diff_std = (val_diff - mean(val_diff))/sd(val_diff))
 ```
+
+```{r}
+
+fn = paste0(helpers_path, '/inputs/bc_logit_draws.csv')
+
+if(file.exists(fn)){
+  bc_logit_draws = read.csv(fn)
+} else{
+  subnums = unique(data_bc_clean$subnum)
+  
+  bc_logit_draws = data_frame()
+  
+  for(i in 1:length(subnums)){
+    cur_sub = subnums[i]
+    
+    cur_bc_logit <- brm(formula = leftChosen ~ val_diff_std * day_std * type,
+                        data= data_bc_clean %>% filter(subnum == cur_sub),
+                        family = bernoulli(link = "logit"),
+                        warmup = 500,
+                        iter = 2500,
+                        chains = 4,
+                        init = "0",
+                        cores = 4,
+                        seed = 389253)
+    
+    cur_draws = as_draws_df(cur_bc_logit)
+    cur_draws$subnum = cur_sub
+    
+    bc_logit_draws = rbind(bc_logit_draws, cur_draws)
+  }
+  names(bc_logit_draws) = gsub(":", ".", names(bc_logit_draws))
+  write.csv(bc_logit_draws, fn, row.names = F)
+}
+```
+
+Examine chains for the three variables of interest  
+
+```{r}
+as.data.frame(bc_logit_draws) %>%
+  select("b_val_diff_std:day_std", "b_val_diff_std:typeRE", "b_val_diff_std:day_std:typeRE", subnum, .chain, .iteration) %>%
+  gather(key, value, -subnum, -.chain, -.iteration) %>%
+  ggplot(aes(.iteration, value, color = as.factor(.chain)))+
+  geom_line()+
+  facet_grid(subnum ~ key, scales = 'free_y')+
+  labs(x = "", y = "") +
+  theme(legend.position = "none",
+        panel.grid = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_blank())
+  
+```
+
+Examine autocorrelation in the variables of interest.  
+
+```{r}
+as.data.frame(bc_logit_draws) %>%
+  select("b_val_diff_std:day_std", "b_val_diff_std:typeRE", "b_val_diff_std:day_std:typeRE", subnum, .chain, .iteration) %>%
+  gather(key, value, -subnum, -.chain, -.iteration) %>%
+  group_by(subnum, .chain, key) %>%
+  summarise(lag0 = acf(value, lag.max=1, plot = F)[["acf"]][1],
+            lag1 = acf(value, lag.max=1, plot = F)[["acf"]][2],
+            lag2 = acf(value, lag.max=2, plot = F)[["acf"]][3],
+            lag3 = acf(value, lag.max=3, plot = F)[["acf"]][4],
+            lag4 = acf(value, lag.max=4, plot = F)[["acf"]][5],
+            lag5 = acf(value, lag.max=5, plot = F)[["acf"]][6],
+            lag6 = acf(value, lag.max=6, plot = F)[["acf"]][7],
+            lag7 = acf(value, lag.max=7, plot = F)[["acf"]][8],
+            lag8 = acf(value, lag.max=8, plot = F)[["acf"]][9],
+            lag9 = acf(value, lag.max=9, plot = F)[["acf"]][10],
+            lag10 = acf(value, lag.max=10, plot = F)[["acf"]][11],
+            lag11 = acf(value, lag.max=11, plot = F)[["acf"]][12], .groups = 'keep') %>%
+  gather(lag, cor, -subnum, -.chain, -key) %>%
+  mutate(lag = gsub("lag", "", lag),
+         lag = as.numeric(lag)) %>%
+  ggplot(aes(lag, cor, fill = as.factor(.chain)))+
+  geom_bar(stat = "identity", alpha=.5, position = "identity", color = NA)+
+  facet_grid(subnum ~ key)+
+  labs(x = "Lag", y = "Correlation") +
+  theme(legend.position = "none",
+        panel.grid = element_blank())+
+  scale_x_continuous(breaks = c(0, 5, 10))+
+  scale_y_continuous(breaks = c(0, .5, 1))
+```
+
+Examine parameter distributions
+
+```{r}
+as.data.frame(bc_logit_draws) %>%
+  select("b_val_diff_std.day_std", "b_val_diff_std.typeRE", "b_val_diff_std.day_std.typeRE", subnum, .chain, .iteration) %>%
+  gather(key, value, -subnum, -.chain, -.iteration) %>%
+  mutate(key = ifelse(key == "b_val_diff_std.day_std", "Value Diff * Day", ifelse(key == "b_val_diff_std.typeRE", "Value Diff * Type", ifelse(key == "b_val_diff_std.day_std.typeRE", "Value Diff * Day * Type", NA))),
+         key = factor(key, levels = c("Value Diff * Type", "Value Diff * Day", "Value Diff * Day * Type"))) %>%
+  ggplot(aes(value, fill = as.factor(.chain))) +
+  geom_density(position="identity", alpha=.5, color=NA) +
+  geom_vline(aes(xintercept = 0), color = "light gray") + 
+  facet_grid(subnum ~ key) +
+  labs(x = "", y = "") +
+  theme(legend.position = "none",
+        panel.grid = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_blank())
+```
+
+**Plot predicted plots on top of observed data**
+
+```{r}
+
+```
+
 
 # RT slope for YN and BC
 
