@@ -2,7 +2,7 @@ Rplots.pdf
 .Rproj.user
 *.Rproj
 *.Rhistory
-.RData
+*.RData
 .Ruserdata
 *.mat
 *.csv
