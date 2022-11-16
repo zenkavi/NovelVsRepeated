@@ -64,9 +64,62 @@ data_bc_clean = data_bc_clean %>%
          abs_val_diff_std = (abs_val_diff - mean(abs_val_diff))/sd(abs_val_diff))
 ```
 
-Would you mind looking at the full RT distributions for different value diffs, separately for Y/N and binary choice trials, and for the two type of stimuli? I’m curious to see if there is evidence for some bi-modality for the repeated stimuli (especially after learning), which would suggest that choice is made with a “different fast process” with some probability.
+# Full RT distributions
+
+Is there evidence for some bi-modality for the repeated stimuli (especially after learning), which would suggest that choice is made with a “different fast process” with some probability.
 
 ```{r}
+subjs = unique(data_yn_clean$subnum)
+
+for(i in 1:length(subjs)){
+  cur_sub = subjs[i]
+  
+  p = data_yn_clean %>%
+  filter(subnum == cur_sub) %>%
+  filter(abs_val_diff<175) %>%
+  filter(rt < 3) %>%
+  ggplot(aes(rt, fill=type))+
+  geom_density(alpha=.5, color=NA)+
+  facet_grid(val_diff_bin_str ~ day, scales = "free_y")+
+  scale_fill_brewer(palette = "Dark2")+
+  theme(panel.grid = element_blank(),
+        legend.position = "none",
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        legend.box.margin=margin(t = -10))+
+  labs(y="", x = "RT", fill="", title = paste0("Y/N Task - ", cur_sub))
+
+  ggsave(file=paste0(fig_out_path, 'yn_',cur_sub,'_fullRTdists.jpg'), p, height = 5, width = 8, units="in")
+
+}
+
+
+```
+
+```{r}
+subjs = unique(data_bc_clean$subnum)
+
+for(i in 1:length(subjs)){
+  cur_sub = subjs[i]
+  
+  p = data_bc_clean %>%
+  filter(subnum == cur_sub) %>%
+  filter(abs_val_diff<175) %>%
+  filter(rt < 3) %>%
+  ggplot(aes(rt, fill=type))+
+  geom_density(alpha=.5, color=NA)+
+  facet_grid(val_diff_bin_str ~ day, scales = "free_y")+
+  scale_fill_brewer(palette = "Dark2")+
+  theme(panel.grid = element_blank(),
+        legend.position = "none",
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        legend.box.margin=margin(t = -10))+
+  labs(y="", x = "RT", fill="", title = paste0("BC Task - ", cur_sub))
+
+  ggsave(file=paste0(fig_out_path, 'bc_',cur_sub,'_fullRTdists.jpg'), p, height = 5, width = 8, units="in")
+
+}
 
 ```
 
@@ -183,64 +236,6 @@ as.data.frame(yn_logit_draws) %>%
         panel.grid = element_blank())+
   scale_x_continuous(breaks = c(0, 5, 10))+
   scale_y_continuous(breaks = c(0, .5, 1))
-```
-
-Examine parameter distributions  
-Parameter distributions collapsed across subjects (similar to a random slopes analysis)
-
-```{r}
-p = as.data.frame(yn_logit_draws) %>%
-  select("b_val_diff_std.day_std", "b_val_diff_std.typeRE", "b_val_diff_std.day_std.typeRE", subnum, .chain, .iteration) %>%
-  gather(key, value, -subnum, -.chain, -.iteration) %>%
-  mutate(key = ifelse(key == "b_val_diff_std.day_std", "Value Diff * Day", ifelse(key == "b_val_diff_std.typeRE", "Value Diff * Type", ifelse(key == "b_val_diff_std.day_std.typeRE", "Value Diff * Day * Type", NA))),
-         key = factor(key, levels = c("Value Diff * Type", "Value Diff * Day", "Value Diff * Day * Type"))) %>%
-  ggplot(aes(value)) +
-  geom_density(aes(fill = as.factor(subnum)), position="identity", alpha=.75, color=NA) +
-  geom_vline(aes(xintercept = 0), color = "light gray") + 
-  facet_wrap(~key) +
-  labs(x = "Parameter Estimate", y = "", fill = "Subject") +
-  theme(legend.position = "bottom",
-        panel.grid = element_blank(),
-        axis.ticks.y = element_blank(),
-        axis.text.y = element_blank(),
-        legend.box.margin=margin(t = -10))+
-  scale_x_continuous(breaks = c(0)) +
-  guides(fill=guide_legend(nrow=1))
-
-p
-# ggsave(file=paste0(fig_out_path, 'yn_logit_interactionParEsts.jpg'), p, height = 3, width = 9, units="in")
-```
-
-Interpreting the three way interaction: Is the valDiff * Day interaction smaller for type == RE?
-
-```{r}
-m1 = brm(formula = yesChosen ~ val_diff_std * day_std,
-                        data= data_yn_clean %>% filter(subnum == 601 & type == "RE"),
-                        family = bernoulli(link = "logit"),
-                        warmup = 500,
-                        iter = 2500,
-                        chains = 4,
-                        init = "0",
-                        cores = 4,
-                        seed = 389253)
-
-m2 = brm(formula = yesChosen ~ val_diff_std * day_std,
-                        data= data_yn_clean %>% filter(subnum == 601 & type == "HT"),
-                        family = bernoulli(link = "logit"),
-                        warmup = 500,
-                        iter = 2500,
-                        chains = 4,
-                        init = "0",
-                        cores = 4,
-                        seed = 389253)
-```
-
-```{r}
-summary(m1)
-```
-
-```{r}
-summary(m2)
 ```
 
 **Plot predicted plots on top of observed data**
@@ -387,32 +382,6 @@ as.data.frame(bc_logit_draws) %>%
   scale_y_continuous(breaks = c(0, .5, 1))
 ```
 
-Examine parameter distributions
-
-```{r}
-p = as.data.frame(bc_logit_draws) %>%
-  select("b_val_diff_std.day_std", "b_val_diff_std.typeRE", "b_val_diff_std.day_std.typeRE", subnum, .chain, .iteration) %>%
-  gather(key, value, -subnum, -.chain, -.iteration) %>%
-  mutate(key = ifelse(key == "b_val_diff_std.day_std", "Value Diff * Day", ifelse(key == "b_val_diff_std.typeRE", "Value Diff * Type", ifelse(key == "b_val_diff_std.day_std.typeRE", "Value Diff * Day * Type", NA))),
-         key = factor(key, levels = c("Value Diff * Type", "Value Diff * Day", "Value Diff * Day * Type"))) %>%
-  ggplot(aes(value, fill = as.factor(subnum))) +
-  geom_density(position="identity", alpha=.75, color=NA) +
-  geom_vline(aes(xintercept = 0), color = "light gray") + 
-  facet_wrap(~key) +
-  labs(x = "Parameter Estimate", y = "", fill = "Subject") +
-  theme(legend.position = "bottom",
-        panel.grid = element_blank(),
-        axis.ticks.y = element_blank(),
-        axis.text.y = element_blank(),
-        legend.box.margin=margin(t = -10))+
-  scale_x_continuous(breaks = c(0)) +
-  guides(fill=guide_legend(nrow=1))
-
-p
-# ggsave(file=paste0(fig_out_path, 'bc_logit_interactionParEsts.jpg'), p, height = 3, width = 9, units="in")
-```
-
-
 **Plot predicted plots on top of observed data**
 
 ```{r}
@@ -449,6 +418,244 @@ p = bc_logit_ppc %>%
 
 # ggsave(file=paste0(fig_out_path, 'bc_logit_ppc.jpg'), p, height = 6, width = 10, units="in")
 p
+```
+
+Examine parameter distributions for both tasks!
+Parameter distributions collapsed across subjects (similar to a random slopes analysis)
+
+```{r}
+yn_par_summary = as.data.frame(yn_logit_draws) %>%
+  select("b_val_diff_std.day_std", "b_val_diff_std.typeRE", "b_val_diff_std.day_std.typeRE", subnum,) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key = ifelse(key == "b_val_diff_std.day_std", "Value Diff * Day", ifelse(key == "b_val_diff_std.typeRE", "Value Diff * Type (RE)", ifelse(key == "b_val_diff_std.day_std.typeRE", "Value Diff * Day * Type (RE)", NA))),
+         key = factor(key, levels = c("Value Diff * Type (RE)", "Value Diff * Day", "Value Diff * Day * Type (RE)"))) %>%
+  group_by(subnum, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(subnum = as.factor(subnum),
+         task = "Y/N") 
+
+bc_par_summary = as.data.frame(bc_logit_draws) %>%
+  select("b_val_diff_std.day_std", "b_val_diff_std.typeRE", "b_val_diff_std.day_std.typeRE", subnum,) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key = ifelse(key == "b_val_diff_std.day_std", "Value Diff * Day", ifelse(key == "b_val_diff_std.typeRE", "Value Diff * Type (RE)", ifelse(key == "b_val_diff_std.day_std.typeRE", "Value Diff * Day * Type (RE)", NA))),
+         key = factor(key, levels = c("Value Diff * Type (RE)", "Value Diff * Day", "Value Diff * Day * Type (RE)"))) %>%
+  group_by(subnum, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(subnum = as.factor(subnum),
+         task = "BC") 
+
+p = yn_par_summary %>%
+  rbind(bc_par_summary) %>%
+    ggplot(aes(m, subnum, color=task)) +
+  geom_vline(aes(xintercept = 0), color = "light gray") + 
+  geom_point(position = position_dodge(width=.75))+
+  geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
+  facet_wrap(~key) +
+  facet_wrap(~key) +
+  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes") +
+  theme(legend.position = "bottom",
+        panel.grid = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.text.y = element_blank(),
+        legend.box.margin=margin(t = -10))+
+  scale_x_continuous(breaks = c(0))+
+  scale_color_manual(values = c("red", "blue"))
+
+p
+# ggsave(file=paste0(fig_out_path, 'ynbc_logit_interactionParEsts.jpg'), p, height = 3, width = 9, units="in")
+```
+
+## Change in Val Diff Slope
+
+### YN Task
+
+5 slopes per subject: day 1, day 2, day 3, week 2, week 3
+
+```{r}
+fn_draws = paste0(helpers_path, '/inputs/yn_logit_bydays_draws.csv')
+fn_ppc = paste0(helpers_path, '/inputs/yn_logit_bydays_ppc.csv')
+
+if(file.exists(fn_draws) & file.exists(fn_ppc)){
+  yn_logit_draws = read.csv(fn_draws)
+  yn_logit_ppc = read.csv(fn_ppc)
+} else{
+  subnums = unique(data_yn_clean$subnum)
+  days = list("day 1" = c(1), "day 2" = c(2), "day 3" = c(3), "week 2" = c(4, 5, 6, 7, 8), "week 3" = c(9, 10, 11))
+  
+  yn_logit_draws = data_frame()
+  yn_logit_ppc = data_frame()
+  
+  for(i in 1:length(subnums)){
+    for(j in 1:length(days)){
+      cur_sub = subnums[i]
+      cur_days = days[[j]]
+      
+      cur_yn_data = data_yn_clean %>% 
+        ungroup() %>%
+        filter(subnum == cur_sub & day %in% cur_days) %>%
+        select(val_diff_bin_str, val_diff_std, day_std, type, val_diff, day, yesChosen)
+      
+      
+      cur_yn_logit <- brm(formula = yesChosen ~ val_diff_std * type,
+                          data= cur_yn_data,
+                          family = bernoulli(link = "logit"),
+                          warmup = 500,
+                          iter = 2500,
+                          chains = 4,
+                          init = "0",
+                          cores = 4,
+                          seed = 389253)
+      
+      cur_draws = as_draws_df(cur_yn_logit)
+      cur_draws$subnum = cur_sub
+      cur_draws$day = names(days)[j]
+      
+      yn_logit_draws = rbind(yn_logit_draws, cur_draws)
+      
+      cur_pred = fitted(cur_yn_logit, newdata = cur_yn_data %>%
+                          select(-val_diff, -day, -yesChosen, -val_diff_bin_str), scale = "linear") %>%
+        as_tibble() %>%
+        transmute(prob = Estimate %>% inv_logit_scaled()) %>%
+        bind_cols(cur_yn_data) %>%
+        mutate(subnum = cur_sub)
+      
+      yn_logit_ppc = rbind(yn_logit_ppc, cur_pred)
+    }
+  }
+  names(yn_logit_draws) = gsub(":", ".", names(yn_logit_draws))
+  write.csv(yn_logit_draws, fn_draws, row.names = F)
+  write.csv(yn_logit_ppc, fn_ppc, row.names = F)
+  
+  rm(cur_yn_data, cur_yn_logit, cur_draws, cur_pred)
+}
+
+```
+
+```{r}
+p = as_tibble(yn_logit_draws) %>%
+  select(subnum, day, b_val_diff_std, b_typeRE, b_val_diff_std.typeRE) %>%
+  mutate(day = factor(day, levels = c("day 1", "day 2", "day 3", "week 2", "week 3"))) %>%
+  gather(key, value, -subnum, -day) %>%
+  mutate(key = ifelse(key == "b_typeRE", "Type", ifelse(key == "b_val_diff_std", "Value Diff", ifelse(key == "b_val_diff_std.typeRE", "Type * Value Diff", NA))),
+         key = factor(key, levels = c("Type", "Value Diff", "Type * Value Diff"))) %>%
+  group_by(subnum, day, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  ggplot(aes(day, m))+
+  geom_point()+
+    geom_errorbar(aes(ymin = l95, ymax = h95), width=.2)+
+  facet_grid(key~subnum, scales="free")+
+    theme(panel.grid = element_blank(),
+        axis.text.x = element_text(angle = 15, margin = margin(t = 5)))+
+  labs(x="", y="Parameter Estimate", title="Y/N Task")
+
+# ggsave(file=paste0(fig_out_path, 'yn_logit_valdiff_slope.jpg'), p, height = 6, width = 10, units="in")
+p
+```
+
+### BC Task
+
+```{r}
+
+fn_draws = paste0(helpers_path, '/inputs/bc_logit_bydays_draws.csv')
+fn_ppc = paste0(helpers_path, '/inputs/bc_logit_bydays_ppc.csv')
+
+if(file.exists(fn_draws) & file.exists(fn_ppc)){
+  bc_logit_draws = read.csv(fn_draws)
+  bc_logit_ppc = read.csv(fn_ppc)
+} else{
+  subnums = unique(data_bc_clean$subnum)
+  days = list("day 1" = c(1), "day 2" = c(2), "day 3" = c(3), "week 2" = c(4, 5, 6, 7, 8), "week 3" = c(9, 10, 11))
+  
+  bc_logit_draws = data_frame()
+  bc_logit_ppc = data_frame()
+  
+  for(i in 1:length(subnums)){
+    for(j in 1:length(days)){
+      cur_sub = subnums[i]
+      cur_days = days[[j]]
+      
+      cur_bc_data = data_bc_clean %>% 
+        ungroup() %>%
+        filter(subnum == cur_sub & day %in% cur_days) %>%
+        select(val_diff_bin_str, val_diff_std, day_std, type, val_diff, day, leftChosen)
+      
+      
+      cur_bc_logit <- brm(formula = leftChosen ~ val_diff_std * type,
+                          data= cur_bc_data,
+                          family = bernoulli(link = "logit"),
+                          warmup = 500,
+                          iter = 2500,
+                          chains = 4,
+                          init = "0",
+                          cores = 4,
+                          seed = 389253)
+      
+      cur_draws = as_draws_df(cur_bc_logit)
+      cur_draws$subnum = cur_sub
+      cur_draws$day = names(days)[j]
+      
+      bc_logit_draws = rbind(bc_logit_draws, cur_draws)
+      
+      cur_pred = fitted(cur_bc_logit, newdata = cur_bc_data %>%
+                          select(-val_diff, -day, -leftChosen, -val_diff_bin_str), scale = "linear") %>%
+        as_tibble() %>%
+        transmute(prob = Estimate %>% inv_logit_scaled()) %>%
+        bind_cols(cur_bc_data) %>%
+        mutate(subnum = cur_sub)
+      
+      bc_logit_ppc = rbind(bc_logit_ppc, cur_pred)
+    }
+  }
+  names(bc_logit_draws) = gsub(":", ".", names(bc_logit_draws))
+  write.csv(bc_logit_draws, fn_draws, row.names = F)
+  write.csv(bc_logit_ppc, fn_ppc, row.names = F)
+  
+  rm(cur_bc_data, cur_bc_logit, cur_draws, cur_pred)
+}
+
+
+```
+
+```{r}
+p = as_tibble(bc_logit_draws) %>%
+  select(subnum, day, b_val_diff_std, b_typeRE, b_val_diff_std.typeRE) %>%
+  mutate(day = factor(day, levels = c("day 1", "day 2", "day 3", "week 2", "week 3"))) %>%
+  gather(key, value, -subnum, -day) %>%
+  mutate(key = ifelse(key == "b_typeRE", "Type", ifelse(key == "b_val_diff_std", "Value Diff", ifelse(key == "b_val_diff_std.typeRE", "Type * Value Diff", NA))),
+         key = factor(key, levels = c("Type", "Value Diff", "Type * Value Diff"))) %>%
+  group_by(subnum, day, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  ggplot(aes(day, m))+
+  geom_point()+
+    geom_errorbar(aes(ymin = l95, ymax = h95), width=.2)+
+  facet_grid(key~subnum, scales="free")+
+    theme(panel.grid = element_blank(),
+        axis.text.x = element_text(angle = 15, margin = margin(t = 5)))+
+  labs(x="", y="Parameter Estimate", title="BC Task")
+
+# ggsave(file=paste0(fig_out_path, 'bc_logit_valdiff_slope.jpg'), p, height = 6, width = 10, units="in")
+p
+```
+
+```{r}
+tmp = as_tibble(bc_logit_draws) %>%
+  filter(subnum == 601 & day == "day 1") %>%
+  select(b_val_diff_std)
+  
+
+HDInterval::hdi(tmp)[1]  
 ```
 
 # RT slope 
@@ -864,6 +1071,85 @@ p
 
 # aDDM for BC
 
-```{r}
+5 rows for pars
+3 columns for each day
 
+Each plot: x is value with vertical line on 0, y is parameter name with group distribution on top and subject distributions under
+
+```{r}
+stim_types = c("HT", "RE")
+days = c("3", "7", "11")
+
+in_path = file.path(here(), "inputs")
+
+bc_addm_summary = data.frame()
+
+for(i in 1:length(stim_types)){
+  for(j in 1:length(days)){
+    cur_stim_type = stim_types[i]
+    cur_day = days[j]
+    cur_summary = read.csv(file.path(in_path, paste0('summary_BC_HaDDM_FIT_', cur_stim_type,'_day_', cur_day,'.csv')))
+    cur_summary = cur_summary %>%
+      rename(par = X) %>%
+      mutate(stim_type = cur_stim_type,
+             day = cur_day)
+    
+    bc_addm_summary = rbind(bc_addm_summary, cur_summary)
+  }
+}
+```
+
+```{r}
+bc_addm_summary %>%
+  select(par, Lower95, Upper95, Mean, day, stim_type ) %>%
+  separate(par, c("a", "b"), sep = '\\.', remove = F, fill = "right") %>%
+  separate(a, c("c", "d"), sep = "\\[", remove = F, fill = "right") %>%
+  select(-a) %>%
+  mutate(d = paste0('p[',d)) %>%
+  mutate(b = ifelse(is.na(b), d, b)) %>%
+  select(-d, -par) %>%
+  rename(par_name = c, par_group = b) %>%
+  mutate(par_name = ifelse(par_name == "theta", "ndt", par_name),
+         day = paste0("Day ", day),
+         day = factor(day, levels = c("Day 3", "Day 7", "Day 11"))) %>%
+  filter(par_name != "deviance") %>%
+  filter(par_group != "kappa" & par_group != "pr") %>%
+  ggplot(aes(day, Mean, color=stim_type))+
+  geom_point(position = position_dodge(width=.75))+
+  geom_errorbar(aes(ymin = Lower95, ymax = Upper95), position = position_dodge(width=.75))+
+  facet_grid(par_group ~ par_name, scale = "free_y")+
+  scale_color_brewer(palette = "Dark2")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text.x = element_text(angle = 15, margin = margin(t = 5)),
+        legend.box.margin=margin(t = -10))+
+  labs(x="", y = "", color="")
+```
+
+```{r}
+bc_addm_summary %>%
+  select(par, Lower95, Upper95, Mean, day, stim_type ) %>%
+  separate(par, c("a", "b"), sep = '\\.', remove = F, fill = "right") %>%
+  separate(a, c("c", "d"), sep = "\\[", remove = F, fill = "right") %>%
+  select(-a) %>%
+  mutate(d = paste0('p[',d)) %>%
+  mutate(b = ifelse(is.na(b), d, b)) %>%
+  select(-d, -par) %>%
+  rename(par_name = c, par_group = b) %>%
+  mutate(par_name = ifelse(par_name == "theta", "ndt", par_name),
+         day = as.numeric(day)) %>%
+  filter(par_name != "deviance") %>%
+  filter(par_group == "mu" ) %>%
+
+  ggplot(aes(day, Mean, color=stim_type))+
+  geom_point(position = position_dodge(width=.9))+
+  geom_errorbar(aes(ymin = Lower95, ymax = Upper95), position = position_dodge(width=.9))+
+  facet_wrap(~ par_name, scales = "free_y", ncol = 5)+
+  scale_color_brewer(palette = "Dark2")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text.x = element_text(margin = margin(t = 5)),
+        legend.box.margin=margin(t = -10))+
+  labs(x="Day", y = "", color="")+
+  scale_x_continuous(breaks = c(3, 7, 11))
 ```

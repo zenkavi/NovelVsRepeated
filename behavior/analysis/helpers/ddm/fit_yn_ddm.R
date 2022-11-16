@@ -10,9 +10,9 @@ set.seed(38992)
 # Usage
 #######################
 
-# Rscript --vanilla fit_yn_ddm.R --type HT --day 3
-# Rscript --vanilla fit_yn_ddm.R --type HT --day 7
-# Rscript --vanilla fit_yn_ddm.R --type HT --day 3
+# Rscript --vanilla fit_yn_ddm.R --type HT --day 2
+# Rscript --vanilla fit_yn_ddm.R --type HT --day 5
+# Rscript --vanilla fit_yn_ddm.R --type RE --day 6
 
 #######################
 # Parse input arguments
@@ -61,33 +61,14 @@ fn = paste0('YN_HDDM_FIT_', stim_type_str, '_', day_num_str)
 subjs <- unique(data$subnum)
 
 # RT is positive if yes/stim chosen, negative if no/reference chosen
-# data = data %>%
-#   # scaling option values for subject specifically before filtering subjects by training type
-#   group_by(subnum) %>%
-#   mutate(possiblePayoffleft_std = possiblePayoffleft - mean(possiblePayoffleft),
-#          possiblePayoffright_std = possiblePayoffright - mean(possiblePayoffright)) %>%
-#   filter((typeLeft %in% stim_type) & (day %in% day_num)) %>% # Filter only relevant stimuli
-#   group_by(subnum, day, trialNum, leftFix) %>%
-#   summarise(.groups = 'keep',
-#             fixDuration = sum(fixDuration),
-#             rt = unique(rt),
-#             leftval = unique(possiblePayoffleft_std),
-#             rightval = unique(possiblePayoffright_std),
-#             choice = unique(leftChosen)) %>%
-#   mutate(leftFix = ifelse(leftFix == 1, "fixleft", "fixright")) %>%
-#   spread(leftFix, fixDuration) %>%
-#   mutate(fixleft = ifelse(is.na(fixleft), 0, fixleft),
-#          fixright = ifelse(is.na(fixright), 0, fixright),
-#          totfix = fixleft + fixright,
-#          rtPN = ifelse(choice == 1, rt, (-1)*rt))
-
 data = data %>%
   filter(reference != -99) %>%
   group_by(subnum) %>%
   mutate(possiblePayoff_std = possiblePayoff - mean(possiblePayoff)) %>%
-  filter(day %in% day_num) %>%
+  filter((type %in% stim_type) & (day %in% day_num)) %>%
   mutate(rtPN = ifelse(yesChosen == 1, rt, (-1)*rt))
 
+print(paste0("N Rows in data that will be modeled: ", nrow(data), " stim_type = ", stim_type, " day = ", day_num))
 
 #non decision time = rt - total fixation time
 #data$ndt<- data$rt - data$totfix
