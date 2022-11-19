@@ -27,25 +27,20 @@ opt = parse_args(opt_parser)
 
 if(opt$type == "HT"){
   stim_type = 1
-} else if (opt$type == "RE") {
-  stim_type = 0
 } else {
-  stim_type = c(0,1)
+  stim_type = 0
 }
 
-if(opt$day == "all"){
-  day_num = c(3, 7, 11)
-} else{
-  day_num = as.numeric(opt$day)
-}
+day_num = as.numeric(opt$day)
+
+
+stim_type_str = opt$type
+day_num_str = paste0("day_", day_num)
+fn = paste0('BC_HaDDM_FIT_', stim_type_str, '_', day_num_str)
 
 data <- read.csv(paste0(here(), '/inputs/data_fixBC.csv'))
-model_fn <- file.path(here(), "analysis/helpers/addm/addmHT_modelWIENER.txt")
+model_fn <- file.path(here(), "analysis/helpers/addm/bc_addm_jags.txt")
 out_path <- file.path(here(), "inputs")
-
-stim_type_str = ifelse(length(stim_type) > 1, "both_types", ifelse(stim_type == 1, "HT", "RE"))
-day_num_str = ifelse(length(day_num) > 1, "all_sessions", paste0("day_", day_num))
-fn = paste0('BC_HaDDM_FIT_', stim_type_str, '_', day_num_str)
 
 #
 # # # some data variables: # # #
@@ -68,6 +63,7 @@ subjs <- unique(data$subnum)
 # RT is positive if left food item choosen, negative if right food item chosen
 data = data %>%
   # scaling option values for subject specifically before filtering subjects by training type
+  filter(rt < 5) %>% # discard very long RT trials
   group_by(subnum) %>%
   mutate(possiblePayoffleft_std = possiblePayoffleft - mean(possiblePayoffleft),
          possiblePayoffright_std = possiblePayoffright - mean(possiblePayoffright)) %>%

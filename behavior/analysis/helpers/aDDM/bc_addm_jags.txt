@@ -8,7 +8,7 @@ model {
 
   # mean estimates DDM parameters
   alpha.mu ~ dunif(0.000001, 2)    # noise
-  ndt.mu ~ dunif(0, 5)             # non decision times
+  ndt.mu ~ dunif(0, 2)             # non decision times
 
   # Error terms for nDT
   alpha.pr ~ dgamma(1, 0.1)
@@ -54,7 +54,7 @@ model {
     thetaGaze[p] ~ dbeta(thetaGaze.alpha, thetaGaze.beta)T(0.01,0.99)
 
     alpha.p[p] ~ dnorm(alpha.mu, alpha.pr)T(0.00001,2)
-    theta.p[p] ~ dnorm(ndt.mu, ndt.pr)T(0.01,5)
+    theta.p[p] ~ dnorm(ndt.mu, ndt.pr)T(0.01,2)
 
     e.p.tau[p] ~ dgamma(e.sG, e.rG)T(0.001,20)
     chi.p.tau[p] ~ dgamma(chi.sG, chi.rG)T(0.001,20)

@@ -1,0 +1,13 @@
+#!/bin/bash
+
+#SBATCH -J bc-hddm-rjags-{STIM}-day-{DAY}_%j
+#SBATCH -c 2
+
+# Outputs ----------------------------------
+#SBATCH -o /shared/.out/bc-hddm-rjags-{STIM}-day-{DAY}_%j.out
+#SBATCH -e /shared/.err/bc-hddm-rjags-{STIM}-day-{DAY}_%j.err
+# ------------------------------------------
+
+export DATA_PATH=/shared/behavior
+
+docker run --rm -v $DATA_PATH:/behavior -w /behavior zenkavi/rjagswiener:0.0.2 Rscript --vanilla /behavior/analysis/helpers/ddm/fit_bc_ddm.R --type {STIM} --day {DAY}
