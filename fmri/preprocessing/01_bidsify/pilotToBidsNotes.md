@@ -9,6 +9,6 @@ Not bidsified -> SNS_MRI_OFM_Pilot_03b_S32
 
 # Deciphered from `taskfmri_preprocessingSPM_func.m`
 
-Anatomical file name structure: `sn_{DATE}_t1w3danat_4_real.nii`
-Functional file name structure: `sn_{DATE}_{TIME?}_{SESSION-ORDER}_fmri_run{RUN}_split.nii`
+Anatomical file name structure: `sn_{DATE}_{TIME?}_{ACQUISITION-NUMBER}_t1w3danat_4_real.nii`
+Functional file name structure: `sn_{DATE}_{TIME?}_{ACQUISITION-NUMBER}_fmri_run{RUN}_split.nii`
 Fieldmap file name structire:   
