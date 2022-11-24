@@ -13,6 +13,7 @@ Anatomical file name structure: `sn_{DATE}_{TIME}_{ACQUISITION-NUMBER}_t1w3danat
 Functional file name structure: `sn_{DATE}_{TIME}_{ACQUISITION-NUMBER}_fmri_run{RUN}_split.nii`  
 Fieldmap file name structire:   `sn_{DATE}_{TIME}_{ACQUISITION-NUMBER}_bomap_splitclea_ec1_typ{0/3}.nii`  
   - Unlike the other Nifti's the bomap Nifti's only have 1 par/rec file for 4 images. Based on the bidsified pilot data that was shared with us from UZH and info from the first post linked below these likely correspond to 2 magnitude (files with typ0.nii) and 2 phase images (files with typ3.nii).
+  - Bidsified pilot data also suggests that the single `.par` file for the fieldmaps is converted to a sidecard for the phase images but the magnitude images don't have have `.json` sidecars
 
 # General understanding
 
@@ -38,3 +39,4 @@ https://github.com/lukassnoek/scanphyslog2bids
 
 *Should you do any manual changes to the raw data file names to make it easier to process through bidsify?*
 *E.g. changing the extension of scan or physio logs or functional runs to include task name in the file name*
+*Note: "Importantly, any UNIX-style wildcard (e.g. *, ?, and [a,A,1-9]) can be used in the id values in these sections!"** so maybe I can use these for mappings too?
