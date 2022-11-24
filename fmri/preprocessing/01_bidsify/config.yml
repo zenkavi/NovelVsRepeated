@@ -1,0 +1,29 @@
+options:
+  mri_ext: PAR
+  debug: False
+  n_cores: 4
+  subject_stem: sub
+  deface: False
+  spinoza_data: False
+  out_dir: overtrained_decisions_fmri
+
+mappings:
+  bold: _fmri
+  T1w: _t1w3danat
+  events: log
+  phasediff: _typ3
+  magnitude: _typ0
+
+func:
+
+  yn-task1:
+    id: run1
+    task: yes-no-run1
+
+  yn-task2:
+    id: run2
+    task: yes-no-run2
+
+  bc-task:
+    id: run3
+    task: binary-choice-run3
