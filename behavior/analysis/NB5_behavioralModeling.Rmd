@@ -632,7 +632,6 @@ bc_par_summary = as_tibble(bc_logit_draws) %>%
 ```{r}
 p = yn_par_summary %>%
   rbind(bc_par_summary) %>%
-  filter(key == "Value Diff") %>%
   ggplot(aes(day, m, color=task))+
   geom_point(position = position_dodge(width=.75))+
     geom_errorbar(aes(ymin = l95, ymax = h95), width=.2, position = position_dodge(width=.75))+
@@ -644,7 +643,7 @@ p = yn_par_summary %>%
   labs(x="", y="Parameter Estimate", title="95% HDI for posterior slopes", color="")+
   scale_color_manual(values = c("red", "blue"))
 
-# ggsave(file=paste0(fig_out_path, 'ynbc_logit_valdiff_slope.jpg'), p, height = 5, width = 11, units="in")
+# ggsave(file=paste0(fig_out_path, 'ynbc_logit_valdiff_slope.jpg'), p, height = 6, width = 9, units="in")
 p
 ```
 
@@ -764,6 +763,8 @@ as.data.frame(yn_rt_draws) %>%
   scale_x_continuous(breaks = c(0, 5, 10))+
   scale_y_continuous(breaks = c(0, .5, 1))
 ```
+
+Plot log rt over absolute value difference to compare to posterior predictive data
 
 ```{r}
 p = data_yn_clean %>%
@@ -938,6 +939,8 @@ as.data.frame(bc_rt_draws) %>%
   scale_y_continuous(breaks = c(0, .5, 1))
 ```
 
+Plot log rt over absolute value difference to compare to posterior predictive data
+
 ```{r}
 p = data_bc_clean %>%
   mutate(abs_val_diff_bin_str =  paste0(abs(val_diff_bin)*50-25,":",abs(val_diff_bin)*50+25),
@@ -1005,11 +1008,13 @@ p = bc_rt_ppc %>%
 p
 ```
 
+Plot regression parameter estimates for both tasks in one plot
+
 ```{r}
 yn_par_summary = as.data.frame(yn_rt_draws) %>%
   select("b_abs_val_diff_std" ,"b_abs_val_diff_std.day_std", "b_abs_val_diff_std.typeRE", "b_abs_val_diff_std.day_std.typeRE", subnum, .chain, .iteration) %>%
   gather(key, value, -subnum, -.chain, -.iteration) %>%
-  mutate(key = ifelse(key == "b_abs_val_diff_std.day_std", "|Value Diff| * Day", ifelse(key == "b_abs_val_diff_std.typeRE", "|Value Diff| * Type", ifelse(key == "b_abs_val_diff_std.day_std.typeRE", "|Value Diff| * Day * Type (RE)", ifelse(key == "b_abs_val_diff_std", "|Value Diff|", NA)))),
+  mutate(key = ifelse(key == "b_abs_val_diff_std.day_std", "|Value Diff| * Day", ifelse(key == "b_abs_val_diff_std.typeRE", "|Value Diff| * Type (RE)", ifelse(key == "b_abs_val_diff_std.day_std.typeRE", "|Value Diff| * Day * Type (RE)", ifelse(key == "b_abs_val_diff_std", "|Value Diff|", NA)))),
          key = factor(key, levels = c("|Value Diff|","|Value Diff| * Type (RE)", "|Value Diff| * Day", "|Value Diff| * Day * Type (RE)"))) %>%
   group_by(subnum, key) %>%
   summarise(.groups = 'keep',
@@ -1024,7 +1029,7 @@ yn_par_summary = as.data.frame(yn_rt_draws) %>%
 bc_par_summary = as.data.frame(bc_rt_draws) %>%
   select("b_abs_val_diff_std" ,"b_abs_val_diff_std.day_std", "b_abs_val_diff_std.typeRE", "b_abs_val_diff_std.day_std.typeRE", subnum, .chain, .iteration) %>%
   gather(key, value, -subnum, -.chain, -.iteration) %>%
-  mutate(key = ifelse(key == "b_abs_val_diff_std.day_std", "|Value Diff| * Day", ifelse(key == "b_abs_val_diff_std.typeRE", "|Value Diff| * Type", ifelse(key == "b_abs_val_diff_std.day_std.typeRE", "|Value Diff| * Day * Type (RE)", ifelse(key == "b_abs_val_diff_std", "|Value Diff|", NA)))),
+  mutate(key = ifelse(key == "b_abs_val_diff_std.day_std", "|Value Diff| * Day", ifelse(key == "b_abs_val_diff_std.typeRE", "|Value Diff| * Type (RE)", ifelse(key == "b_abs_val_diff_std.day_std.typeRE", "|Value Diff| * Day * Type (RE)", ifelse(key == "b_abs_val_diff_std", "|Value Diff|", NA)))),
          key = factor(key, levels = c("|Value Diff|","|Value Diff| * Type (RE)", "|Value Diff| * Day", "|Value Diff| * Day * Type (RE)"))) %>%
   group_by(subnum, key) %>%
   summarise(.groups = 'keep',
