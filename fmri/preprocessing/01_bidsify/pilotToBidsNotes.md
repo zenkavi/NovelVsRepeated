@@ -19,9 +19,10 @@ Fieldmap file name structire:   `sn_{DATE}_{TIME}_{ACQUISITION-NUMBER}_bomap_spl
 
 - This dataset is collected on a Phillips scanner  
 - Bidsifying it will be different/trickier than anything I have worked with before (GE, Siemens)  
-- Some helpful posts. They both include external links on more general info on how to deal with Phillips scanner data too  
+- Some helpful posts on how to bidsify. They both include external links on more general info on how to deal with Phillips scanner data too  
   - https://neurostars.org/t/converting-philips-fieldmaps-to-bids-and-finding-echo-time-1-and-echo-time-2/17592/4  
   - https://neurostars.org/t/deriving-slice-timing-order-from-philips-par-rec-and-console-information/17688  
+  - UPDATE: As per Todd's recommendation, I will not use fieldmaps for sdc due to the unclarities in total readout time
 
 # Strategy
 
