@@ -12,21 +12,16 @@ mappings:
   T1w: _t1w3danat
   events: log
   physio: [1-9].log
-  phasediff: _typ3
-  magnitude: _typ0
 
 func:
-
   yn-task1:
     id: run1
     task: yes-no
     run: 1
-
   yn-task2:
     id: run2
     task: yes-no
     run: 2
-
   bc-task:
     id: run3
     task: binary-choice

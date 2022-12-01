@@ -33,7 +33,15 @@ https://github.com/NILAB-UvA/bidsify
 using the Docker image   
 https://hub.docker.com/r/lukassnoek/bidsify  
 
-bidsify -c /Users/zeynepenkavi/Documents/RangelLab/NovelVsRepeated/fmri/preprocessing/01_bidsify/comfig_yaml -d /Users/zeynepenkavi/Dowloads/overtrained_decisions_rawfmri -o /Users/zeynepenkavi/Dowloads/overtrained_decisions_bidsfmri -v -D
+Command to run it in the container but without installing `bidsify` locally and using its `-D` flag to run the container
+
+```
+export CONFIG_PATH=/Users/zeynepenkavi/Documents/RangelLab/NovelVsRepeated/fmri/preprocessing/01_bidsify
+export RAW_PATH=/Users/zeynepenkavi/Downloads/overtrained_decisions_rawfmri
+export BIDS_PATH=/Users/zeynepenkavi/Downloads/overtrained_decisions_bidsfmri
+
+docker run --rm -it -v $CONFIG_PATH:/config -v $RAW_PATH:/raw -v $BIDS_PATH:/bids lukassnoek/bidsify:0.3.7 bidsify -c /config/config.yml -d /Users/zeynepenkavi/Downloads/overtrained_decisions_rawfmri -o /Users/zeynepenkavi/Dowloads/overtrained_decisions_bidsfmri -v
+```
 
 **For physio**
 https://github.com/lukassnoek/scanphyslog2bids  
