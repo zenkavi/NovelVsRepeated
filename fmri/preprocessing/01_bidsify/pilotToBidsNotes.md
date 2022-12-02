@@ -13,7 +13,7 @@ Anatomical file name structure: `sn_{DATE}_{TIME}_{ACQUISITION-NUMBER}_t1w3danat
 Functional file name structure: `sn_{DATE}_{TIME}_{ACQUISITION-NUMBER}_fmri_run{RUN}_split.nii`  
 Fieldmap file name structire:   `sn_{DATE}_{TIME}_{ACQUISITION-NUMBER}_bomap_splitclea_ec1_typ{0/3}.nii`  
   - Unlike the other Nifti's the bomap Nifti's only have 1 par/rec file for 4 images. Based on the bidsified pilot data that was shared with us from UZH and info from the first post linked below these likely correspond to 2 magnitude (files with typ0.nii) and 2 phase images (files with typ3.nii).
-  - Bidsified pilot data also suggests that the single `.par` file for the fieldmaps is converted to a sidecard for the phase images but the magnitude images don't have have `.json` sidecars
+  - Bidsified pilot data also suggests that the single `.par` file for the fieldmaps is converted to a sidecar for the phase images but the magnitude images don't have have `.json` sidecars
 
 # General understanding
 
@@ -40,12 +40,23 @@ export CONFIG_PATH=/Users/zeynepenkavi/Documents/RangelLab/NovelVsRepeated/fmri/
 export RAW_PATH=/Users/zeynepenkavi/Downloads/overtrained_decisions_rawfmri
 export BIDS_PATH=/Users/zeynepenkavi/Downloads/overtrained_decisions_bidsfmri
 
-docker run --rm -it -v $CONFIG_PATH:/config -v $RAW_PATH:/raw -v $BIDS_PATH:/bids lukassnoek/bidsify:0.3.7 bidsify -c /config/config.yml -d /Users/zeynepenkavi/Downloads/overtrained_decisions_rawfmri -o /Users/zeynepenkavi/Dowloads/overtrained_decisions_bidsfmri -v
+docker run --rm -it -v $CONFIG_PATH:/config -v $RAW_PATH:/raw -v $BIDS_PATH:/bids lukassnoek/bidsify:0.3.7 bidsify -c /config/config.yml -d /raw -o /bids -v
 ```
 
 **For physio**
 https://github.com/lukassnoek/scanphyslog2bids  
 
-*Should you do any manual changes to the raw data file names to make it easier to process through bidsify?*
-*E.g. changing the extension of scan or physio logs or functional runs to include task name in the file name*
-*Note: "Importantly, any UNIX-style wildcard (e.g. *, ?, and [a,A,1-9]) can be used in the id values in these sections!"** so maybe I can use these for mappings too?
+Not having a lot of luck getting bidsify to work out of the box. Going through the code currently the useful functions are:
+
+- main > bidsify > **_process_directory** > **convert_mri** > **_get_extra_info_from_par_header**
+  `convert_mri builts` the `dcm2niix` command which looks something like:
+
+  ```
+  dcm2niix -ba y -z y -f %s %s
+  dcm2niix -ba y -z i -f %s %s
+  dcm2niix -ba y -z n -f %s %s
+  ```
+
+  `_get_extra_info_from_par_header` corrects the PAR headers to have the correct number of volumes for the run instead of max number of volumes that is there by default.
+
+- main > bidsify > **_add_missing_BIDS_metadata_and_save_to_disk**
