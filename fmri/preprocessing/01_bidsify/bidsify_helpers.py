@@ -24,22 +24,19 @@ def make_bids_dirs(bids_path_ = bids_path, subnums_ = subnums, sessions_ = sessi
 
 def add_misc_bids_files(bids_path_ = bids_path, misc_files_ = misc_files):
     for cur_mf in misc_files_:
-        cur_template = os.path.join(os.getcwd(), 'bids_templates', cur_mf)
-        cur_fn = os.path.join(bids_path, cur_mf)
-        shutil.copy(cur_template, cur_fn)
-    print("Don't forget to create participants.tsv!")
+        if not os.path.exists(os.path.join(bids_path, cur_mf)):
+            cur_template = os.path.join(os.getcwd(), 'bids_templates', cur_mf)
+            cur_fn = os.path.join(bids_path, cur_mf)
+            shutil.copy(cur_template, cur_fn)
+        else:
+            print(cur_mf + " already exists in " + bids_path)
+    if not os.path.exists(os.path.join(bids_path, 'participants.tsv')):
+        print("Don't forget to create participants.tsv!")
 
-def bidsify_func_events():
+# def bidsify_func_events():
 
-
-## Taken care of by bidsify?
 # def bidsify_anat():
 
-# Taken care of by bidsify?
 # def bidsify_func_imgs():
 
-# Not used
-# def bidsify_fmap():
-
-# Taken care of by bidsify?
 # def bidsify_physio():

@@ -26,14 +26,13 @@ Fieldmap file name structire:   `sn_{DATE}_{TIME}_{ACQUISITION-NUMBER}_bomap_spl
 
 # Strategy
 
-Try Lukas Snoek's packages first instead of trying to deciphering every piece of info you need from the par/rec files to bidsify the dataset.  
+## Failed attempt to use `bidsify` package
 
-**For images**  
+Tried Lukas Snoek's `bidsify` first instead of trying to deciphering every piece of info you need from the par/rec files to bidsify the dataset.  
+
 https://github.com/NILAB-UvA/bidsify  
 using the Docker image   
 https://hub.docker.com/r/lukassnoek/bidsify  
-
-Command to run it in the container but without installing `bidsify` locally and using its `-D` flag to run the container
 
 ```
 export CONFIG_PATH=/Users/zeynepenkavi/Documents/RangelLab/NovelVsRepeated/fmri/preprocessing/01_bidsify
@@ -43,20 +42,34 @@ export BIDS_PATH=/Users/zeynepenkavi/Downloads/overtrained_decisions_bidsfmri
 docker run --rm -it -v $CONFIG_PATH:/config -v $RAW_PATH:/raw -v $BIDS_PATH:/bids lukassnoek/bidsify:0.3.7 bidsify -c /config/config.yml -d /raw -o /bids -v
 ```
 
+But kept running into errors and couldn't get it to work out of the box. Instead went through the package code and identified the useful functions for my purposes:  
+
+- main > bidsify > **_process_directory** > **convert_mri** > **_get_extra_info_from_par_header**  
+  `convert_mri` builds the `dcm2niix` command which looks something like:  
+
+  ```
+  dcm2niix -ba y -z y -f outputname /inputdir
+  ```
+
+  `dcm2niix` flags: `-ba` is for anonymized BIDS sidecars, `-z` is for different compressions and `-f` for file name.   
+
+  `_get_extra_info_from_par_header` corrects the PAR headers to have the correct number of volumes for the run instead of max number of volumes that is there by default. In this dataset it shouldn't remove any volumes but just correct the header.  
+
+- main > bidsify > **_add_missing_BIDS_metadata_and_save_to_disk**  
+adds metadata to sidecars specified in the `metadata` section of `config.yml`. For functional files this includes `TaskName` and  `SliceEncodingDirection`. If you only use a selection of the `bidsify` functions then you'll have to make sure to add these sections later to pass the bidsvalidator
+
+## My own `dcm2niix` + `bidsify_helpers`
+
+Since I couldn't get `bidsify` to work I began using the docker image to interactively work through my own combination of `dcm2niix` and other helper code to reorganize data.
+
+```
+export RAW_PATH=/Users/zeynepenkavi/Downloads/overtrained_decisions_rawfmri
+
+docker run --rm -it -v $RAW_PATH:/raw lukassnoek/bidsify:0.3.7 sh
+dcm2niix -ba y -z n /raw
+```
+
+Additional fields for sidecars: `TaskName`, `SliceEncodingDirection`, `SliceTiming` (the last two are not required for the validator, however, without them slice timing correction can't be done.)
+
 **For physio**
 https://github.com/lukassnoek/scanphyslog2bids  
-
-Not having a lot of luck getting bidsify to work out of the box. Going through the code currently the useful functions are:
-
-- main > bidsify > **_process_directory** > **convert_mri** > **_get_extra_info_from_par_header**
-  `convert_mri builts` the `dcm2niix` command which looks something like:
-
-  ```
-  dcm2niix -ba y -z y -f %s %s
-  dcm2niix -ba y -z i -f %s %s
-  dcm2niix -ba y -z n -f %s %s
-  ```
-
-  `_get_extra_info_from_par_header` corrects the PAR headers to have the correct number of volumes for the run instead of max number of volumes that is there by default.
-
-- main > bidsify > **_add_missing_BIDS_metadata_and_save_to_disk**

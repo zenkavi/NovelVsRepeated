@@ -1,6 +1,6 @@
 options:
   mri_ext: PAR
-  debug: False
+  debug: True
   n_cores: 4
   subject_stem: sub
   deface: False
@@ -8,4 +8,20 @@ options:
   out_dir: bids
 
 mappings:
+  bold: _fmri
   T1w: _t1w3danat
+  physio: scanphyslog
+
+func:
+  yn-task1:
+    id: run1
+    task: yes-no
+    run: 1
+  yn-task2:
+    id: run2
+    task: yes-no
+    run: 2
+  bc-task:
+    id: run3
+    task: binary-choice
+    run: 3
