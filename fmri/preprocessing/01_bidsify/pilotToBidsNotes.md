@@ -42,7 +42,7 @@ export BIDS_PATH=/Users/zeynepenkavi/Downloads/overtrained_decisions_bidsfmri
 docker run --rm -it -v $CONFIG_PATH:/config -v $RAW_PATH:/raw -v $BIDS_PATH:/bids lukassnoek/bidsify:0.3.7 bidsify -c /config/config.yml -d /raw -o /bids -v
 ```
 
-But kept running into errors and couldn't get it to work out of the box. Instead went through the package code and identified the useful functions for my purposes:  
+But kept running into errors and couldn't get it to work out of the box. Instead I went through the package code and identified the useful functions for my purposes:  
 
 - main > bidsify > **_process_directory** > **convert_mri** > **_get_extra_info_from_par_header**  
   `convert_mri` builds the `dcm2niix` command which looks something like:  
@@ -69,7 +69,32 @@ docker run --rm -it -v $RAW_PATH:/raw lukassnoek/bidsify:0.3.7 sh
 dcm2niix -ba y -z n /raw
 ```
 
+`dcm2niix` is a bit of blunt knife if you don't point it in the right direction.  
+It works on all par/rec/nii files it finds in the directory *including all the subdirectories* and all outputs are placed in the top level directory (e.g. using the command above everything found in `raw/sub-601/ses-01`, `raw/sub-601/ses-02` etc are transformed and placed into `/raw`).  
+
+### Naming
+
+Naming-wise  ...
+
+by default `dcm2niix` converts ... to ...
+I want ...
+
+### Additional fields for sidecars
+
 Additional fields for sidecars: `TaskName`, `SliceEncodingDirection`, `SliceTiming` (the last two are not required for the validator, however, without them slice timing correction can't be done.)
 
-**For physio**
+Useful information re slice timing and slice encoding direction for Philips data:  
+https://neurostars.org/t/deriving-slice-timing-order-from-philips-par-rec-and-console-information/17688  
+https://neurostars.org/t/bids-fmriprep-specify-phase-encoding-direction-with-respect-to-qform-orientation-in-nifti-header/19800/2  
+
+In the sidecars for the pilot data `SliceTiming` is defined as an array of 42 increasing values equally spaced between 0 and TR 2.49 secs. They are the same for all functional runs of all three subjects. These should indicate when each of the 42 slabs were recorded for each TR.  
+
+For this information to be useful I also need `SliceEncodingDirection`. Based on the PAR header the axis is `RL`. This is also what the pilot data sidecars have as the `PrepDirection` field, although this is not a valid BIDS field and it is not useful for BIDS-apps like fmriprep. Based on the above threads this axis corresponds to `i` for the `SliceEncodingDirection` in RAS orientation. But I also need to know the polarity (i.e. if it is `i` for LR or `i-` for RL).  
+
+The PAR files and pilot BIDS indicated RL, and the Nifti header has `sform_xorient` and `qform_xorient` of "Right-to-Left" as well. But `taskfmri_preprocessingSPM_func.m` L147-165 indicates ascending (`spm.temporal.st.prefix = 'a'`) and continous slices (`spm.temporal.st.so = (1:42)`)
+and based on the [SPM wiki](https://en.wikibooks.org/wiki/SPM/Slice_Timing#Philips_scanners) ascending single package on this axis is left to right.  
+
+
+### Physio
+
 https://github.com/lukassnoek/scanphyslog2bids  
