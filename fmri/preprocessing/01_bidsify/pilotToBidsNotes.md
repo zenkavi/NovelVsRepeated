@@ -66,7 +66,7 @@ Since I couldn't get `bidsify` to work I began using the docker image to interac
 export RAW_PATH=/Users/zeynepenkavi/Downloads/overtrained_decisions_rawfmri
 
 docker run --rm -it -v $RAW_PATH:/raw lukassnoek/bidsify:0.3.7 sh
-dcm2niix -ba y -z n /raw
+dcm2niix -ba y -z y /raw
 ```
 
 `dcm2niix` is a bit of blunt knife if you don't point it in the right direction.  
@@ -74,10 +74,12 @@ It works on all par/rec/nii files it finds in the directory *including all the s
 
 ### Naming
 
-Naming-wise  ...
+Raw --> default `dcm2niix` output --> BIDS  
 
-by default `dcm2niix` converts ... to ...
-I want ...
+sn_08092021_125537_3_1_fmri_run1_split.nii --> raw_fMRI_Run1_splitSENSE_20210908125537_3.nii  --> sub-601_ses-01_task-yes-no_acq-03_run-01_bold.nii.gz  
+
+sn_08092021_133855_8_1_t1w3danat_4_real.nii --> raw_T1w3DAnat_4_Realign_111_v01SE_20210908133855_8.nii --> sub-601_ses-01_acq-08_T1w.nii.gz  
+
 
 ### Additional fields for sidecars
 
@@ -95,6 +97,17 @@ The PAR files and pilot BIDS indicated RL, and the Nifti header has `sform_xorie
 and based on the [SPM wiki](https://en.wikibooks.org/wiki/SPM/Slice_Timing#Philips_scanners) ascending single package on this axis is left to right.  
 
 
+### Events
+
+sub-601_ses-01_task-yes-no_acq-03_run-01_events.json
+sub-601_ses-01_task-yes-no_acq-03_run-01_events.tsv
+sub-601_ses-01_task-yes-no_acq-05_run-02_events.json
+sub-601_ses-01_task-yes-no_acq-05_run-02_events.tsv
+sub-601_ses-01_task-binary_acq-07-choice_run-03_events.json
+sub-601_ses-01_task-binary_acq-07-choice_run-03_events.tsv
+
 ### Physio
 
 https://github.com/lukassnoek/scanphyslog2bids  
+sub-<label>[_ses-<label>]_task-<label>[_acq-<label>][_ce-<label>][_rec-<label>][_dir-<label>][_run-<index>][_recording-<label>]_physio.json
+sub-<label>[_ses-<label>]_task-<label>[_acq-<label>][_ce-<label>][_rec-<label>][_dir-<label>][_run-<index>][_recording-<label>]_physio.tsv.gz
