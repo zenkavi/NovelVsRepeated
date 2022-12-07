@@ -80,6 +80,25 @@ sn_08092021_125537_3_1_fmri_run1_split.nii --> raw_fMRI_Run1_splitSENSE_20210908
 
 sn_08092021_133855_8_1_t1w3danat_4_real.nii --> raw_T1w3DAnat_4_Realign_111_v01SE_20210908133855_8.nii --> sub-601_ses-01_acq-08_T1w.nii.gz  
 
+### Interactive testing
+
+```
+export CODE_PATH=/Users/zeynepenkavi/Documents/RangelLab/NovelVsRepeated/fmri/preprocessing/01_bidsify
+export RAW_PATH=/Users/zeynepenkavi/Downloads/overtrained_decisions_rawfmri
+export BIDS_PATH=/Users/zeynepenkavi/Downloads/overtrained_decisions_bidsfmri
+
+docker run --rm -it -v $CODE_PATH:/code -v $RAW_PATH:/raw -v $BIDS_PATH:/bids -w /code lukassnoek/bidsify:0.3.7 sh
+
+python
+import os
+import shutil
+from bidsify_helpers import bidsify_func_imgs
+
+subnums = ['601', '609', '611', '619', '621', '629']
+sessions = ['01', '02', '03']
+
+bidsify_func_imgs()
+```
 
 ### Additional fields for sidecars
 
