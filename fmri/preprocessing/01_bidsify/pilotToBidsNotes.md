@@ -110,11 +110,34 @@ https://neurostars.org/t/bids-fmriprep-specify-phase-encoding-direction-with-res
 
 In the sidecars for the pilot data `SliceTiming` is defined as an array of 42 increasing values equally spaced between 0 and TR 2.49 secs. They are the same for all functional runs of all three subjects. These should indicate when each of the 42 slabs were recorded for each TR.  
 
-For this information to be useful I also need `SliceEncodingDirection`. Based on the PAR header the axis is `RL`. This is also what the pilot data sidecars have as the `PrepDirection` field, although this is not a valid BIDS field and it is not useful for BIDS-apps like fmriprep. Based on the above threads this axis corresponds to `i` for the `SliceEncodingDirection` in RAS orientation. But I also need to know the polarity (i.e. if it is `i` for LR or `i-` for RL).  
+BIDS recommends the `SliceEncodingDirection` parameter in metadata when providing `SliceTiming`. Based on the PAR header the "preparation direction" is `RL`. This is also what the pilot data sidecars have as the `PrepDirection` field, although this is not a valid BIDS field and it is not useful for BIDS-apps like fmriprep. Based on the above threads this axis corresponds to `i` for the `SliceEncodingDirection` in RAS orientation. But I also need to know the polarity (i.e. if it is `i` for LR or `i-` for RL).  
 
-The PAR files and pilot BIDS indicated RL, and the Nifti header has `sform_xorient` and `qform_xorient` of "Right-to-Left" as well. But `taskfmri_preprocessingSPM_func.m` L147-165 indicates ascending (`spm.temporal.st.prefix = 'a'`) and continous slices (`spm.temporal.st.so = (1:42)`)
+The PAR files and pilot BIDS indicated `RL`, and the Nifti header has `sform_xorient` and `qform_xorient` of `Right-to-Left` as well. But `taskfmri_preprocessingSPM_func.m` L147-165 indicates ascending (`spm.temporal.st.prefix = 'a'`) and continous slices (`spm.temporal.st.so = (1:42)`)
 and based on the [SPM wiki](https://en.wikibooks.org/wiki/SPM/Slice_Timing#Philips_scanners) ascending single package on this axis is left to right.  
 
+*What's the problem and what do I know?*
+
+- Todd says EPIs are continous ascending and Anterior to Posterior phase encoding but fieldmaps are right to left.  
+- The matlab script `taskfmri_preprocessingSPM_func.m` doesn't say anything explicit about slice encoding direction. I assumed it would be right-left axis dues to the `PrepDirection` field.  
+- The first post linked above mentions a `Slice scan order = “HF”;` field from a console report that they use to infer the slice encoding direction. I haven't been able to locate such a field in the par files.   
+- Do the par files for the fmap and anatomicals also have the same Prepdirection? Yes, so it's unclear whether this parameter refers to anything specific regarding the functional files.
+- Do I even need the SliceEncodingDirection especially if I'm not using fieldmaps (that would have required me to specify a `PhaseEncodingDirection` which might have taken precedence over the SliceEncodingDirection for slice timing correction)? No, based on the fmriprep documentation this doesn't seem required.  
+- **Does 42 slice with 3 mm thickness in AP direction make sense to capture the whole brain**  The average brain dimensions are 140 x 167 x 93 (w x l x h)
+
+Mike's comments:
+
+```
+The normal to the slice planes (2D multislice images) is superior-inferior (or inferior-superior). The slices look like they might have been AC-PC aligned at the time of scanning.
+
+So very similar to what most groups do routinely. Phase encoding is definitely AP/PA
+
+Also, the 3D image dimensions are 80 x 80 x 42. There are very few situations where you wouldn't do this with 42 slices with 80 x 80 in-plane
+```
+
+To do:
+Skim two MR Physics images as a refresher and confirm understanding
+Respond to Todd
+Add top level metadata with `SliceTiming`, `RepetitionTime` and `TaskName` for both tasks and move on.
 
 ### Events
 
