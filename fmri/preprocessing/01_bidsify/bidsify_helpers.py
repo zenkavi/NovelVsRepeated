@@ -16,7 +16,7 @@ sessions = ['01', '02', '03']
 
 data_types = ['anat', 'func']
 
-misc_files = ['dataset_description.json', 'participants.json', 'README', 'CHANGES', 'LICENSE']
+misc_files = ['dataset_description.json', 'participants.json', 'README', 'CHANGES']
 
 def make_bids_dirs(bids_path_ = bids_path, subnums_ = subnums, sessions_ = sessions, data_types_ = data_types):
     for cur_sub in subnums_:
@@ -39,7 +39,7 @@ def add_misc_bids_files(bids_path_ = bids_path, misc_files_ = misc_files):
 
 # Note: This is written to work on already minimally organized data where each subjects' data is placed into bids-compliant subject and session directories
 # Note: The default arguments are specified as how they might be mounted with a docker image (unlike the local paths used in the previous functions above)
-def bidsify_func_imgs(raw_path_ = '/raw', bids_path_ = '/bids', subnums_ = subnums, sessions_ = sessions, func_key_ = 'fmri', task_name_dict_ = {'Run1' : 'yes-no', 'Run2': 'yes-no', 'Run3': 'binary-choice'}):
+def bidsify_func_imgs(raw_path_ = '/raw', bids_path_ = '/bids', subnums_ = subnums, sessions_ = sessions, func_key_ = 'fmri', task_name_dict_ = {'Run1' : 'yesNo', 'Run2': 'yesNo', 'Run3': 'binaryChoice'}):
 
     for cur_sub in subnums_:
         for cur_ses in sessions_:
@@ -63,6 +63,7 @@ def bidsify_func_imgs(raw_path_ = '/raw', bids_path_ = '/bids', subnums_ = subnu
                 shutil.copy(os.path.join(cur_raw_dir, cur_func_file), os.path.join(cur_bids_dir, cur_func_file))
 
             # run dcm2niix
+            print("Running dcm2niix for %s ..."%(cur_bids_dir))
             os.system('dcm2niix -ba y -z y %s' %(cur_bids_dir))
 
             # remove par/rec files from bids_dir (their names will be unaffected from the dcm2niix conversion)
@@ -72,17 +73,14 @@ def bidsify_func_imgs(raw_path_ = '/raw', bids_path_ = '/bids', subnums_ = subnu
             conv_out = os.listdir(cur_bids_dir)
             for i in conv_out:
                 this_task = task_name_dict_.get(i.split('_')[2])
-                this_acq_num = i.split('_')[5].split('.')[0]
+                this_acq_num = ['0'+s for s in i.split('_')[5].split('.')[0] if s.isdigit()][0]
                 this_runnum = ['0'+s for s in i.split('_')[2] if s.isdigit()][0]
                 this_ext = i.split('_')[5].split('.')[1]
                 if this_ext == 'nii':
                     this_ext = 'nii.gz'
                 new_name = 'sub-' + cur_sub + '_ses-' + cur_ses + '_task-' + this_task + '_acq-' + this_acq_num + '_run-' + this_runnum + '_bold.' + this_ext
+                print("Renaming " + i + " to " + new_name + "...")
                 os.rename(os.path.join(cur_bids_dir, i), os.path.join(cur_bids_dir, new_name))
-
-
-# add extra fields to sidecars: TaskName, SliceTiming
-def add_func_metadata(bids_path_ = '/bids'):
 
 # Note: This is written to work on already minimally organized data where each subjects' data is placed into bids-compliant subject and session directories
 # Note: The default arguments are specified as how they might be mounted with a docker image (unlike the local paths used in the previous functions above)
@@ -110,6 +108,7 @@ def bidsify_anat_imgs(raw_path_ = '/raw', bids_path_ = '/bids', subnums_ = subnu
                 shutil.copy(os.path.join(cur_raw_dir, cur_anat_file), os.path.join(cur_bids_dir, cur_anat_file))
 
             # run dcm2niix
+            print("Running dcm2niix for %s ..."%(cur_bids_dir))
             os.system('dcm2niix -ba y -z y %s' %(cur_bids_dir))
 
             # remove par/rec files from bids_dir (their names will be unaffected from the dcm2niix conversion)
@@ -119,15 +118,21 @@ def bidsify_anat_imgs(raw_path_ = '/raw', bids_path_ = '/bids', subnums_ = subnu
             conv_out = os.listdir(cur_bids_dir)
             for i in conv_out:
                 this_contr = contr_name_dict_.get(i.split('_')[1])
-                this_acq_num = i.split('_')[7].split('.')[0]
+                this_acq_num = ['0'+s for s in i.split('_')[7].split('.')[0] if s.isdigit()][0]
                 this_ext = i.split('_')[7].split('.')[1]
                 if this_ext == 'nii':
                     this_ext = 'nii.gz'
-                    # sub-601_ses-01_acq-08_T1w.nii.gz
                 new_name = 'sub-' + cur_sub + '_ses-' + cur_ses + '_acq-' + this_acq_num + '_' + this_contr + '.' + this_ext
+                print("Renaming " + i + " to " + new_name + "...")
                 os.rename(os.path.join(cur_bids_dir, i), os.path.join(cur_bids_dir, new_name))
 
-# The sent example looks like it just copies the log file and removes the header 
+
+# add extra fields to sidecars: TaskName, SliceTiming
+# Instead of doing this for all subjects and sessions added one top level sidecar for each task manually
+# def add_func_metadata(bids_path_ = '/bids'):
+
+# The sent example looks like it just copies the log file and removes the header
 # def bidsify_physio():
 
 # def bidsify_func_events():
+# onset duration amplitude

@@ -92,12 +92,14 @@ docker run --rm -it -v $CODE_PATH:/code -v $RAW_PATH:/raw -v $BIDS_PATH:/bids -w
 python
 import os
 import shutil
-from bidsify_helpers import bidsify_func_imgs
+from bidsify_helpers import bidsify_func_imgs, bidsify_anat_imgs
 
 subnums = ['601', '609', '611', '619', '621', '629']
 sessions = ['01', '02', '03']
 
+# If you run these functions without arguments they use the defaults specified in the script they are defined (ie. specifying subnums above doesn't matter)
 bidsify_func_imgs()
+bidsify_anat_imgs()
 ```
 
 ### Additional fields for sidecars
@@ -115,16 +117,16 @@ BIDS recommends the `SliceEncodingDirection` parameter in metadata when providin
 The PAR files and pilot BIDS indicated `RL`, and the Nifti header has `sform_xorient` and `qform_xorient` of `Right-to-Left` as well. But `taskfmri_preprocessingSPM_func.m` L147-165 indicates ascending (`spm.temporal.st.prefix = 'a'`) and continous slices (`spm.temporal.st.so = (1:42)`)
 and based on the [SPM wiki](https://en.wikibooks.org/wiki/SPM/Slice_Timing#Philips_scanners) ascending single package on this axis is left to right.  
 
-*What's the problem and what do I know?*
+*Confusion and reaching out to Todd for clarification:*
 
-- Todd says EPIs are continous ascending and Anterior to Posterior phase encoding but fieldmaps are right to left.  
+- Todd says EPIs are continous ascending and Anterior to Posterior **phase encoding** but fieldmaps are right to left.  
 - The matlab script `taskfmri_preprocessingSPM_func.m` doesn't say anything explicit about slice encoding direction. I assumed it would be right-left axis dues to the `PrepDirection` field.  
 - The first post linked above mentions a `Slice scan order = “HF”;` field from a console report that they use to infer the slice encoding direction. I haven't been able to locate such a field in the par files.   
 - Do the par files for the fmap and anatomicals also have the same Prepdirection? Yes, so it's unclear whether this parameter refers to anything specific regarding the functional files.
-- Do I even need the SliceEncodingDirection especially if I'm not using fieldmaps (that would have required me to specify a `PhaseEncodingDirection` which might have taken precedence over the SliceEncodingDirection for slice timing correction)? No, based on the fmriprep documentation this doesn't seem required.  
-- **Does 42 slice with 3 mm thickness in AP direction make sense to capture the whole brain**  The average brain dimensions are 140 x 167 x 93 (w x l x h)
+- Do I even need the `SliceEncodingDirection` especially if I'm not using fieldmaps (that would have required me to specify a `PhaseEncodingDirection` which might have taken precedence over the `SliceEncodingDirection` for slice timing correction)? No, based on the fmriprep documentation this doesn't seem required.  
+- 42 slices with 3 mm thickness in AP *slice encoding* direction would *not* make sense to capture the whole brain. The average brain dimensions are 140 x 167 x 93 (w x l x h). The only dimension where this would capture the whole brain is superior-inferior. Slice encoding direction is not the same thing as phase encoding direction!
 
-Mike's comments:
+*Confusion and reaching out to Mike for clarification:*
 
 ```
 The normal to the slice planes (2D multislice images) is superior-inferior (or inferior-superior). The slices look like they might have been AC-PC aligned at the time of scanning.
@@ -134,10 +136,19 @@ So very similar to what most groups do routinely. Phase encoding is definitely A
 Also, the 3D image dimensions are 80 x 80 x 42. There are very few situations where you wouldn't do this with 42 slices with 80 x 80 in-plane
 ```
 
-To do:
-Skim two MR Physics images as a refresher and confirm understanding
-Respond to Todd
-Add top level metadata with `SliceTiming`, `RepetitionTime` and `TaskName` for both tasks and move on.
+TODO:
+- validator complains with only top level meta data so add slicetiming and task name to sub>ses level sidecars
+- check par files and remove any additional slices at the end of the scan so dcm2niix correctly converts all functional runs
+- add events files
+
+Manually removed incomplete slices from the end of these files:
+
+```
+sn_08092021_102613_6_1_fmri_run2_split.par
+sn_15092021_091932_5_1_fmri_run2_split.par
+sn_16092021_122306_7_1_fmri_run3_split.par
+sn_15092021_105445_7_1_fmri_run3_split.par
+```
 
 ### Events
 
