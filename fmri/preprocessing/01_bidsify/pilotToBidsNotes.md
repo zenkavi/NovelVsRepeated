@@ -136,10 +136,7 @@ So very similar to what most groups do routinely. Phase encoding is definitely A
 Also, the 3D image dimensions are 80 x 80 x 42. There are very few situations where you wouldn't do this with 42 slices with 80 x 80 in-plane
 ```
 
-TODO:
-- validator complains with only top level meta data so add slicetiming and task name to sub>ses level sidecars
-- check par files and remove any additional slices at the end of the scan so dcm2niix correctly converts all functional runs
-- add events files
+### Remove incomplete slices from `PAR` files
 
 Manually removed incomplete slices from the end of these files:
 

@@ -1,5 +1,7 @@
 import os
 import shutil
+import json
+import glob
 
 # In this directory each session of each subject has its own directory that contains all the data that was collected in the scanner.
 # In addition to anatomical and functional data these directories also include fieldmaps # (not used due to ambiguity regarding the TotalReadoutTime from Philips scanners) and another unidentified acquisition
@@ -128,8 +130,39 @@ def bidsify_anat_imgs(raw_path_ = '/raw', bids_path_ = '/bids', subnums_ = subnu
 
 
 # add extra fields to sidecars: TaskName, SliceTiming
-# Instead of doing this for all subjects and sessions added one top level sidecar for each task manually
-# def add_func_metadata(bids_path_ = '/bids'):
+SliceTiming = [0.0, 0.05833, 0.11666, 0.17499, 0.23332, 0.29165, 0.34998, 0.40831, 0.46664, 0.52497, 0.5833, 0.64163, 0.69996, 0.75829, 0.81662, 0.87495, 0.93328, 0.99161, 1.04994, 1.10827, 1.1666, 1.22493, 1.28326, 1.34159, 1.39992, 1.45825, 1.51658, 1.57491, 1.63324, 1.69157, 1.7499, 1.80823, 1.86656, 1.92489, 1.98322, 2.04155, 2.09988, 2.15821, 2.21654, 2.27487, 2.3332, 2.39153]
+# Instead of doing this for all subjects and sessions added one top level sidecar for each task manually but validator complains just with that so adding to all
+def add_func_metadata(bids_path_ = '/bids', add_fields = {'yesNo': {'TaskName': 'yesNo', 'SliceTiming': SliceTiming}, 'binaryChoice': {'TaskName': 'binaryChoice', 'SliceTiming': SliceTiming}}):
+
+    all_func_sidecars = glob.glob(bids_path_ + '/*/*/func/*_bold.json')
+
+    for cur_sidecar in all_func_sidecars:
+        f = open(cur_sidecar,"r")
+        data = f.read()
+        tmp = json.loads(data)
+
+        if 'SliceTiming' in tmp.keys():
+            print('Sidecar contains SliceTiming. Moving onto next. (%s)' %(os.path.basename(cur_sidecar)))
+            continue
+
+        else:
+            if 'yesNo' in os.path.basename(cur_sidecar):
+                cur_task = 'yesNo'
+            else:
+                cur_task = 'binaryChoice'
+            print('Determined task name for %s as %s'%(os.path.basename(cur_sidecar), cur_task))
+
+            print('Updating sidecar...')
+            tmp.update(add_fields[cur_task])
+
+            print('Saving updated sidecar...')
+            tempfile = os.path.join(os.path.dirname(cur_sidecar), 'tmp'+str(random.randint(0, 1000))+'.json')
+            with open(tempfile, 'w') as f:
+                json.dump(tmp, f, indent=4)
+
+            # rename temporary file replacing old file
+            print('Replacing old sidecar...')
+            os.rename(tempfile, cur_sidecar)
 
 # The sent example looks like it just copies the log file and removes the header
 # def bidsify_physio():
