@@ -165,18 +165,28 @@ def add_func_metadata(bids_path_ = '/bids', add_fields = {'yesNo': {'TaskName': 
             print('Replacing old sidecar...')
             os.rename(tempfile, cur_sidecar)
 
-def copy_func_timing(orig_path_ = '/alldata', raw_path_ = '/raw', subj_dict_ = {'Subj_': 'sub-'}, ses_dict_ = {'day_3': 'ses-01', 'day_7': 'ses-02', 'day_11': 'ses-03'}):
+def copy_func_timing(orig_path_ = '/alldata/data_task/pilot5_fmri_1/data_experiment/results', raw_path_ = '/raw', ses_dict_ = {'day3': 'ses-01', 'day7': 'ses-02', 'day11': 'ses-03'}):
 
-    # day3mats
-    # day7mats
-    # day11mats
+    task_mats = glob.glob(orig_path_ + '/*/*/task*.mat')
 
     # loop through all mats
-    # read it in
-    # sio.loadmat()
-    # check if it has a 'timing' object
-    # if yes determine the correct raw_path_ and copy it there
-    # else continue
+    for cur_mat in task_mats:
+        # read it in
+        tmp = sio.loadmat(cur_mat)
+        # check if it has a 'timing' object
+        if 'timing' in tmp.keys():
+            # if yes
+            #determine the correct raw_path_  by splitting the file name and extracting the subject and session info
+            cur_fn = os.path.basename(cur_mat)
+            cur_sub = cur_fn.split('_')[1]
+            cur_sub = cur_sub.replace('j', '-')
+            cur_ses = cur_fn.split('_')[2].split('.')[0]
+            cur_ses = ses_dict_.get(cur_ses)
+            cur_raw = os.path.join(raw_path_, cur_sub, cur_ses)
+            # copy it there
+            shutil.copy(cur_mat, cur_raw)
+        else:
+            continue
 
 def bidsify_func_events(raw_path_ = '...', bids_path_ = '...', ):
 # onset duration task_type [amplitude]
