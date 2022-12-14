@@ -2,6 +2,7 @@ import os
 import shutil
 import json
 import glob
+import scipy.io as sio
 
 # In this directory each session of each subject has its own directory that contains all the data that was collected in the scanner.
 # In addition to anatomical and functional data these directories also include fieldmaps # (not used due to ambiguity regarding the TotalReadoutTime from Philips scanners) and another unidentified acquisition
@@ -164,8 +165,22 @@ def add_func_metadata(bids_path_ = '/bids', add_fields = {'yesNo': {'TaskName': 
             print('Replacing old sidecar...')
             os.rename(tempfile, cur_sidecar)
 
+def copy_func_timing(orig_path_ = '/alldata', raw_path_ = '/raw', subj_dict_ = {'Subj_': 'sub-'}, ses_dict_ = {'day_3': 'ses-01', 'day_7': 'ses-02', 'day_11': 'ses-03'}):
+
+    # day3mats
+    # day7mats
+    # day11mats
+
+    # loop through all mats
+    # read it in
+    # sio.loadmat()
+    # check if it has a 'timing' object
+    # if yes determine the correct raw_path_ and copy it there
+    # else continue
+
+def bidsify_func_events(raw_path_ = '...', bids_path_ = '...', ):
+# onset duration task_type [amplitude]
+
+
 # The sent example looks like it just copies the log file and removes the header
 # def bidsify_physio():
-
-# def bidsify_func_events():
-# onset duration amplitude
