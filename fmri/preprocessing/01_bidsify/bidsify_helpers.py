@@ -1,6 +1,8 @@
 import glob
 import json
+import numpy as np
 import os
+import pandas as pd
 import random
 import scipy.io as sio
 import shutil
@@ -191,8 +193,15 @@ def copy_func_timing(orig_path_ = '/alldata/data_task/pilot5_fmri_1/data_experim
         else:
             continue
 
-# def bidsify_func_events(raw_path_ = '/raw', bids_path_ = 'bids', ):
-# onset duration task_type [amplitude]
+def bidsify_func_events(raw_path_ = '/raw', bids_path_ = 'bids', ):
+# onset duration trial_type [amplitude]
+    timing_mats = glob.glob(raw_data_path + '/*/*/*.mat')
+
+    for cur_timing in timing_mats:
+        tmp = sio.loadmat(cur_timing, squeeze_me=True)
+        timing = tmp['timing']
+
+        if len(timing.dtype)>6:
 
 
 # The sent example looks like it just copies the log file and removes the header
