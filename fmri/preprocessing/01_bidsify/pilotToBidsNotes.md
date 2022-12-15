@@ -76,11 +76,27 @@ It works on all par/rec/nii files it finds in the directory *including all the s
 
 Raw --> default `dcm2niix` output --> BIDS  
 
-sn_08092021_125537_3_1_fmri_run1_split.nii --> raw_fMRI_Run1_splitSENSE_20210908125537_3.nii  --> sub-601_ses-01_task-yes-no_acq-03_run-01_bold.nii.gz  
+sn_08092021_125537_3_1_fmri_run1_split.nii --> raw_fMRI_Run1_splitSENSE_20210908125537_3.nii  --> sub-601_ses-01_task-yesNo_run-01_bold.nii.gz  
 
-sn_08092021_133855_8_1_t1w3danat_4_real.nii --> raw_T1w3DAnat_4_Realign_111_v01SE_20210908133855_8.nii --> sub-601_ses-01_acq-08_T1w.nii.gz  
+sn_08092021_133855_8_1_t1w3danat_4_real.nii --> raw_T1w3DAnat_4_Realign_111_v01SE_20210908133855_8.nii --> sub-601_ses-01_T1w.nii.gz  
 
-### Interactive testing
+sub-601_ses-01_task-yesNo_run-01_events.tsv
+sub-601_ses-01_task-binaryChoice_run-03_events.json
+
+### Remove incomplete slices from `PAR` files
+
+For `dcm2niix` to work on all functional runs I manually removed incomplete slices from the end of these files:
+
+```
+sn_08092021_102613_6_1_fmri_run2_split.par
+sn_15092021_091932_5_1_fmri_run2_split.par
+sn_16092021_122306_7_1_fmri_run3_split.par
+sn_15092021_105445_7_1_fmri_run3_split.par
+```
+
+### Interactive testing of bidsify_helpers
+
+Using the `bidsify` docker image
 
 ```
 export CODE_PATH=/Users/zeynepenkavi/Documents/RangelLab/NovelVsRepeated/fmri/preprocessing/01_bidsify
@@ -92,14 +108,15 @@ docker run --rm -it -v $CODE_PATH:/code -v $RAW_PATH:/raw -v $BIDS_PATH:/bids -w
 python
 import os
 import shutil
-from bidsify_helpers import bidsify_func_imgs, bidsify_anat_imgs
+from bidsify_helpers import bidsify_func_imgs, bidsify_anat_imgs, add_func_metadata
 
 subnums = ['601', '609', '611', '619', '621', '629']
 sessions = ['01', '02', '03']
 
 # If you run these functions without arguments they use the defaults specified in the script they are defined (ie. specifying subnums above doesn't matter)
-bidsify_func_imgs()
 bidsify_anat_imgs()
+bidsify_func_imgs()
+add_func_metadata()
 ```
 
 ### Additional fields for sidecars
@@ -136,28 +153,23 @@ So very similar to what most groups do routinely. Phase encoding is definitely A
 Also, the 3D image dimensions are 80 x 80 x 42. There are very few situations where you wouldn't do this with 42 slices with 80 x 80 in-plane
 ```
 
-### Remove incomplete slices from `PAR` files
-
-Manually removed incomplete slices from the end of these files:
-
-```
-sn_08092021_102613_6_1_fmri_run2_split.par
-sn_15092021_091932_5_1_fmri_run2_split.par
-sn_16092021_122306_7_1_fmri_run3_split.par
-sn_15092021_105445_7_1_fmri_run3_split.par
-```
-
 ### Events
 
-sub-601_ses-01_task-yes-no_acq-03_run-01_events.json
-sub-601_ses-01_task-yes-no_acq-03_run-01_events.tsv
-sub-601_ses-01_task-yes-no_acq-05_run-02_events.json
-sub-601_ses-01_task-yes-no_acq-05_run-02_events.tsv
-sub-601_ses-01_task-binary_acq-07-choice_run-03_events.json
-sub-601_ses-01_task-binary_acq-07-choice_run-03_events.tsv
+BIDS Columns:  
+- onset  
+- duration  
+- trial_type: fixCross, stim, feedback  
+
+Figure out from the matlab timing files order of events:
+- Available fields: Begin, onset, feedbackOn, crossStart, crossEnd, End
+- Read mat file in python, arrange all into one df with time in one column and field name in another, order by time.
+- **Note: Late run of YN task contains timing for BOTH runs!**
 
 ### Physio
 
+The sent example looks like it just copies the log file and removes the header  
+
+One possibly helpful package:  
 https://github.com/lukassnoek/scanphyslog2bids  
 sub-<label>[_ses-<label>]_task-<label>[_acq-<label>][_ce-<label>][_rec-<label>][_dir-<label>][_run-<index>][_recording-<label>]_physio.json
 sub-<label>[_ses-<label>]_task-<label>[_acq-<label>][_ce-<label>][_rec-<label>][_dir-<label>][_run-<index>][_recording-<label>]_physio.tsv.gz

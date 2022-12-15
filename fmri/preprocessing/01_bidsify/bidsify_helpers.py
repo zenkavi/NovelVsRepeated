@@ -1,8 +1,9 @@
-import os
-import shutil
-import json
 import glob
+import json
+import os
+import random
 import scipy.io as sio
+import shutil
 
 # In this directory each session of each subject has its own directory that contains all the data that was collected in the scanner.
 # In addition to anatomical and functional data these directories also include fieldmaps # (not used due to ambiguity regarding the TotalReadoutTime from Philips scanners) and another unidentified acquisition
@@ -81,7 +82,8 @@ def bidsify_func_imgs(raw_path_ = '/raw', bids_path_ = '/bids', subnums_ = subnu
                 this_ext = i.split('_')[5].split('.')[1]
                 if this_ext == 'nii':
                     this_ext = 'nii.gz'
-                new_name = 'sub-' + cur_sub + '_ses-' + cur_ses + '_task-' + this_task + '_acq-' + this_acq_num + '_run-' + this_runnum + '_bold.' + this_ext
+                # new_name = 'sub-' + cur_sub + '_ses-' + cur_ses + '_task-' + this_task + '_acq-' + this_acq_num + '_run-' + this_runnum + '_bold.' + this_ext
+                new_name = 'sub-' + cur_sub + '_ses-' + cur_ses + '_task-' + this_task + '_run-' + this_runnum + '_bold.' + this_ext
                 print("Renaming " + i + " to " + new_name + "...")
                 os.rename(os.path.join(cur_bids_dir, i), os.path.join(cur_bids_dir, new_name))
 
@@ -125,7 +127,8 @@ def bidsify_anat_imgs(raw_path_ = '/raw', bids_path_ = '/bids', subnums_ = subnu
                 this_ext = i.split('_')[7].split('.')[1]
                 if this_ext == 'nii':
                     this_ext = 'nii.gz'
-                new_name = 'sub-' + cur_sub + '_ses-' + cur_ses + '_acq-' + this_acq_num + '_' + this_contr + '.' + this_ext
+                # new_name = 'sub-' + cur_sub + '_ses-' + cur_ses + '_acq-' + this_acq_num + '_' + this_contr + '.' + this_ext
+                new_name = 'sub-' + cur_sub + '_ses-' + cur_ses + '_' + this_contr + '.' + this_ext
                 print("Renaming " + i + " to " + new_name + "...")
                 os.rename(os.path.join(cur_bids_dir, i), os.path.join(cur_bids_dir, new_name))
 
@@ -188,7 +191,7 @@ def copy_func_timing(orig_path_ = '/alldata/data_task/pilot5_fmri_1/data_experim
         else:
             continue
 
-def bidsify_func_events(raw_path_ = '...', bids_path_ = '...', ):
+# def bidsify_func_events(raw_path_ = '/raw', bids_path_ = 'bids', ):
 # onset duration task_type [amplitude]
 
 
