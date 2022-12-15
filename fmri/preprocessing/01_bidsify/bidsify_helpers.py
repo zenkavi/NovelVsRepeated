@@ -193,15 +193,41 @@ def copy_func_timing(orig_path_ = '/alldata/data_task/pilot5_fmri_1/data_experim
         else:
             continue
 
-def bidsify_func_events(raw_path_ = '/raw', bids_path_ = 'bids', ):
+def bidsify_func_events(raw_path_ = '/raw', bids_path_ = '/bids'):
 # onset duration trial_type [amplitude]
     timing_mats = glob.glob(raw_data_path + '/*/*/*.mat')
 
     for cur_timing in timing_mats:
         tmp = sio.loadmat(cur_timing, squeeze_me=True)
         timing = tmp['timing']
+        timing_vals = timing.item()
 
         if len(timing.dtype)>6:
+            timing_keys = ['Begin', 'onset', 'feedbackOn', 'crossStart', 'crossEnd', 'End', 'session'] #session only exists for the later YN run
+            tmp_dict = dict(zip(timing_keys, timing_vals))
+            cut_dict = dict()
+            for k in timing_keys:
+                half_len = int(len(tmp_dict[k])/2)
+                cut_dict[k] = tmp_dict[k][-half_len:]
+        else:
+            timing_keys = ['Begin', 'onset', 'feedbackOn', 'crossStart', 'crossEnd', 'End']
+            cut_dict = dict(zip(timing_keys, timing_vals))
+
+        run_begin = float(cut_dict['Begin'])
+        run_end = float(cut_dict['End']) - run_begin
+        del cut_dict['Begin']
+        del cut_dict['End']
+        if 'session' in timing_keys:
+            del cut_dict['session']
+
+        timing_df = pd.DataFrame(cut_dict) - run_begin
+        stim_timing = pd.DataFrame({'onset': timing_df['onset'], 'duration':  timing_df['feedbackOn'] - timing_df['onset'], 'trial_type': 'stim'})
+        feedback_timing = pd.DataFrame({'onset': timing_df['feedbackOn'], 'duration':  np.concatenate([np.array(timing_df['crossStart'][1:]), [run_end]]) - timing_df['feedbackOn'], 'trial_type': 'feedback'})
+        cross_timing = pd.DataFrame({'onset': timing_df['crossStart'][1:], 'duration': timing_df['crossEnd'][1:] - timing_df['crossStart'][1:], 'trial_type': 'fixCross'})
+        run_events = pd.concat([stim_timing, feedback_timing, cross_timing]).sort_values(by=['onset']).reset_index(drop=True)
+
+
+
 
 
 # The sent example looks like it just copies the log file and removes the header
