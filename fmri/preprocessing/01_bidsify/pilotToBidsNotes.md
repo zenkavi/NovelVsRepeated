@@ -153,18 +153,6 @@ So very similar to what most groups do routinely. Phase encoding is definitely A
 Also, the 3D image dimensions are 80 x 80 x 42. There are very few situations where you wouldn't do this with 42 slices with 80 x 80 in-plane
 ```
 
-### Events
-
-BIDS Columns:  
-- onset  
-- duration  
-- trial_type: fixCross, stim, feedback  
-
-Figure out from the matlab timing files order of events:
-- Available fields: Begin, onset, feedbackOn, crossStart, crossEnd, End
-- Read mat file in python, arrange all into one df with time in one column and field name in another, order by time.
-- **Note: Late run of YN task contains timing for BOTH runs!**
-
 ### Physio
 
 The sent example looks like it just copies the log file and removes the header  

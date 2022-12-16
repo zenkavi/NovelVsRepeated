@@ -193,11 +193,13 @@ def copy_func_timing(orig_path_ = '/alldata/data_task/pilot5_fmri_1/data_experim
         else:
             continue
 
-def bidsify_func_events(raw_path_ = '/raw', bids_path_ = '/bids'):
+def bidsify_func_events(raw_path_ = '/raw', bids_path_ = '/bids', ses_dict_ = {'day3': 'ses-01', 'day7': 'ses-02', 'day11': 'ses-03'}, task_name_dict_ = {'taskYN': 'yesNo', 'taskBC': 'binaryChoice'}, run_dict_ = {'session2': 'run-01', 'session3': 'run-01', 'session4': 'run-02'}):
 # onset duration trial_type [amplitude]
     timing_mats = glob.glob(raw_data_path + '/*/*/*.mat')
 
     for cur_timing in timing_mats:
+        print("Processing: %s"%os.path.basename(cur_timing))
+
         tmp = sio.loadmat(cur_timing, squeeze_me=True)
         timing = tmp['timing']
         timing_vals = timing.item()
@@ -226,8 +228,18 @@ def bidsify_func_events(raw_path_ = '/raw', bids_path_ = '/bids'):
         cross_timing = pd.DataFrame({'onset': timing_df['crossStart'][1:], 'duration': timing_df['crossEnd'][1:] - timing_df['crossStart'][1:], 'trial_type': 'fixCross'})
         run_events = pd.concat([stim_timing, feedback_timing, cross_timing]).sort_values(by=['onset']).reset_index(drop=True)
 
+        split_cur_timing = os.path.basename(cur_timing).split('.')[0].split('_')
+        cur_sub = split_cur_timing[1][-3:]
+        cur_ses = ses_dict_[split_cur_timing[2]]
+        cur_task = task_name_dict_[split_cur_timing[0]]
+        if cur_task == "binaryChoice":
+            cur_run = 'run-03'
+        else:
+            cur_run = run_dict_[split_cur_timing[3]]
+        cur_bids_fn = 'sub-' + cur_sub + '/'+ cur_ses + '/func/sub-' + cur_sub + '_' + cur_ses + '_task-' + cur_task + '_' + cur_run + '_events.tsv'
 
-
+        print("Saving: %s"%(cur_bids_fn))
+        run_events.to_csv(os.path.join(bids_path_, cur_bids_fn), sep="\t", index=False)
 
 
 # The sent example looks like it just copies the log file and removes the header
