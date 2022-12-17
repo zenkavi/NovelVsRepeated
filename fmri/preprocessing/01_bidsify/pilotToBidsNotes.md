@@ -157,7 +157,10 @@ Also, the 3D image dimensions are 80 x 80 x 42. There are very few situations wh
 
 The sent example looks like it just copies the log file and removes the header  
 
-One possibly helpful package:  
-https://github.com/lukassnoek/scanphyslog2bids  
-sub-<label>[_ses-<label>]_task-<label>[_acq-<label>][_ce-<label>][_rec-<label>][_dir-<label>][_run-<index>][_recording-<label>]_physio.json
-sub-<label>[_ses-<label>]_task-<label>[_acq-<label>][_ce-<label>][_rec-<label>][_dir-<label>][_run-<index>][_recording-<label>]_physio.tsv.gz
+# Move to S3
+
+```
+export BIDS_PATH=/Users/zeynepenkavi/Downloads/overtrained_decisions_bidsfmri
+
+docker run --rm -it -v ~/.aws:/root/.aws -v $BIDS_PATH:/bids amazon/aws-cli s3 sync /bids s3://novel-vs-repeated/fmri/bids
+```
