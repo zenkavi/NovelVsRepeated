@@ -1,0 +1,24 @@
+#!/bin/bash
+
+#SBATCH -J fmriprep-{SUBNUM}
+#SBATCH -c 15
+
+# Outputs ----------------------------------
+#SBATCH -o /shared/.out/fmriprep-{SUBNUM}.out
+#SBATCH -e /shared/.err/fmriprep-{SUBNUM}.err
+# ------------------------------------------
+
+export DATA_PATH=/shared/fmri/bids
+export TMP_PATH=/shared/tmp
+export FS_LICENSE=/shared/license.txt
+
+docker run --rm  \
+-v $DATA_PATH:/data:ro  \
+-v $DATA_PATH/derivatives/:/out  \
+-v $TMP_DIR:/work  \
+-v $FS_LICENSE:/opt/freesurfer/license.txt  \
+--cpus="15"  \
+nipreps/fmriprep:22.1.0  \
+/data /out participant  \
+--participant-label {SUBNUM} \
+-w /work --skip_bids_validation --fs-no-reconall --output-spaces MNI152NLin2009cAsym:res-2
