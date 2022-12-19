@@ -1,0 +1,28 @@
+#!/bin/bash
+
+#SBATCH -J bidsonym-loop
+
+# Outputs ----------------------------------
+#SBATCH -o /shared/.out/bidsonym-loop.out
+#SBATCH -e /shared/.err/bidsonym-loop.err
+# ------------------------------------------
+
+export DATA_PATH=/shared/fmri/bids
+
+for subnum in 609 611 619 621 629
+do
+
+docker run \
+-v $DATA_PATH:/data \
+peerherholz/bidsonym:v0.0.4 \
+/data \
+participant \
+--participant_label $subnum \
+--deid pydeface \
+--brainextraction bet \
+--bet_frac 0.5 \
+--skip_bids_validation
+
+aws s3 sync $DATA_PATH/sub-$subnum s3://novel-vs-repeated/fmri/bids/sub-$subnum
+aws s3 sync $DATA_PATH/sourcedata/bidsonym/sub-$subnum s3://novel-vs-repeated/fmri/bids/sourcedata/bidsonym/sub-$subnum
+done
