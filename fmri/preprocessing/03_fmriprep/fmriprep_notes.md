@@ -27,6 +27,7 @@ sh make_fmriprep_cluster_config.sh
 ## Create cluster using the config
 
 ```
+cd $STUDY_DIR/fmri/preprocessing/03_fmriprep/cluster_scripts
 pcluster create-cluster --cluster-name fmriprep-cluster --cluster-configuration tmp.yaml
 pcluster list-clusters
 ```
@@ -36,7 +37,7 @@ pcluster list-clusters
 ```
 pcluster ssh --cluster-name fmriprep-cluster -i $KEYS_PATH/fmriprep-cluster.pem
 cd /shared
-aws s3 sync s3://novel-vs-repeated/fmri ./fmri --exclude '*derivatives/*'
+aws s3 sync s3://novel-vs-repeated/fmri ./fmri --exclude '*derivatives/*' --exclude '*sourcedata/*'
 ```
 
 ## Copy freesurfer license (make sure it exists in the S3 bucket) and make temporary directory for fmriprep
@@ -92,7 +93,7 @@ docker run --rm -it -v ~/.aws:/root/.aws -v $BIDS_DIR:/bids amazon/aws-cli s3 sy
 
 docker run --rm -it -v ~/.aws:/root/.aws -v $BIDS_DIR:/bids amazon/aws-cli s3 sync s3://novel-vs-repeated/fmri/bids/ /bids --exclude '*' --include '*T1w.nii.gz' --exclude '*derivatives/*'
 
-docker run --rm -it -v ~/.aws:/root/.aws -v $BIDS_DIR:/bids amazon/aws-cli s3 sync s3://novel-vs-repeated/fmri/bids/derivatives /bids/derivatives --exclude '*' --include '*figures/*' --include '*figures/*' --include '*log/*'
+docker run --rm -it -v ~/.aws:/root/.aws -v $BIDS_DIR:/bids amazon/aws-cli s3 sync s3://novel-vs-repeated/fmri/bids/derivatives /bids/derivatives --exclude '*' --include '*figures/*' --include '*log/*' --include '*.html'
 ```
 
 If you are missing reports try this (`run_fmriprep_reports` jobs for all subjects):
