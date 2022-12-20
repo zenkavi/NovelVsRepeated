@@ -14,7 +14,7 @@ SharedStorage:
     StorageType: Ebs
     EbsSettings:
      VolumeType: gp2
-     Size: 64
+     Size: 128
 HeadNode:
   InstanceType: t3.2xlarge
   Networking:
@@ -22,7 +22,7 @@ HeadNode:
     ElasticIp: false
   LocalStorage:
    RootVolume:
-     Size: 64
+     Size: 128
   Ssh:
     KeyName: fmriprep-cluster
   CustomActions:
@@ -48,7 +48,7 @@ Scheduling:
       ComputeSettings:
         LocalStorage:
           RootVolume:
-            Size: 64
+            Size: 128
       Networking:
         SubnetIds:
           - ${SUBNET_ID}
