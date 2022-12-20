@@ -2,13 +2,13 @@ See here for [earlier notes on defacing](https://github.com/zenkavi/DescribedVsL
 
 # Steps for defacing
 
-- Push cluster setup scripts in `./cluster_scripts` to s3
+## Push cluster setup scripts in `./cluster_scripts` to s3
 
 ```
 docker run --rm -it -v ~/.aws:/root/.aws -v $(pwd)/fmri:/fmri amazon/aws-cli s3 sync /fmri s3://novel-vs-repeated/fmri --exclude "*.DS_Store"
 ```
 
-- Make key pair for `bidsonym-cluster`
+## Make key pair for `bidsonym-cluster`
 
 ```
 export KEYS_PATH=/Users/zeynepenkavi/aws_keys
@@ -17,20 +17,20 @@ chmod 400 $KEYS_PATH/bidsonym-cluster.pem
 aws ec2 describe-key-pairs
 ```
 
-- Create cluster config using `make_bidsonym_cluster_config.sh`
+## Create cluster config using `make_bidsonym_cluster_config.sh`
 
 ```
 sh make_bidsonym_cluster_config.sh
 ```
 
-- Create cluster using the config
+## Create cluster using the config
 
 ```
 pcluster create-cluster --cluster-name bidsonym-cluster --cluster-configuration tmp.yaml
 pcluster list-clusters
 ```
 
-- Copy the bids data from s3 to cluster
+## Copy the bids data from s3 to cluster
 
 ```
 pcluster ssh --cluster-name bidsonym-cluster -i $KEYS_PATH/bidsonym-cluster.pem
@@ -38,7 +38,7 @@ cd /shared
 aws s3 sync s3://novel-vs-repeated/fmri ./fmri
 ```
 
-- Test bidsonym on single subject on head node
+## Test bidsonym on single subject on head node
 
 ```
 export DATA_PATH=/shared/fmri/bids
@@ -55,11 +55,15 @@ aws s3 sync $DATA_PATH/sub-601 s3://novel-vs-repeated/fmri/bids/sub-601
 aws s3 sync $DATA_PATH/sourcedata/bidsonym/sub-601 s3://novel-vs-repeated/fmri/bids/sourcedata/bidsonym/sub-601
 ```
 
-- Submit loop job to process the other subjects
+## Submit loop job to process the other subjects
+
+```
+sbatch run_bidsonym_loop.batch
+```
 
 - Push updated bids directory with de-identified t1s and the sourcedata back to s3 (part of the loop job)
 
-- Delete cluster
+## Delete cluster
 
 ```
 pcluster delete-cluster --cluster-name bidsonym-cluster
