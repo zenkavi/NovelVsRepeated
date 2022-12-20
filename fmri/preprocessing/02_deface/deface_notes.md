@@ -55,7 +55,7 @@ aws s3 sync $DATA_PATH/sub-601 s3://novel-vs-repeated/fmri/bids/sub-601
 aws s3 sync $DATA_PATH/sourcedata/bidsonym/sub-601 s3://novel-vs-repeated/fmri/bids/sourcedata/bidsonym/sub-601
 ```
 
-- Submit loop job to process the other two subjects
+- Submit loop job to process the other subjects
 
 - Push updated bids directory with de-identified t1s and the sourcedata back to s3 (part of the loop job)
 
