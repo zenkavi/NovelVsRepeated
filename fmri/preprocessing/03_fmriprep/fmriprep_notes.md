@@ -49,7 +49,7 @@ aws s3 cp s3://novel-vs-repeated/fmri/license.txt /shared
 
 ## Test fmriprep on single subject on head node
 
-Note: This will likely crash because the head node instance is does not have enough memory. The goal is to check that the command runs. Any errors will be checked in a later step when reviewing the fmriprep reports.
+Note: This will likely crash because the head node instance is does not have enough memory/storage. The goal is to check that the command runs. Any errors will be checked in a later step when reviewing the fmriprep reports.
 
 ```
 export DATA_PATH=/shared/fmri/bids
@@ -117,6 +117,12 @@ nipreps/fmriprep:22.1.0  \
 ```
 
 If you have run into space issues check this answer: https://aws.amazon.com/premiumsupport/knowledge-center/ebs-volume-size-increase/
+
+Some observations from fmriprep reports:
+- Subj 601 movement might be an issue
+- Subj 609 has considerable dropout in temporal and orbitofrontal regions for functional runs
+- Subj 619 has considerable dropout in temporal and orbitofrontal regions for functional runs and motion issues
+- Subj 621 has considerable dropout in temporal and orbitofrontal regions for functional runs and motion issues
 
 ## Delete cluster
 

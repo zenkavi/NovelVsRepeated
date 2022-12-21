@@ -1,0 +1,23 @@
+#!/bin/bash
+
+#SBATCH -J level1-{SUBNUM}-{MODELNUM}-reg_rt-0
+#SBATCH -c 7
+
+# Outputs ----------------------------------
+#SBATCH -o /shared/.out/level1-{SUBNUM}-{MODELNUM}-reg_rt-0.out
+#SBATCH -e /shared/.err/level1-{SUBNUM}-{MODELNUM}-reg_rt-0.err
+# ------------------------------------------
+
+export DATA_PATH=/shared/bids_nifti_wface
+export BEHAVIOR_PATH=/shared/behavioral_data
+export OUT_PATH=/shared/bids_nifti_wface/derivatives/nilearn/glm/level1/{MODELNUM}_reg-rt0
+export CODE_PATH=/shared/analysis/01_level1
+
+#aws s3 sync s3://described-vs-experienced/bids_nifti_wface/sub-{SUBNUM}/func $DATA_PATH/sub-{SUBNUM}/func --exclude '*' --include '*_events.tsv' --include '*_bold.json'
+#aws s3 sync s3://described-vs-experienced/bids_nifti_wface/derivatives/fmriprep/sub-{SUBNUM}/func $DATA_PATH/derivatives/fmriprep/sub-{SUBNUM}/func --exclude '*' --include '*desc-preproc_bold.nii.gz' --include '*desc-confounds_timeseries.tsv' --include '*_desc-brain_mask.nii.gz'
+
+docker run --rm -e DATA_PATH=/data -e OUT_PATH=/out -e BEHAVIOR_PATH=/beh \
+-v $DATA_PATH:/data -v $OUT_PATH:/out -v $BEHAVIOR_PATH:/beh -v $CODE_PATH:/code \
+zenkavi/fsl:6.0.3 python ./code/level1.py -s {SUBNUM} --mnum {MODELNUM}
+
+#aws s3 sync $OUT_PATH/sub-{SUBNUM} s3://described-vs-experienced/bids_nifti_wface/derivatives/nilearn/glm/level1/{MODELNUM}_reg-rt{REG_RT}/sub-{SUBNUM}
