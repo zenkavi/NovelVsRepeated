@@ -55,6 +55,26 @@ If a subject has fewer scans in different runs this might lead to a lower cosine
 run_design_matrix['drift_17'] = 0
 ```
 
+**Analyses in native space**
+*Anatomicals*
+
+Found in:
+`bids/derivatives/sub-*/anat`
+
+```
+sub-*_desc-brain_mask.nii.gz # averaged brain mask in native space
+sub-*_desc-preproc_T1w.nii.gz # averaged anatomical with skull in native space
+```
+
+*Functionals*
+
+Found in:
+`...`
+
+```
+
+```
+
 ### Level 1 for binaryChoice task
 
 - 1 run per session. Each session has 100 trials with 40 RE and 60 HT (5 per each of the 12 HT stimuli for the subject)

@@ -1,0 +1,67 @@
+---
+title: "Novel vs. repeated choice project: Psychometrics"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: 'hide'
+---
+
+# Set up environment and load in data
+
+```{r include=FALSE}
+library(tidyverse)
+library(here)
+theme_set(theme_bw())
+helpers_path = paste0(here(),'/analysis/helpers/')
+source(paste0(helpers_path, '01_clean_behavioral_data.R'))
+
+```
+
+Columns that I want:
+type
+reward
+[valueLeft_par, valueRight_par], [valueChosen_par, valueUnchosen_par], valChosenMinusUnchosen_par, valChosenPlusUnchosen_par
+
+```{r}
+data_bc_clean_fmri = data_bc_clean %>%
+  filter(fmri == 1)
+```
+
+
+```{r}
+with(data_bc_clean_fmri, table(subnum, typeLeft, day))
+```
+
+```{r}
+with(data_bc_clean_fmri, table(subnum, typeRight))
+```
+
+```{r}
+data_bc_clean_fmri %>%
+  select(subnum, day, leftChosen, possiblePayoffleft, possiblePayoffright, payoff, typeLeft) %>%
+  mutate(type = typeLeft,
+         reward = payoff,
+         valueLeft = possiblePayoffleft,
+         valueRight = possiblePayoffright, 
+         valueChosen = ifelse(leftChosen, possiblePayoffleft, possiblePayoffright), 
+         valueUnchosen = ifelse(leftChosen, possiblePayoffright, possiblePayoffleft),
+         valChosenMinusUnchosen = valueChosen - valueUnchosen, 
+         valChosenPlusUnchosen = valueChosen + valueUnchosen,
+         correct = ifelse( ( (leftChosen) & (valueLeft>valueRight) ),1, ifelse(  ( (leftChosen==0) & (valueLeft<valueRight) ),1, 0  )),
+         choiceLeft = leftChosen) %>%
+  select(-leftChosen, -possiblePayoffleft, -possiblePayoffright, -payoff, -typeLeft) %>%
+  gather(key, valye, -subnum, -day) %>%
+  group_by(subnum, day, key) %>%
+  mutate(value = scale(value, scale=FALSE))
+
+```
+
+Save to bids dir
+
+```{r}
+
+```
+
+
+

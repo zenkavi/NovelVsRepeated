@@ -44,6 +44,9 @@ def make_contrasts(design_matrix, mnum):
 
     contrasts = dictfilt(contrasts, beh_regs)
 
+    if mnum in ['model9', 'model10', 'model11a', 'model11b', 'model12']:
+        contrasts.update({'rewardedVsNotRewarded': contrasts['rewarded_st'] - contrasts['notRewarded_st']})
+
     return contrasts
 
 def get_confounds(subnum, session, task, runnum, data_path, scrub_thresh = .5):
@@ -68,7 +71,7 @@ def get_confounds(subnum, session, task, runnum, data_path, scrub_thresh = .5):
 def get_events(subnum, session, task, runnum, mnum, data_path, behavior_path):
 
     # Read in fmri events
-    fn = os.path.join(data_path, 'sub-%s/func/sub-%s_task-bundles_run-%s_events.tsv' %(subnum, subnum, runnum))
+    fn = os.path.join(data_path, 'sub-%s/func/sub-%s_ses-%s_task-%s_run-%s_events.tsv' %(subnum, subnum, session, task, runnum))
     events = pd.read_csv(fn, sep='\t')
 
     # Read in behavioral data with modeled value and RPE estimates
@@ -86,7 +89,6 @@ def get_events(subnum, session, task, runnum, mnum, data_path, behavior_path):
     # Get regressors for the model
     regs = get_model_regs(mnum)
 
-    # Get mean durations if parametric rt regressors will be included
 
     for reg in regs:
         if reg == "fractalProb_ev":

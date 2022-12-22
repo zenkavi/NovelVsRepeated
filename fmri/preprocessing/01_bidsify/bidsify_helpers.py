@@ -9,10 +9,10 @@ import shutil
 
 # In this directory each session of each subject has its own directory that contains all the data that was collected in the scanner.
 # In addition to anatomical and functional data these directories also include fieldmaps # (not used due to ambiguity regarding the TotalReadoutTime from Philips scanners) and another unidentified acquisition
-# raw_data_path = '/Users/zeynepenkavi/Downloads/alldata/data_task/pilot5_fmri_1/data_experiment/results/fmri_rawdata'
+orig_path = '/Users/zeynepenkavi/Downloads/alldata/data_task/pilot5_fmri_1/data_experiment/results/fmri_rawdata'
 
 # In this directory only the anatomical and functional data from the previous directory are placed into bids-compliant subject and session directories
-raw_data_path = '/Users/zeynepenkavi/Downloads/overtrained_decisions_rawfmri'
+raw_path = '/Users/zeynepenkavi/Downloads/overtrained_decisions_rawfmri'
 
 bids_path = '/Users/zeynepenkavi/Downloads/overtrained_decisions_bidsfmri'
 
@@ -42,6 +42,29 @@ def add_misc_bids_files(bids_path_ = bids_path, misc_files_ = misc_files):
             print(cur_mf + " already exists in " + bids_path_)
     if not os.path.exists(os.path.join(bids_path_, 'participants.tsv')):
         print("Don't forget to create participants.tsv!")
+
+# Minimally organize fmri data from the original path by taking out only the parts you need for the bidsification
+def copy_orig_to_raw_fmri(orig_path_ = orig_path, raw_path_ = raw_path, subnums_ = subnums, sessions_ = sessions, data_types_ = data_types, ses_dict_ = {'d3': 'ses-01', 'd7': 'ses-02', 'd11': 'ses-03'}):
+
+    make_bids_dirs(bids_path_ = raw_path, subnums_ = subnums, sessions_ = sessions, data_types_ = data_types)
+
+    fmri_dirs = [i for i in os.listdir(orig_path) if i != '.DS_Store']
+
+    for cur_dur in fmri_dirs:
+        cur_sub = cur_dir.split('_')[3][-3:]
+        cur_ses = ses_dict_[cur_dir.split('_')[4]]
+        cur_raw_func_path = os.path.join(raw_path_, 'sub-'+cur_sub, cur_ses, 'func/')
+        cur_raw_anat_path = os.path.join(raw_path_, 'sub-'+cur_sub, cur_ses, 'anat/')
+        all_files = os.listdir(os.path.join(orig_path_, cur_dir))
+        cur_func_imgs = [i for i in all_files if 'fmri_run' in i]
+        cur_anat_imgs = [i for i in all_files if 't1w3danat' in i]
+
+        for cur_fi in cur_func_imgs:
+            shutil.copy(os.path.join(orig_path, cur_dir, cur_fi), cur_raw_func_path)
+
+        for cur_ai in cur_anat_imgs:
+            shutil.copy(os.path.join(orig_path, cur_dir, cur_ai), cur_raw_anat_path)
+
 
 # Note: This is written to work on already minimally organized data where each subjects' data is placed into bids-compliant subject and session directories
 # Note: The default arguments are specified as how they might be mounted with a docker image (unlike the local paths used in the previous functions above)
@@ -170,6 +193,7 @@ def add_func_metadata(bids_path_ = '/bids', add_fields = {'yesNo': {'TaskName': 
             print('Replacing old sidecar...')
             os.rename(tempfile, cur_sidecar)
 
+# Copy mat files from original path into raw fmri path
 def copy_func_timing(orig_path_ = '/alldata/data_task/pilot5_fmri_1/data_experiment/results', raw_path_ = '/raw', ses_dict_ = {'day3': 'ses-01', 'day7': 'ses-02', 'day11': 'ses-03'}):
 
     task_mats = glob.glob(orig_path_ + '/*/*/task*.mat')
@@ -195,7 +219,7 @@ def copy_func_timing(orig_path_ = '/alldata/data_task/pilot5_fmri_1/data_experim
 
 def bidsify_func_events(raw_path_ = '/raw', bids_path_ = '/bids', ses_dict_ = {'day3': 'ses-01', 'day7': 'ses-02', 'day11': 'ses-03'}, task_name_dict_ = {'taskYN': 'yesNo', 'taskBC': 'binaryChoice'}, run_dict_ = {'session2': 'run-01', 'session3': 'run-01', 'session4': 'run-02'}):
 # onset duration trial_type [amplitude]
-    timing_mats = glob.glob(raw_data_path + '/*/*/*.mat')
+    timing_mats = glob.glob(raw_path_ + '/*/*/*.mat')
 
     for cur_timing in timing_mats:
         print("Processing: %s"%os.path.basename(cur_timing))
@@ -241,6 +265,9 @@ def bidsify_func_events(raw_path_ = '/raw', bids_path_ = '/bids', ses_dict_ = {'
         print("Saving: %s"%(cur_bids_fn))
         run_events.to_csv(os.path.join(bids_path_, cur_bids_fn), sep="\t", index=False)
 
+
+# Will do this in R instead in 
+# def bidsify_beh_trialinfo():
 
 # The sent example looks like it just copies the log file and removes the header
 # def bidsify_physio():
