@@ -9,9 +9,6 @@ import pandas as pd
 import re
 import pickle
 
-def get_task_name(runnum):
-    if runnum
-
 def get_from_sidecar(subnum, runnum, keyname, data_path):
 
     fn = os.path.join(data_path, 'sub-%s/func/sub-%s_task-bundles_run-%s_bold.json'%(subnum, subnum, runnum))
@@ -49,9 +46,9 @@ def make_contrasts(design_matrix, mnum):
 
     return contrasts
 
-def get_confounds(subnum, runnum, data_path, scrub_thresh = .5):
+def get_confounds(subnum, session, task, runnum, data_path, scrub_thresh = .5):
 
-    fn = os.path.join(data_path, 'derivatives/sub-%s/func/sub-%s_task-bundles_run-%s_desc-confounds_timeseries.tsv'%(subnum, subnum, runnum))
+    fn = os.path.join(data_path, 'derivatives/sub-%s/func/sub-%s_ses-%s_task-%s_run-%s_desc-confounds_timeseries.tsv'%(subnum, subnum, session, task, runnum))
 
     confounds = pd.read_csv(fn,  sep='\t')
 
@@ -68,7 +65,7 @@ def get_confounds(subnum, runnum, data_path, scrub_thresh = .5):
 
     return formatted_confounds
 
-def get_events(subnum, runnum, mnum, data_path, behavior_path):
+def get_events(subnum, session, task, runnum, mnum, data_path, behavior_path):
 
     # Read in fmri events
     fn = os.path.join(data_path, 'sub-%s/func/sub-%s_task-bundles_run-%s_events.tsv' %(subnum, subnum, runnum))
@@ -144,16 +141,18 @@ def make_level1_design_matrix(subnum, runnum, mnum, data_path, behavior_path, hr
 
 # Fixed effects analysis for all runs of subjects based on tutorial on:
 # https://nilearn.github.io/stable/auto_examples/04_glm_first_level/plot_fiac_analysis.html#sphx-glr-auto-examples-04-glm-first-level-plot-fiac-analysis-py
-def run_level1(subnum, mnum, data_path, behavior_path, out_path, save_contrast = True, output_type='effect_size', noise_model='ar1', hrf_model='spm', drift_model='cosine',smoothing_fwhm=5):
+def run_level1(subnum, session, task, mnum, data_path, behavior_path, out_path, save_contrast = True, output_type='effect_size', noise_model='ar1', hrf_model='spm', drift_model='cosine',smoothing_fwhm=5):
 
+    # Make output path for the model if it doesn't exist
     if not os.path.exists(out_path):
         os.makedirs(out_path)
 
+    # Make contrast path for each subject within the model output path
     contrasts_path = os.path.join(out_path, "sub-%s/contrasts"%(subnum))
     if not os.path.exists(contrasts_path):
         os.makedirs(contrasts_path)
 
-    sub_events = glob.glob(os.path.join(data_path, 'sub-%s/func/sub-%s_task-bundles_run-*_events.tsv'%(subnum, subnum)))
+    sub_events = glob.glob(os.path.join(data_path, 'sub-%s/func/sub-%s_task-%s_run-*_events.tsv'%(subnum, subnum, task)))
     sub_events.sort()
 
     #fmri_img: path to preproc_bold's that the model will be fit on
@@ -162,12 +161,12 @@ def run_level1(subnum, mnum, data_path, behavior_path, out_path, save_contrast =
 
     if len(fmri_img) == 0:
         print("***********************************************")
-        print("No pre-processed BOLD found for sub-%s "%(subnum))
+        print("No pre-processed BOLD found for sub-%s ses-%s task-%s"%(subnum, session, task))
         print("***********************************************")
     else:
-        if len(fmri_img) != 3:
+        if task == 'yesNo' and len(fmri_img) != 2:
             print("***********************************************")
-            print("Found fewer than 3 runs for sub-%s "%(subnum))
+            print("Found fewer than 2 runs for sub-%s ses-%s task-%s"%(subnum, session, task))
             print("***********************************************")
 
         design_matrix = []

@@ -34,16 +34,16 @@ pcluster list-clusters
 
 ## Copy the preprocessed fmri data from s3 to cluster
 
-**CHANGE S3 SYNC COMMAND TO WHAT IS NEEDED TO BE COPIED FOR LEVEL1S**
-
 ```
 pcluster ssh --cluster-name fmrianalysis-cluster -i $KEYS_PATH/fmrianalysis-cluster.pem
-cd /shared
-aws s3 sync s3://novel-vs-repeated/fmri ./fmri --exclude '*derivatives/*' --exclude '*sourcedata/*'
+
+export DATA_PATH=/shared/fmri/bids
+
+#aws s3 sync s3://novel-vs-repeated/fmri/bids $DATA_PATH --exclude '*' --include '*_events.tsv'
+#aws s3 sync s3://novel-vs-repeated/fmri/bids/derivatives $DATA_PATH/derivatives --exclude '*' --include '*desc-preproc_bold.nii.gz' --include '*desc-confounds_timeseries.tsv' --include '*_desc-brain_mask.nii.gz'
 ```
 
 ## Test level1 analysis on single subject on head node
-
 
 ```
 
@@ -57,9 +57,16 @@ run_design_matrix['drift_17'] = 0
 
 ### Level 1 for binaryChoice task
 
-- 1 run per session so no need for level 2
+- 1 run per session. Each session has 100 trials with 40 RE and 60 HT (5 per each of the 12 HT stimuli for the subject)
 - Possible value regressors: [valueLeft_par, valueRight_par], [valueChosen_par, valueUnchosen_par], valChosenMinusUnchosen_par, valChosenPlusUnchosen_par
-- Other regressors: cross_ev, stim_ev, reward_ev, reward_par
+  - Value regressors would have the onset and duration of stim
+- Other regressors: cross_ev, stim_ev, reward_ev, reward_par, condition (HT vs RE), choice (correct vs incorrect)
+Questions:
+  - Does how the value regressor correlates with each voxel change across sessions?
+  - Does value regressor look different for HT vs RE trials?
+  - Does the value regressor's correlations with each voxel change differently depending on the condition?
+  - Should be able to model changes across sessions in a single model with interactions of the value and type regressors with session but you'd still want the (posthoc) maps for each case (session 1 + HT + value etc.)
+  bold ~ value * stim_type * session
 
 ### Level 1 for yesNo task
 
@@ -70,13 +77,14 @@ run_design_matrix['drift_17'] = 0
 
 ```
 cd /shared/fmri/analysis/01_level1/cluster_scripts
-sh run_level1.sh
+sh run_level1.sh -m model1 -t binaryChoice -s 2
 ```
 
 ## Push level 1 outputs back to s3
 
 ```
-
+export OUT_PATH=/shared/fmri/bids/derivatives/nilearn/glm/level1
+aws s3 sync $OUT_PATH s3://novel-vs-repeated/fmri/bids/derivatives/nilearn/glm/level1
 ```
 
 ## Delete cluster
