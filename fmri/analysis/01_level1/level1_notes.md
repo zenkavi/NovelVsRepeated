@@ -1,5 +1,13 @@
 # Steps for level1 analyses
 
+## Push behavior files to S3
+
+```
+export BIDS_DIR=/Users/zeynepenkavi/Downloads/overtrained_decisions_bidsfmri
+
+docker run --rm -it -v ~/.aws:/root/.aws -v $BIDS_DIR:/bids amazon/aws-cli s3 sync  /bids s3://novel-vs-repeated/fmri/bids/ --exclude '*' --include '*beh/*'
+```
+
 ## Push cluster setup scripts in `./cluster_scripts` to s3
 
 ```

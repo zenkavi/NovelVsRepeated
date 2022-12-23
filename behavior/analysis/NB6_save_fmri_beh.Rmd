@@ -38,7 +38,10 @@ with(data_bc_clean_fmri, table(subnum, typeRight))
 ```
 
 ```{r}
-data_bc_clean_fmri %>%
+data_bc_clean_fmri_preproc = data_bc_clean_fmri %>%
+  group_by(subnum, day) %>%
+  arrange(subnum, day, crossON) %>%
+  ungroup() %>%
   select(subnum, day, leftChosen, possiblePayoffleft, possiblePayoffright, payoff, typeLeft) %>%
   mutate(type = typeLeft,
          reward = payoff,
@@ -48,19 +51,56 @@ data_bc_clean_fmri %>%
          valueUnchosen = ifelse(leftChosen, possiblePayoffright, possiblePayoffleft),
          valChosenMinusUnchosen = valueChosen - valueUnchosen, 
          valChosenPlusUnchosen = valueChosen + valueUnchosen,
+         choiceLeft = leftChosen,
          correct = ifelse( ( (leftChosen) & (valueLeft>valueRight) ),1, ifelse(  ( (leftChosen==0) & (valueLeft<valueRight) ),1, 0  )),
-         choiceLeft = leftChosen) %>%
+         session = ifelse(day == 3, "01", ifelse(day == 7, "02", ifelse(day == 11, "03", NA)))) %>%
   select(-leftChosen, -possiblePayoffleft, -possiblePayoffright, -payoff, -typeLeft) %>%
-  gather(key, valye, -subnum, -day) %>%
-  group_by(subnum, day, key) %>%
-  mutate(value = scale(value, scale=FALSE))
+  group_by(subnum, day) %>%
+  mutate(reward_dmn = reward - mean(reward),
+         valueLeft_dmn = valueLeft - mean(valueLeft),
+         valueRight_dmn = valueRight - mean(valueRight),
+         valueChosen_dmn = valueChosen - mean(valueChosen),
+         valueUnchosen_dmn = valueUnchosen - mean(valueUnchosen),
+         valChosenMinusUnchosen_dmn = valChosenMinusUnchosen - mean(valChosenMinusUnchosen),
+         valChosenPlusUnchosen_dmn = valChosenPlusUnchosen - mean(valChosenPlusUnchosen)) %>%
+  select(-reward, -valueLeft, -valueRight, -valueChosen, -valueUnchosen, -valChosenMinusUnchosen, -valChosenPlusUnchosen) 
 
+data_bc_clean_fmri_preproc
 ```
 
 Save to bids dir
 
-```{r}
+`bids/sub-*/ses-*/beh`
 
+```{r}
+subnums = unique(data_bc_clean_fmri_preproc$subnum)
+sessions = unique(data_bc_clean_fmri_preproc$session)
+bids_dir = '/Users/zeynepenkavi/Downloads/overtrained_decisions_bidsfmri'
+
+for (i in 1:length(subnums)){
+  for (j in 1:length(sessions)){
+    cur_sub = subnums[i]
+    cur_ses = sessions[j]
+    
+    cur_bids_dir = paste0(bids_dir, '/sub-', cur_sub, '/ses-', cur_ses, '/beh')
+    
+    if (!file.exists(cur_bids_dir)){
+      print(paste0("Creating ", cur_bids_dir))
+      dir.create(file.path(cur_bids_dir))
+    }
+    
+    cur_beh = data_bc_clean_fmri_preproc %>%
+      filter(subnum == cur_sub & session == cur_ses) %>%
+      ungroup() %>%
+      select(-subnum, -day, -session)
+    
+    cur_fn = paste0(cur_bids_dir, '/sub-', cur_sub, '_ses-',cur_ses, '_task-binaryChoice_run-03_beh.tsv')
+    print(paste0("Saving ", cur_fn))
+    write.table(cur_beh, cur_fn, sep = '\t', row.names = F, quote = F)
+
+    
+  }
+}
 ```
 
 
