@@ -47,7 +47,7 @@ pcluster ssh --cluster-name fmrianalysis-cluster -i $KEYS_PATH/fmrianalysis-clus
 
 export DATA_PATH=/shared/fmri/bids
 
-#aws s3 sync s3://novel-vs-repeated/fmri/bids $DATA_PATH --exclude '*' --include '*_events.tsv'
+#aws s3 sync s3://novel-vs-repeated/fmri/bids $DATA_PATH --exclude '*' --include '*_events.tsv' --include '*_beh.tsv'
 #aws s3 sync s3://novel-vs-repeated/fmri/bids/derivatives $DATA_PATH/derivatives --exclude '*' --include '*desc-preproc_bold.nii.gz' --include '*desc-confounds_timeseries.tsv' --include '*_desc-brain_mask.nii.gz'
 ```
 
@@ -85,7 +85,7 @@ Found in:
 
 ### Level 1 for binaryChoice task
 
-- 1 run per session. Each session has 100 trials with 40 RE and 60 HT (5 per each of the 12 HT stimuli for the subject)
+- 1 run per session. Each session has 100 trials with *~70 RE and ~30 HT* 
 - Possible value regressors: [valueLeft_par, valueRight_par], [valueChosen_par, valueUnchosen_par], valChosenMinusUnchosen_par, valChosenPlusUnchosen_par
   - Value regressors would have the onset and duration of stim
 - Other regressors: cross_ev, stim_ev, reward_ev, reward_par, condition (HT vs RE), choice (correct vs incorrect)

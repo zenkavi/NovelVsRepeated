@@ -9,10 +9,9 @@
 # ------------------------------------------
 
 export DATA_PATH=/shared/fmri/bids
-#export BEHAVIOR_PATH=/shared/behavioral_data # TBD if necessary
 #export OUT_PATH=/shared/fmri/bids/derivatives/nilearn/glm/level1/{TASK}/{MODELNUM} # TBD how to store outputs
 export CODE_PATH=/shared/fmri/analysis/01_level1/cluster_scripts
 
-docker run --rm -e DATA_PATH=/data -e OUT_PATH=/out -e BEHAVIOR_PATH=/beh \
--v $DATA_PATH:/data -v $OUT_PATH:/out -v $BEHAVIOR_PATH:/beh -v $CODE_PATH:/code \
+docker run --rm -e DATA_PATH=/data -e OUT_PATH=/out \
+-v $DATA_PATH:/data -v $OUT_PATH:/out -v $CODE_PATH:/code \
 zenkavi/fsl:6.0.3 python ./code/level1.py --subnum {SUBNUM} --task {TASK} --mnum {MODELNUM}
