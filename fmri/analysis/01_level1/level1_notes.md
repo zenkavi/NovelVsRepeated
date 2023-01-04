@@ -5,7 +5,7 @@
 ```
 export BIDS_DIR=/Users/zeynepenkavi/Downloads/overtrained_decisions_bidsfmri
 
-docker run --rm -it -v ~/.aws:/root/.aws -v $BIDS_DIR:/bids amazon/aws-cli s3 sync  /bids s3://novel-vs-repeated/fmri/bids/ --exclude '*' --include '*beh/*'
+docker run --rm -it -v ~/.aws:/root/.aws -v $BIDS_DIR:/bids amazon/aws-cli s3 sync /bids s3://novel-vs-repeated/fmri/bids/ --exclude '*' --include '*beh/*'
 ```
 
 ## Push cluster setup scripts in `./cluster_scripts` to s3
@@ -47,14 +47,20 @@ pcluster ssh --cluster-name fmrianalysis-cluster -i $KEYS_PATH/fmrianalysis-clus
 
 export DATA_PATH=/shared/fmri/bids
 
-#aws s3 sync s3://novel-vs-repeated/fmri/bids $DATA_PATH --exclude '*' --include '*_events.tsv' --include '*_beh.tsv'
-#aws s3 sync s3://novel-vs-repeated/fmri/bids/derivatives $DATA_PATH/derivatives --exclude '*' --include '*desc-preproc_bold.nii.gz' --include '*desc-confounds_timeseries.tsv' --include '*_desc-brain_mask.nii.gz'
+aws s3 sync s3://novel-vs-repeated/fmri/bids $DATA_PATH --exclude '*' --include '*_events.tsv' --include '*_beh.tsv'
+aws s3 sync s3://novel-vs-repeated/fmri/bids/derivatives $DATA_PATH/derivatives --exclude '*' --include '*desc-preproc_bold.nii.gz' --include '*desc-confounds_timeseries.tsv' --include '*_desc-brain_mask.nii.gz'
 ```
 
 ## Test level1 analysis on single subject on head node
 
 ```
+export DATA_PATH=/shared/fmri/bids
+export OUT_PATH=/shared/fmri/bids/derivatives/nilearn/glm/level1/binaryChoice/model1
+export CODE_PATH=/shared/fmri/analysis/01_level1/cluster_scripts
 
+docker run --rm -it -e DATA_PATH=/data -e OUT_PATH=/out \
+-v $DATA_PATH:/data -v $OUT_PATH:/out -v $CODE_PATH:/code \
+zenkavi/fsl:6.0.3 python ./code/level1.py --subnum 601 --task binaryChoice --mnum model1
 ```
 
 If a subject has fewer scans in different runs this might lead to a lower cosine drift order and causes problems when calculating contrasts combined with other runs because the design matrix ends up with one less column compared to other runs'. In such cases manual modification of the run design matrix might be necessary:
@@ -63,32 +69,15 @@ If a subject has fewer scans in different runs this might lead to a lower cosine
 run_design_matrix['drift_17'] = 0
 ```
 
-**Analyses in native space**
-*Anatomicals*
-
-Found in:
-`bids/derivatives/sub-*/anat`
-
-```
-sub-*_desc-brain_mask.nii.gz # averaged brain mask in native space
-sub-*_desc-preproc_T1w.nii.gz # averaged anatomical with skull in native space
-```
-
-*Functionals*
-
-Found in:
-`...`
-
-```
-
-```
+**Analyses in native space?**
 
 ### Level 1 for binaryChoice task
 
-- 1 run per session. Each session has 100 trials with *~70 RE and ~30 HT* 
+- 1 run per session for 3 sessions. Each session has 100 trials with *~70 RE and ~30 HT*
 - Possible value regressors: [valueLeft_par, valueRight_par], [valueChosen_par, valueUnchosen_par], valChosenMinusUnchosen_par, valChosenPlusUnchosen_par
-  - Value regressors would have the onset and duration of stim
+  - Value regressors have the onset and duration of stim
 - Other regressors: cross_ev, stim_ev, reward_ev, reward_par, condition (HT vs RE), choice (correct vs incorrect)
+
 Questions:
   - Does how the value regressor correlates with each voxel change across sessions?
   - Does value regressor look different for HT vs RE trials?

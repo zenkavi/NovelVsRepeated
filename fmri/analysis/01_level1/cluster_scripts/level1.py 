@@ -23,6 +23,7 @@ if save_contrast == "True":
     save_contrast = True
 output_type = args.output_type
 
+# determined in run_level1.batch docker call `docker run --rm -e DATA_PATH=/data -e OUT_PATH=/out`
 data_path = os.environ['DATA_PATH']
 out_path = os.environ['OUT_PATH']
 

@@ -9,7 +9,7 @@
 # ------------------------------------------
 
 export DATA_PATH=/shared/fmri/bids
-#export OUT_PATH=/shared/fmri/bids/derivatives/nilearn/glm/level1/{TASK}/{MODELNUM} # TBD how to store outputs
+export OUT_PATH=/shared/fmri/bids/derivatives/nilearn/glm/level1/{TASK}/{MODELNUM}
 export CODE_PATH=/shared/fmri/analysis/01_level1/cluster_scripts
 
 docker run --rm -e DATA_PATH=/data -e OUT_PATH=/out \

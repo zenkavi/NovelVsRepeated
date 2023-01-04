@@ -53,9 +53,6 @@ def make_contrasts(design_matrix, mnum):
 
     contrasts = dictfilt(contrasts, beh_regs)
 
-    if mnum in ['model9', 'model10', 'model11a', 'model11b', 'model12']:
-        contrasts.update({'rewardedVsNotRewarded': contrasts['rewarded_st'] - contrasts['notRewarded_st']})
-
     return contrasts
 
 def get_confounds(subnum, session, task, runnum, data_path, scrub_thresh = .5):

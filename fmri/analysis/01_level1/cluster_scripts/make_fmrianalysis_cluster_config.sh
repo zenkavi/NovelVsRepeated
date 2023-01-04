@@ -43,7 +43,7 @@ Scheduling:
         - Name: compute
           InstanceType: c5.4xlarge
           MinCount: 0
-          MaxCount: 6
+          MaxCount: 24
           DisableSimultaneousMultithreading: true
       ComputeSettings:
         LocalStorage:
