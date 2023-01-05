@@ -115,7 +115,7 @@ def get_events(subnum, session, task, runnum, mnum, data_path):
             cond_condition_ev['modulation'] = behavior['type'].reset_index(drop=True)
 
         if reg == 'choiceCorrect_st':
-            cond_choiceCorrect_st = pd.DataFrame(events.query('trial_type == "stim"')['onset'] + events.query('trial_type == "stim"')['duration'], columns = ['onset']) # this is the same as the feedback onsets
+            cond_choiceCorrect_st = pd.DataFrame(events.query('trial_type == "stim"')['onset'] + events.query('trial_type == "stim"')['duration'], columns = ['onset']).reset_index(drop=True) # this is the same as the feedback onsets
             cond_choiceCorrect_st['duration'] = 0
             cond_choiceCorrect_st['trial_type'] = 'choiceCorrect_st'
             cond_choiceCorrect_st['modulation'] = behavior['correct'].reset_index(drop=True)
