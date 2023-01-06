@@ -105,3 +105,17 @@ tmp = data_yn_clean %>%
 
 sum(tmp$possiblePayoff == tmp$payoff) == nrow(tmp)
 ```
+
+How many HT and RE trials in each session?
+
+```{r}
+names(data_bc_clean)
+```
+
+```{r}
+with(data_yn_clean, table(type, day, fmri, subnum))
+```
+
+```{r}
+with(data_bc_clean, table(typeLeft, day, fmri, subnum))
+```
