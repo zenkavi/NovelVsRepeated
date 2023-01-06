@@ -24,19 +24,14 @@ def get_from_sidecar(subnum, session, task, runnum, keyname, data_path):
 
     return out
 
-def get_model_regs(mnum):
-    if mnum == 'model1':
-        regs = ['cross_ev', 'stim_ev', 'reward_ev', 'reward_par', 'condition_ev', 'choiceCorrect_st', 'valChosenMinusUnchosen_par']
+def get_model_regs(mnum, task):
 
-    if mnum == 'model2':
-        regs = ['cross_ev', 'stim_ev', 'reward_ev', 'reward_par', 'condition_ev', 'choiceCorrect_st', 'valChosenPlusUnchosen_par']
-
-    if mnum == 'model3':
-        regs = ['cross_ev', 'stim_ev', 'reward_ev', 'reward_par', 'condition_ev', 'choiceCorrect_st', 'valueChosen_par', 'valueUnchosen_par']
-
-    if mnum == 'model4':
-        regs = ['cross_ev', 'stim_ev', 'reward_ev', 'reward_par', 'condition_ev', 'choiceCorrect_st', 'valueLeft_par', 'valueRight_par']
-
+    if task == 'binaryChoice':
+        if mnum == 'model1':
+            regs = ['cross_ev', 'stimHT_ev', 'rewardHT_ev', 'rewardHT_par', 'stimRE_ev', 'rewardRE_ev', 'rewardRE_par', 'choiceLeft_st', 'choiceRight_st', 'valSumHT_par', 'valDiffHT_par', 'valSumRE_par', 'valDiffRE_par']
+    else if task == 'yesNo':
+        if mnum == 'model1':
+            regs = ['cross_ev', 'stimHT_ev', 'rewardHT_ev', 'rewardHT_par', 'stimRE_ev', 'rewardRE_ev', 'rewardRE_par', 'choiceYes_st', 'choiceNo_st', 'valHT_par', 'valRE_par']
     return regs
 
 def make_contrasts(design_matrix, mnum):
@@ -85,8 +80,9 @@ def get_events(subnum, session, task, runnum, mnum, data_path):
     behavior = pd.read_csv(fn, sep='\t')
 
     # Get regressors for the model
-    regs = get_model_regs(mnum)
+    regs = get_model_regs(mnum, task)
 
+    # regs = ['cross_ev', 'stimHT_ev', 'rewardHT_ev', 'rewardHT_par', 'stimRE_ev', 'rewardRE_ev', 'rewardRE_par', 'choiceLeft_st', 'choiceRight_st', 'valSumHT_par', 'valDiffHT_par', 'valSumRE_par', 'valDiffRE_par']
 
     for reg in regs:
         if reg == 'cross_ev':
@@ -108,11 +104,6 @@ def get_events(subnum, session, task, runnum, mnum, data_path):
             cond_reward_par = events.query('trial_type == "feedback"')[['onset', 'duration']].reset_index(drop=True)
             cond_reward_par['trial_type'] = 'reward_par'
             cond_reward_par['modulation'] = behavior['reward_dmn'].reset_index(drop=True)
-
-        if reg == 'condition_ev':
-            cond_condition_ev = events.query('trial_type == "stim"')[['onset', 'duration']].reset_index(drop=True)
-            cond_condition_ev['trial_type'] = 'condition_ev'
-            cond_condition_ev['modulation'] = behavior['type'].reset_index(drop=True)
 
         if reg == 'choiceCorrect_st':
             cond_choiceCorrect_st = pd.DataFrame(events.query('trial_type == "stim"')['onset'] + events.query('trial_type == "stim"')['duration'], columns = ['onset']).reset_index(drop=True) # this is the same as the feedback onsets
