@@ -11,6 +11,7 @@ parser.add_argument("--task", help="task name")
 parser.add_argument("--mnum", help="model number")
 parser.add_argument("--save_contrast", default="True")
 parser.add_argument("--output_type", default='effect_size')
+parser.add_argument("--output_space", help="output space as defined in TemplateFlow")
 
 args = parser.parse_args()
 
@@ -22,9 +23,10 @@ save_contrast = args.save_contrast
 if save_contrast == "True":
     save_contrast = True
 output_type = args.output_type
+output_space = args.output_space
 
 # determined in run_level1.batch docker call `docker run --rm -e DATA_PATH=/data -e OUT_PATH=/out`
 data_path = os.environ['DATA_PATH']
 out_path = os.environ['OUT_PATH']
 
-run_level1(subnum, session, task, mnum, data_path, out_path, save_contrast = save_contrast, output_type = output_type)
+run_level1(subnum, session, task, mnum, data_path, out_path, space = output_space, save_contrast = save_contrast, output_type = output_type)

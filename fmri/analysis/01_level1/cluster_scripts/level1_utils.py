@@ -180,7 +180,7 @@ def make_level1_design_matrix(subnum, session, task, runnum, mnum, data_path, hr
 
 # Fixed effects analysis for all runs of subjects based on tutorial on:
 # https://nilearn.github.io/stable/auto_examples/04_glm_first_level/plot_fiac_analysis.html#sphx-glr-auto-examples-04-glm-first-level-plot-fiac-analysis-py
-def run_level1(subnum, session, task, mnum, data_path, out_path, save_contrast = True, output_type='effect_size', noise_model='ar1', hrf_model='spm', drift_model='cosine', smoothing_fwhm=5):
+def run_level1(subnum, session, task, mnum, data_path, out_path, space = 'MNI152NLin2009cAsym_res-2', save_contrast = True, output_type='effect_size', noise_model='ar1', hrf_model='spm', drift_model='cosine', smoothing_fwhm=5):
 
     # Make output path for the model if it doesn't exist
     # /shared/fmri/bids/derivatives/nilearn/glm/level1/{TASK}/{MODELNUM}
@@ -196,7 +196,7 @@ def run_level1(subnum, session, task, mnum, data_path, out_path, save_contrast =
     sub_events.sort()
 
     #fmri_img: path to preproc_bold's that the model will be fit on
-    fmri_img = glob.glob(os.path.join(data_path,"derivatives/sub-%s/ses-%s/func/sub-%s_ses-%s_task-%s_run-*_space-MNI152NLin2009cAsym_res-2_desc-preproc_bold.nii.gz"%(subnum, session, subnum, session, task)))
+    fmri_img = glob.glob(os.path.join(data_path,"derivatives/sub-%s/ses-%s/func/sub-%s_ses-%s_task-%s_run-*_space-%s_desc-preproc_bold.nii.gz"%(subnum, session, subnum, session, task, space)))
     fmri_img.sort()
 
     if len(fmri_img) == 0:
@@ -218,11 +218,11 @@ def run_level1(subnum, session, task, mnum, data_path, out_path, save_contrast =
             print("***********************************************")
             print("Saving design matrix for sub-%s ses-%s task-%s run-%s"%(subnum, session, task, runnum))
             print("***********************************************")
-            run_design_matrix.to_csv(os.path.join(out_path, 'sub-%s/ses-%s/sub-%s_ses-%s_task-%s_run-%s_%s_level1_design_matrix.csv' %(subnum, session, subnum, session, task, runnum, mnum)), index=False)
+            run_design_matrix.to_csv(os.path.join(out_path, 'sub-%s/ses-%s/sub-%s_ses-%s_task-%s_run-%s_space-%s_%s_level1_design_matrix.csv' %(subnum, session, subnum, session, task, runnum, space, mnum)), index=False)
 
         # Define GLM parmeters
         img_tr = get_from_sidecar(subnum, session, task, runnum, 'RepetitionTime', data_path) #get tr info from current runnum since it's the same for all runs
-        mask_img = nib.load(os.path.join(data_path,'derivatives/sub-%s/ses-%s/func/sub-%s_ses-%s_task-%s_run-%s_space-MNI152NLin2009cAsym_res-2_desc-brain_mask.nii.gz'%(subnum, session, subnum, session, task, runnum)))
+        mask_img = nib.load(os.path.join(data_path,'derivatives/sub-%s/ses-%s/func/sub-%s_ses-%s_task-%s_run-%s_space-%s_desc-brain_mask.nii.gz'%(subnum, session, subnum, session, task, runnum, space)))
         fmri_glm = FirstLevelModel(t_r=img_tr,
                                noise_model=noise_model,
                                hrf_model=hrf_model,
@@ -241,7 +241,7 @@ def run_level1(subnum, session, task, mnum, data_path, out_path, save_contrast =
         print("***********************************************")
         print("Saving GLM for sub-%s ses-%s task-%s"%(subnum, session, task))
         print("***********************************************")
-        fn = os.path.join(out_path, 'sub-%s/ses-%s/sub-%s_ses-%s_task-%s_%s_level1_glm.pkl' %(subnum, session, subnum, session, task, mnum))
+        fn = os.path.join(out_path, 'sub-%s/ses-%s/sub-%s_ses-%s_task-%s_space-%s_%s_level1_glm.pkl' %(subnum, session, subnum, session, task, space, mnum))
         f = open(fn, 'wb')
         pickle.dump(fmri_glm, f)
         f.close()
@@ -255,9 +255,9 @@ def run_level1(subnum, session, task, mnum, data_path, out_path, save_contrast =
             contrasts = make_contrasts(design_matrix[0], mnum) # using the first design matrix since contrasts are the same for all runs
             for index, (contrast_id, contrast_val) in enumerate(contrasts.items()):
                 contrast_map = fmri_glm.compute_contrast(contrast_val, output_type= output_type)
-                nib.save(contrast_map, '%s/sub-%s_ses-%s_task-%s_%s_%s_%s.nii.gz'%(contrasts_path, subnum, session, task, mnum, contrast_id, output_type))
+                nib.save(contrast_map, '%s/sub-%s_ses-%s_task-%s_space-%s_%s_%s_%s.nii.gz'%(contrasts_path, subnum, session, task, space, mnum, contrast_id, output_type))
                 contrast_map = fmri_glm.compute_contrast(contrast_val, output_type= 'stat') #also save tmaps
-                nib.save(contrast_map, '%s/sub-%s_ses-%s_task-%s_%s_%s_%s.nii.gz'%(contrasts_path, subnum, session, task, mnum, contrast_id, 'tmap'))
+                nib.save(contrast_map, '%s/sub-%s_ses-%s_task-%s_space-%s_%s_%s_%s.nii.gz'%(contrasts_path, subnum, session, task, space, mnum, contrast_id, 'tmap'))
             print("***********************************************")
             print("Done saving contrasts for sub-%s ses-%s task-%s"%(subnum, session, task))
             print("***********************************************")
