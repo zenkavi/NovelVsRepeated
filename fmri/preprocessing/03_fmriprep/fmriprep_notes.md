@@ -51,6 +51,8 @@ aws s3 cp s3://novel-vs-repeated/fmri/license.txt /shared
 
 Note: This will likely crash because the head node instance is does not have enough memory/storage. The goal is to check that the command runs. Any errors will be checked in a later step when reviewing the fmriprep reports.
 
+Note2: The command below registers to MNI space. The batch job has changed to keep things in native space.
+
 ```
 export DATA_PATH=/shared/fmri/bids
 export TMP_PATH=/shared/tmp

@@ -21,4 +21,6 @@ docker run --rm  \
 nipreps/fmriprep:22.1.0  \
 /data /out participant  \
 --participant-label {SUBNUM} \
--w /work --skip_bids_validation --fs-no-reconall --output-spaces MNI152NLin2009cAsym:res-2
+-w /work --skip_bids_validation --output-spaces anat:fsnative
+
+#--output-spaces MNI152NLin2009cAsym:res-2
