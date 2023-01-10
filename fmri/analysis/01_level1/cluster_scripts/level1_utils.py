@@ -35,21 +35,6 @@ def get_model_regs(mnum, task):
             regs = ['cross_ev', 'stimHT_ev', 'rewardHT_ev', 'rewardHT_par', 'stimRE_ev', 'rewardRE_ev', 'rewardRE_par', 'choiceCorrectHT_st', 'choiceCorrectRE_st', 'choiceIncorrectHT_st', 'choiceIncorrectRE_st', 'choiceYes_st', 'choiceNo_st', 'valHT_par', 'valRE_par']
     return regs
 
-def make_contrasts(design_matrix, mnum):
-    # first generate canonical contrasts (i.e. regressors vs. baseline)
-    contrast_matrix = np.eye(design_matrix.shape[1])
-    contrasts = dict([(column, contrast_matrix[i])
-                      for i, column in enumerate(design_matrix.columns)])
-
-    dictfilt = lambda x, y: dict([ (i,x[i]) for i in x if i in set(y) ])
-
-    beh_regs = design_matrix.columns
-    to_filter = ['trans', 'rot', 'drift', 'framewise', 'scrub', 'constant', 'dvars']
-    beh_regs = [x for x in beh_regs if all(y not in x for y in to_filter)]
-
-    contrasts = dictfilt(contrasts, beh_regs)
-
-    return contrasts
 
 def get_confounds(subnum, session, task, runnum, data_path, scrub_thresh = .5):
 
@@ -82,8 +67,6 @@ def get_events(subnum, session, task, runnum, mnum, data_path):
 
     # Get regressors for the model
     regs = get_model_regs(mnum, task)
-
-    # regs = ['choiceLeft_st', 'choiceRight_st',]
 
     for reg in regs:
         if reg == 'cross_ev':
@@ -270,18 +253,13 @@ def make_level1_design_matrix(subnum, session, task, runnum, mnum, data_path, hr
 
 # Fixed effects analysis for all runs of subjects based on tutorial on:
 # https://nilearn.github.io/stable/auto_examples/04_glm_first_level/plot_fiac_analysis.html#sphx-glr-auto-examples-04-glm-first-level-plot-fiac-analysis-py
-def run_level1(subnum, session, task, mnum, data_path, out_path, space = 'MNI152NLin2009cAsym_res-2', save_contrast = True, output_type='effect_size', noise_model='ar1', hrf_model='spm', drift_model='cosine', smoothing_fwhm=5):
+def run_level1(subnum, session, task, mnum, data_path, out_path, space = 'MNI152NLin2009cAsym_res-2', noise_model='ar1', hrf_model='spm', drift_model='cosine', smoothing_fwhm=5):
 
     # Make output path for the model if it doesn't exist
     # /shared/fmri/bids/derivatives/nilearn/glm/level1/{TASK}/{MODELNUM}
     if not os.path.exists(out_path):
         os.makedirs(out_path)
-
-    # Make contrast path for each subject within the model output path
-    contrasts_path = os.path.join(out_path, "sub-%s/ses-%s/contrasts"%(subnum, session))
-    if not os.path.exists(contrasts_path):
-        os.makedirs(contrasts_path)
-
+        
     sub_events = glob.glob(os.path.join(data_path, 'sub-%s/ses-%s/func/sub-%s_ses-%s_task-%s_run-*_events.tsv'%(subnum, session, subnum, session, task)))
     sub_events.sort()
 
@@ -335,19 +313,3 @@ def run_level1(subnum, session, task, mnum, data_path, out_path, space = 'MNI152
         f = open(fn, 'wb')
         pickle.dump(fmri_glm, f)
         f.close()
-
-        # You don't need this step for group level analyses. You can load FirstLevelModel objects for SecondLevelModel.fit() inputs
-        # But if you want to use images instead of FirstLevelModel objects as the input then `output_type` should be `effect_size` so you save the parameter maps and not other statistics
-        if save_contrast:
-            print("***********************************************")
-            print("Running contrasts for sub-%s ses-%s task-%s"%(subnum, session, task))
-            print("***********************************************")
-            contrasts = make_contrasts(design_matrix[0], mnum) # using the first design matrix since contrasts are the same for all runs
-            for index, (contrast_id, contrast_val) in enumerate(contrasts.items()):
-                contrast_map = fmri_glm.compute_contrast(contrast_val, output_type= output_type)
-                nib.save(contrast_map, '%s/sub-%s_ses-%s_task-%s_space-%s_%s_%s_%s.nii.gz'%(contrasts_path, subnum, session, task, space, mnum, contrast_id, output_type))
-                contrast_map = fmri_glm.compute_contrast(contrast_val, output_type= 'stat') #also save tmaps
-                nib.save(contrast_map, '%s/sub-%s_ses-%s_task-%s_space-%s_%s_%s_%s.nii.gz'%(contrasts_path, subnum, session, task, space, mnum, contrast_id, 'tmap'))
-            print("***********************************************")
-            print("Done saving contrasts for sub-%s ses-%s task-%s"%(subnum, session, task))
-            print("***********************************************")
