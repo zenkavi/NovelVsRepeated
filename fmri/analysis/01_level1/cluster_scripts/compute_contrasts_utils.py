@@ -6,6 +6,7 @@ import numpy as np
 import os
 import pandas as pd
 import pickle
+from level1_utils import get_model_regs
 
 def make_basic_contrasts(design_matrix):
     # first generate canonical contrasts (i.e. regressors vs. baseline)
@@ -49,17 +50,29 @@ def compute_contrast(subnum, session, task, mnum, contrasts_fn, out_path, output
     f = open(fn, 'rb')
     contrasts = json.loads(f.read())
     f.close()
+    ## Numpify the contrast file from jsonified lists as elements
+    contrasts = {k:np.array(v) for (k, v) in contrasts.items()}
 
+    # Check that the design matrix contains the regressors of interest
+    checks_passed = True
 
-    print("***********************************************")
-    print("Computing contrasts for sub-%s ses-%s task-%s"%(subnum, session, task))
-    print("***********************************************")
-    # contrasts = make_contrasts(design_matrix[0], mnum) # using the first design matrix since contrasts are the same for all runs
-    for index, (contrast_id, contrast_val) in enumerate(contrasts.items()):
-        contrast_map = fmri_glm.compute_contrast(contrast_val, output_type= output_type)
-        nib.save(contrast_map, '%s/sub-%s_ses-%s_task-%s_space-%s_%s_%s_%s.nii.gz'%(contrasts_path, subnum, session, task, space, mnum, contrast_id, output_type))
-        contrast_map = fmri_glm.compute_contrast(contrast_val, output_type= 'stat') #also save tmaps
-        nib.save(contrast_map, '%s/sub-%s_ses-%s_task-%s_space-%s_%s_%s_%s.nii.gz'%(contrasts_path, subnum, session, task, space, mnum, contrast_id, 'tmap'))
-    print("***********************************************")
-    print("Done saving contrasts for sub-%s ses-%s task-%s"%(subnum, session, task))
-    print("***********************************************")
+    regs = get_model_regs(mnum, task)
+    for cur_reg in regs:
+        if not cur_reg in contrasts.keys():
+            print("Contrast file missing regressor %s"%(cur_reg))
+            checks_passed = False
+            break
+
+    if checks_passed:
+        print("***********************************************")
+        print("Computing contrasts for sub-%s ses-%s task-%s"%(subnum, session, task))
+        print("***********************************************")
+        # contrasts = make_contrasts(design_matrix[0], mnum) # using the first design matrix since contrasts are the same for all runs
+        for index, (contrast_id, contrast_val) in enumerate(contrasts.items()):
+            contrast_map = fmri_glm.compute_contrast(contrast_val, output_type= output_type)
+            nib.save(contrast_map, '%s/sub-%s_ses-%s_task-%s_space-%s_%s_%s_%s.nii.gz'%(contrasts_path, subnum, session, task, space, mnum, contrast_id, output_type))
+            contrast_map = fmri_glm.compute_contrast(contrast_val, output_type= 'stat') #also save tmaps
+            nib.save(contrast_map, '%s/sub-%s_ses-%s_task-%s_space-%s_%s_%s_%s.nii.gz'%(contrasts_path, subnum, session, task, space, mnum, contrast_id, 'tmap'))
+        print("***********************************************")
+        print("Done saving contrasts for sub-%s ses-%s task-%s"%(subnum, session, task))
+        print("***********************************************")

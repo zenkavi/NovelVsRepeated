@@ -6,13 +6,13 @@ do
         m) modelnum=${OPTARG};;
         t) task=${OPTARG};;
         s) session=${OPTARG};;
-        o) outputSpace=${OPTARG};;
+        o) space=${OPTARG};;
     esac
 done
 
 for subnum in 601 609 611 619 621 629
   do
-      sed -e "s/{MODELNUM}/$modelnum/g" -e "s/{SUBNUM}/$subnum/g" -e "s/{TASK}/$task/g" -e "s/{SESSION}/$session/g" -e "s/{OUTPUTSPACE}/$outputSpace/g" run_level1.batch | sbatch
+      sed -e "s/{MODELNUM}/$modelnum/g" -e "s/{SUBNUM}/$subnum/g" -e "s/{TASK}/$task/g" -e "s/{SESSION}/$session/g" -e "s/{SPACE}/$space/g" run_level1.batch | sbatch
     done
 
 # 6 jobs each for each of the commands below

@@ -143,7 +143,7 @@ def get_events(subnum, session, task, runnum, mnum, data_path):
         if reg == 'choiceIncorrectRE_st':
             cond_choiceIncorrectRE_st = pd.DataFrame(events.query('trial_type == "stim"')['onset'] + events.query('trial_type == "stim"')['duration'], columns = ['onset']).reset_index(drop=True) # this is the same as the feedback onsets
             cond_choiceIncorrectRE_st['duration'] = 0
-            cond_choiceIncorrectRE_st['trial_type'] = 'choiceIncorrectHT_st'
+            cond_choiceIncorrectRE_st['trial_type'] = 'choiceIncorrectRE_st'
             cond_choiceIncorrectRE_st['modulation'] = 1 - behavior['correct'].reset_index(drop=True)
             cond_choiceIncorrectRE_st['stim_type'] = behavior['type'].reset_index(drop=True)
             cond_choiceIncorrectRE_st = cond_choiceIncorrectRE_st.query('stim_type == 0').drop('stim_type', axis=1).reset_index(drop=True)
@@ -253,13 +253,18 @@ def make_level1_design_matrix(subnum, session, task, runnum, mnum, data_path, hr
 
 # Fixed effects analysis for all runs of subjects based on tutorial on:
 # https://nilearn.github.io/stable/auto_examples/04_glm_first_level/plot_fiac_analysis.html#sphx-glr-auto-examples-04-glm-first-level-plot-fiac-analysis-py
-def run_level1(subnum, session, task, mnum, data_path, out_path, space = 'MNI152NLin2009cAsym_res-2', noise_model='ar1', hrf_model='spm', drift_model='cosine', smoothing_fwhm=5):
+def run_level1(subnum, session, task, mnum, data_path, out_path, space, noise_model='ar1', hrf_model='spm', drift_model='cosine', smoothing_fwhm=5):
 
     # Make output path for the model if it doesn't exist
     # /shared/fmri/bids/derivatives/nilearn/glm/level1/{TASK}/{MODELNUM}
     if not os.path.exists(out_path):
         os.makedirs(out_path)
-        
+
+    # Make contrast path for each subject within the model output path
+    contrasts_path = os.path.join(out_path, "sub-%s/ses-%s/contrasts"%(subnum, session))
+    if not os.path.exists(contrasts_path):
+        os.makedirs(contrasts_path)
+
     sub_events = glob.glob(os.path.join(data_path, 'sub-%s/ses-%s/func/sub-%s_ses-%s_task-%s_run-*_events.tsv'%(subnum, session, subnum, session, task)))
     sub_events.sort()
 
@@ -281,12 +286,24 @@ def run_level1(subnum, session, task, mnum, data_path, out_path, space = 'MNI152
         design_matrix = []
         for run_events in sub_events:
             runnum = re.findall('\d+', os.path.basename(run_events))[2] #index 0 is subnum, index 1 for session, index 2 is run num
-            run_design_matrix = make_level1_design_matrix(subnum, session, task, runnum, mnum, data_path, hrf_model = hrf_model, drift_model=drift_model)
+            run_design_matrix = make_level1_design_matrix(subnum, session, task, runnum, mnum, data_path, hrf_model = hrf_model, drift_model = drift_model)
             design_matrix.append(run_design_matrix)
             print("***********************************************")
             print("Saving design matrix for sub-%s ses-%s task-%s run-%s"%(subnum, session, task, runnum))
             print("***********************************************")
             run_design_matrix.to_csv(os.path.join(out_path, 'sub-%s/ses-%s/sub-%s_ses-%s_task-%s_run-%s_space-%s_%s_level1_design_matrix.csv' %(subnum, session, subnum, session, task, runnum, space, mnum)), index=False)
+
+        # Check the design matrices have the same number of columns across runs
+        # Note this currently only works for two runs
+        if len(design_matrix) > 1:
+            df1 = design_matrix[0]
+            df2 = design_matrix[1]
+
+            cols = df1.columns.union(df2.columns)
+
+            df1 = df1.reindex(cols, axis=1, fill_value=0)
+            df2 = df2.reindex(cols, axis=1, fill_value=0)
+            design_matrix = [df1, df2]
 
         # Define GLM parmeters
         img_tr = get_from_sidecar(subnum, session, task, runnum, 'RepetitionTime', data_path) #get tr info from current runnum since it's the same for all runs

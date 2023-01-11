@@ -13,7 +13,27 @@ mnum = 'model1'
 design_matrix = make_level1_design_matrix(subnum, session, task, runnum, mnum, data_path, hrf_model = 'spm', drift_model='cosine')
 
 contrasts = make_basic_contrasts(design_matrix)
-contrasts
+
+## Add desired contrasts for the task
+contrasts['correctHT-incorrectHT'] = contrasts['choiceCorrectHT_st'] - contrasts['choiceIncorrectHT_st']
+contrasts['incorrectHT-correctHT'] = contrasts['choiceIncorrectHT_st'] - contrasts['choiceCorrectHT_st']
+contrasts['correctRE-incorrectRE'] = contrasts['choiceCorrectRE_st'] - contrasts['choiceIncorrectRE_st']
+contrasts['incorrectRE-correctRE'] = contrasts['choiceIncorrectRE_st'] - contrasts['choiceCorrectRE_st']
+contrasts['rewardHT-rewardRE'] = contrasts['rewardHT_par'] - contrasts['rewardRE_par']
+contrasts['rewardRE-rewardHT'] = contrasts['rewardRE_par'] - contrasts['rewardHT_par']
+contrasts['valDiffHT-valDiffRE'] = contrasts['valDiffHT_par'] - contrasts['valDiffRE_par']
+contrasts['valDiffRE-valDiffHT'] = contrasts['valDiffRE_par'] - contrasts['valDiffHT_par']
+contrasts['valSumHT-valSumRE'] = contrasts['valSumHT_par'] - contrasts['valSumRE_par']
+contrasts['valSumRE-valSumHT'] = contrasts['valSumRE_par'] - contrasts['valSumHT_par']
+contrasts['valEffectsOfInterestHT'] = np.vstack((contrasts['valDiffHT_par'], contrasts['valSumHT_par']))
+contrasts['valEffectsOfInterestRE'] = np.vstack((contrasts['valDiffRE_par'], contrasts['valSumRE_par']))
+
+## Jsonify
+contrasts = {k:v.tolist() for (k,v) in contrasts.items()}
+
+## Save
+fn = os.path.join('./level1_contrasts/binaryChoice_%s_contrasts.json')%(mnum)
+json.dump(contrasts, open(fn, 'w', encoding='utf-8'), indent=4)
 
 ####################################################
 
@@ -36,8 +56,14 @@ contrasts['valHT-valRE'] = contrasts['valHT_par'] - contrasts['valRE_par']
 contrasts['valHT-valRE'] = contrasts['valRE_par'] - contrasts['valHT_par']
 contrasts['rewardHT-rewardRE'] = contrasts['rewardHT_par'] - contrasts['rewardRE_par']
 contrasts['rewardRE-rewardHT'] = contrasts['rewardRE_par'] - contrasts['rewardHT_par']
+contrasts['correctHT-incorrectHT'] = contrasts['choiceCorrectHT_st'] - contrasts['choiceIncorrectHT_st']
+contrasts['incorrectHT-correctHT'] = contrasts['choiceIncorrectHT_st'] - contrasts['choiceCorrectHT_st']
+contrasts['correctRE-incorrectRE'] = contrasts['choiceCorrectRE_st'] - contrasts['choiceIncorrectRE_st']
+contrasts['incorrectRE-correctRE'] = contrasts['choiceIncorrectRE_st'] - contrasts['choiceCorrectRE_st']
 
-fn = 'yesNo_%s_contrasts.json'%(mnum)
-f = open(fn, 'wb')
-f.write(json.dumps(contrasts))
-f.close()
+## Jsonify
+contrasts = {k:v.tolist() for (k,v) in contrasts.items()}
+
+## Save
+fn = os.path.join('./level1_contrasts/yesNo_%s_contrasts.json')%(mnum)
+json.dump(contrasts, open(fn, 'w', encoding='utf-8'), indent=4)
