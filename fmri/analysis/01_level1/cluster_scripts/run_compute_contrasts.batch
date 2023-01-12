@@ -1,0 +1,17 @@
+#!/bin/bash
+
+#SBATCH -J compute_contrasts_sub-{SUBNUM}_ses-{SESSION}_task-{TASK}_{MODELNUM}_%j
+#SBATCH -c 7
+
+# Outputs ----------------------------------
+#SBATCH -o /shared/.out/compute_contrasts_sub-{SUBNUM}_ses-{SESSION}_task-{TASK}_{MODELNUM}_%j.out
+#SBATCH -e /shared/.err/compute_contrasts_sub-{SUBNUM}_ses-{SESSION}_task-{TASK}_{MODELNUM}_%j.err
+# ------------------------------------------
+
+export DATA_PATH=/shared/fmri/bids
+export OUT_PATH=/shared/fmri/bids/derivatives/nilearn/glm/level1/{TASK}/{MODELNUM}
+export CODE_PATH=/shared/fmri/analysis/01_level1/cluster_scripts
+
+docker run --rm -e DATA_PATH=/data -e OUT_PATH=/out \
+-v $DATA_PATH:/data -v $OUT_PATH:/out -v $CODE_PATH:/code \
+zenkavi/fsl:6.0.3 python ./code/compute_contrasts.py --subnum {SUBNUM} --session {SESSION} --task {TASK} --mnum {MODELNUM} --space {SPACE} --contrasts_fn {CONTRASTSFILE}
