@@ -81,17 +81,39 @@ export CODE_PATH=/shared/fmri/analysis/01_level1/cluster_scripts
 
 docker run --rm -e DATA_PATH=/data -e OUT_PATH=/out \
 -v $DATA_PATH:/data -v $OUT_PATH:/out -v $CODE_PATH:/code \
-zenkavi/fsl:6.0.3 python ./code/compute_contrasts.py --subnum 601 --session 01 --task binaryChoice --mnum model1 --output_space 'MNI152NLin2009cAsym_res-2' --contrasts_fn binaryChoice_model1_constrasts.json
+zenkavi/fsl:6.0.3 python ./code/compute_contrasts.py --subnum 601 --session 01 --task binaryChoice --mnum model1 --output_space 'MNI152NLin2009cAsym_res-2' --contrasts_fn binaryChoice_model1_contrasts.json
 ```
 
 **Analyses in native space?**
 
-## Submit job to process the other subjects
+## Submit jobs for levels 1s of all subjects and sessions for both tasks
 
 ```
 cd /shared/fmri/analysis/01_level1/cluster_scripts
-sh run_level1.sh -m model1 -t binaryChoice -s 2
+
+sh run_level1.sh -m model1 -t binaryChoice -s 1 -o MNI152NLin2009cAsym:res-2
+sh run_level1.sh -m model1 -t binaryChoice -s 2 -o MNI152NLin2009cAsym:res-2
+sh run_level1.sh -m model1 -t binaryChoice -s 3 -o MNI152NLin2009cAsym:res-2
+sh run_level1.sh -m model1 -t yesNo -s 1 -o MNI152NLin2009cAsym:res-2
+sh run_level1.sh -m model1 -t yesNo -s 2 -o MNI152NLin2009cAsym:res-2
+sh run_level1.sh -m model1 -t yesNo -s 3 -o MNI152NLin2009cAsym:res-2
 ```
+
+## Submit jobs to compute contrasts
+
+Wait for the previous jobs to complete without errors. If you submit before some contrast jobs might be allocated resources before the level 1's have completed running.  
+
+I haven't made all of these to run continuously to have the ability to run other arbitrary contrasts as needed without having to re-estimate the GLM.  
+
+```
+sh run_compute_contrasts.sh -m model1 -t binaryChoice -s 1 -o MNI152NLin2009cAsym:res-2 -c binaryChoice_model1_constrasts.json
+sh run_compute_contrasts.sh -m model1 -t binaryChoice -s 2 -o MNI152NLin2009cAsym:res-2 -c binaryChoice_model1_constrasts.json
+sh run_compute_contrasts.sh -m model1 -t binaryChoice -s 3 -o MNI152NLin2009cAsym:res-2 -c binaryChoice_model1_constrasts.json
+sh run_compute_contrasts.sh -m model1 -t yesNo -s 1 -o MNI152NLin2009cAsym:res-2 -c yesNo_model1_constrasts.json
+sh run_compute_contrasts.sh -m model1 -t yesNo -s 2 -o MNI152NLin2009cAsym:res-2 -c yesNo_model1_constrasts.json
+sh run_compute_contrasts.sh -m model1 -t yesNo -s 3 -o MNI152NLin2009cAsym:res-2 -c yesNo_model1_constrasts.json
+```
+
 
 ## Push level 1 outputs back to s3
 
