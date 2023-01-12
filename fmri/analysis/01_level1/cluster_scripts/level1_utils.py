@@ -251,6 +251,19 @@ def make_level1_design_matrix(subnum, session, task, runnum, mnum, data_path, hr
 
     return design_matrix
 
+def match_dm_cols(dm_list):
+    col_nums = []
+
+    for i in dm_list:
+        col_nums.append(len(i.columns))
+
+    cols = dm_list[np.argmax(col_nums)].columns
+
+    for i, df in enumerate(dm_list):
+        dm_list[i] = df.reindex(cols, axis=1, fill_value=0)
+
+    return dm_list
+
 # Fixed effects analysis for all runs of subjects based on tutorial on:
 # https://nilearn.github.io/stable/auto_examples/04_glm_first_level/plot_fiac_analysis.html#sphx-glr-auto-examples-04-glm-first-level-plot-fiac-analysis-py
 def run_level1(subnum, session, task, mnum, data_path, out_path, space, noise_model='ar1', hrf_model='spm', drift_model='cosine', smoothing_fwhm=5):
@@ -296,14 +309,7 @@ def run_level1(subnum, session, task, mnum, data_path, out_path, space, noise_mo
         # Check the design matrices have the same number of columns across runs
         # Note this currently only works for two runs
         if len(design_matrix) > 1:
-            df1 = design_matrix[0]
-            df2 = design_matrix[1]
-
-            cols = df1.columns.union(df2.columns)
-
-            df1 = df1.reindex(cols, axis=1, fill_value=0)
-            df2 = df2.reindex(cols, axis=1, fill_value=0)
-            design_matrix = [df1, df2]
+            match_dm_cols(design_matrix)
 
         # Define GLM parmeters
         img_tr = get_from_sidecar(subnum, session, task, runnum, 'RepetitionTime', data_path) #get tr info from current runnum since it's the same for all runs
