@@ -1,7 +1,7 @@
 #! /opt/miniconda-4.10.3/bin/python
 
 from argparse import ArgumentParser
-from compute_contrast_utils import compute_contrasts
+from compute_contrasts_utils import compute_contrasts
 import os
 
 parser = ArgumentParser()
@@ -29,4 +29,4 @@ output_space = args.output_space
 data_path = os.environ['DATA_PATH']
 out_path = os.environ['OUT_PATH']
 
-compute_contrasts(subnum, session, task, mnum, contrasts_fn, out_path, output_type = output_type, space = output_space)
+compute_contrasts(subnum, session, task, mnum, contrasts_fn, out_path, output_type = output_type, output_space = output_space)

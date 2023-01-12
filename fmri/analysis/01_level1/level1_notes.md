@@ -42,13 +42,22 @@ pcluster list-clusters
 
 ## Copy the preprocessed fmri data from s3 to cluster
 
+This takes a little bit
+
 ```
 pcluster ssh --cluster-name fmrianalysis-cluster -i $KEYS_PATH/fmrianalysis-cluster.pem
 
 export DATA_PATH=/shared/fmri/bids
 
-aws s3 sync s3://novel-vs-repeated/fmri/bids $DATA_PATH --exclude '*' --include '*_events.tsv' --include '*_beh.tsv'
+aws s3 sync s3://novel-vs-repeated/fmri/bids $DATA_PATH --exclude '*' --include '*_events.tsv' --include '*_beh.tsv' --include '*_bold.json' --include '*run-*_bold.nii.gz'
 aws s3 sync s3://novel-vs-repeated/fmri/bids/derivatives $DATA_PATH/derivatives --exclude '*' --include '*desc-preproc_bold.nii.gz' --include '*desc-confounds_timeseries.tsv' --include '*_desc-brain_mask.nii.gz'
+```
+## Copy analysis code from s3 to cluster
+
+```
+export CODE_PATH=/shared/fmri/analysis/01_level1/cluster_scripts
+
+aws s3 sync s3://novel-vs-repeated/fmri/analysis/01_level1/cluster_scripts $CODE_PATH
 ```
 
 ## Test level1 analysis on single subject on head node
@@ -60,35 +69,22 @@ export CODE_PATH=/shared/fmri/analysis/01_level1/cluster_scripts
 
 docker run --rm -it -e DATA_PATH=/data -e OUT_PATH=/out \
 -v $DATA_PATH:/data -v $OUT_PATH:/out -v $CODE_PATH:/code \
-zenkavi/fsl:6.0.3 python ./code/level1.py --subnum 601 --task binaryChoice --mnum model1
+zenkavi/fsl:6.0.3 python ./code/level1.py --subnum 601 --session 01 --task binaryChoice --mnum model1 --space 'MNI152NLin2009cAsym_res-2'
 ```
 
-If a subject has fewer scans in different runs this might lead to a lower cosine drift order and causes problems when calculating contrasts combined with other runs because the design matrix ends up with one less column compared to other runs'. In such cases manual modification of the run design matrix might be necessary:
+## Test contrast computation on single subject on head node
 
 ```
-run_design_matrix['drift_17'] = 0
+export DATA_PATH=/shared/fmri/bids
+export OUT_PATH=/shared/fmri/bids/derivatives/nilearn/glm/level1/binaryChoice/model1
+export CODE_PATH=/shared/fmri/analysis/01_level1/cluster_scripts
+
+docker run --rm -e DATA_PATH=/data -e OUT_PATH=/out \
+-v $DATA_PATH:/data -v $OUT_PATH:/out -v $CODE_PATH:/code \
+zenkavi/fsl:6.0.3 python ./code/compute_contrasts.py --subnum 601 --session 01 --task binaryChoice --mnum model1 --output_space 'MNI152NLin2009cAsym_res-2' --contrasts_fn binaryChoice_model1_constrasts.json
 ```
 
 **Analyses in native space?**
-
-### Level 1 for binaryChoice task
-
-- 1 run per session for 3 sessions. Each session has 100 trials with *~70 RE and ~30 HT*
-- Possible value regressors: [valueLeft_par, valueRight_par], [valueChosen_par, valueUnchosen_par], valChosenMinusUnchosen_par, valChosenPlusUnchosen_par
-  - Value regressors have the onset and duration of stim
-- Other regressors: cross_ev, stim_ev, reward_ev, reward_par, condition (HT vs RE), choice (correct vs incorrect)
-
-Questions:
-  - Does how the value regressor correlates with each voxel change across sessions?
-  - Does value regressor look different for HT vs RE trials?
-  - Does the value regressor's correlations with each voxel change differently depending on the condition?
-  - Should be able to model changes across sessions in a single model with interactions of the value and type regressors with session but you'd still want the (posthoc) maps for each case (session 1 + HT + value etc.)
-  bold ~ value * stim_type * session
-
-### Level 1 for yesNo task
-
-- 2 runs per session
-- Possible value regressors: [valueReference, valueStim], [valueChosen, valueUnchosen], valChosenMinusUnchosen, valChosenPlusUnchosen
 
 ## Submit job to process the other subjects
 

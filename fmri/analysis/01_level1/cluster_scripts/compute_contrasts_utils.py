@@ -25,7 +25,7 @@ def make_basic_contrasts(design_matrix):
     return contrasts
 
 
-def compute_contrasts(subnum, session, task, mnum, contrasts_fn, out_path, output_type = 'effect_size', space = 'MNI152NLin2009cAsym_res-2'):
+def compute_contrasts(subnum, session, task, mnum, contrasts_fn, out_path, output_type = 'effect_size', output_space = 'MNI152NLin2009cAsym_res-2'):
 
     # Make contrast path for each subject within the model output path
     contrasts_path = os.path.join(out_path, "sub-%s/ses-%s/contrasts"%(subnum, session))
@@ -37,7 +37,7 @@ def compute_contrasts(subnum, session, task, mnum, contrasts_fn, out_path, outpu
     print("***********************************************")
     print("Loading GLM for sub-%s ses-%s task-%s"%(subnum, session, task))
     print("***********************************************")
-    fn = os.path.join(out_path, 'sub-%s/ses-%s/sub-%s_ses-%s_task-%s_space-%s_%s_level1_glm.pkl' %(subnum, session, subnum, session, task, space, mnum))
+    fn = os.path.join(out_path, 'sub-%s/ses-%s/sub-%s_ses-%s_task-%s_space-%s_%s_level1_glm.pkl' %(subnum, session, subnum, session, task, output_space, mnum))
     f = open(fn, 'rb')
     fmri_glm = pickle.load(f)
     f.close()
@@ -46,7 +46,7 @@ def compute_contrasts(subnum, session, task, mnum, contrasts_fn, out_path, outpu
     print("***********************************************")
     print("Loading contrast file %s"%(contrasts_fn))
     print("***********************************************")
-    fn = os.path.join('./level1_contrasts/%s' %(contrasts_fn))
+    fn = os.path.join(os.path.dirname(__file__),'level1_contrasts/%s' %(contrasts_fn))
     f = open(fn, 'rb')
     contrasts = json.loads(f.read())
     f.close()
@@ -85,9 +85,9 @@ def compute_contrasts(subnum, session, task, mnum, contrasts_fn, out_path, outpu
         # contrasts = make_contrasts(design_matrix[0], mnum) # using the first design matrix since contrasts are the same for all runs
         for index, (contrast_id, contrast_val) in enumerate(contrasts.items()):
             contrast_map = fmri_glm.compute_contrast(contrast_val, output_type= output_type)
-            nib.save(contrast_map, '%s/sub-%s_ses-%s_task-%s_space-%s_%s_%s_%s.nii.gz'%(contrasts_path, subnum, session, task, space, mnum, contrast_id, output_type))
+            nib.save(contrast_map, '%s/sub-%s_ses-%s_task-%s_space-%s_%s_%s_%s.nii.gz'%(contrasts_path, subnum, session, task, output_space, mnum, contrast_id, output_type))
             contrast_map = fmri_glm.compute_contrast(contrast_val, output_type= 'stat') #also save tmaps
-            nib.save(contrast_map, '%s/sub-%s_ses-%s_task-%s_space-%s_%s_%s_%s.nii.gz'%(contrasts_path, subnum, session, task, space, mnum, contrast_id, 'tmap'))
+            nib.save(contrast_map, '%s/sub-%s_ses-%s_task-%s_space-%s_%s_%s_%s.nii.gz'%(contrasts_path, subnum, session, task, output_space, mnum, contrast_id, 'tmap'))
         print("***********************************************")
         print("Done saving contrasts for sub-%s ses-%s task-%s"%(subnum, session, task))
         print("***********************************************")

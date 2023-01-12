@@ -17,7 +17,7 @@ subnum = args.subnum
 session = args.session
 task = args.task
 mnum = args.mnum
-space = args.output_space
+space = args.space
 
 # determined in run_level1.batch docker call `docker run --rm -e DATA_PATH=/data -e OUT_PATH=/out`
 data_path = os.environ['DATA_PATH']

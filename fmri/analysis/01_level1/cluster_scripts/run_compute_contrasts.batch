@@ -14,4 +14,4 @@ export CODE_PATH=/shared/fmri/analysis/01_level1/cluster_scripts
 
 docker run --rm -e DATA_PATH=/data -e OUT_PATH=/out \
 -v $DATA_PATH:/data -v $OUT_PATH:/out -v $CODE_PATH:/code \
-zenkavi/fsl:6.0.3 python ./code/compute_contrasts.py --subnum {SUBNUM} --session {SESSION} --task {TASK} --mnum {MODELNUM} --space {SPACE} --contrasts_fn {CONTRASTSFILE}
+zenkavi/fsl:6.0.3 python ./code/compute_contrasts.py --subnum {SUBNUM} --session {SESSION} --task {TASK} --mnum {MODELNUM} --output_space {OUTPUTSPACE} --contrasts_fn {CONTRASTSFILE}
