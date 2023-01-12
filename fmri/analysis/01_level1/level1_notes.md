@@ -91,12 +91,12 @@ zenkavi/fsl:6.0.3 python ./code/compute_contrasts.py --subnum 601 --session 01 -
 ```
 cd /shared/fmri/analysis/01_level1/cluster_scripts
 
-sh run_level1.sh -m model1 -t binaryChoice -s 1 -o MNI152NLin2009cAsym:res-2
-sh run_level1.sh -m model1 -t binaryChoice -s 2 -o MNI152NLin2009cAsym:res-2
-sh run_level1.sh -m model1 -t binaryChoice -s 3 -o MNI152NLin2009cAsym:res-2
-sh run_level1.sh -m model1 -t yesNo -s 1 -o MNI152NLin2009cAsym:res-2
-sh run_level1.sh -m model1 -t yesNo -s 2 -o MNI152NLin2009cAsym:res-2
-sh run_level1.sh -m model1 -t yesNo -s 3 -o MNI152NLin2009cAsym:res-2
+sh run_level1.sh -m model1 -t binaryChoice -s 01 -o MNI152NLin2009cAsym_res-2
+sh run_level1.sh -m model1 -t binaryChoice -s 02 -o MNI152NLin2009cAsym_res-2
+sh run_level1.sh -m model1 -t binaryChoice -s 03 -o MNI152NLin2009cAsym_res-2
+sh run_level1.sh -m model1 -t yesNo -s 01 -o MNI152NLin2009cAsym_res-2
+sh run_level1.sh -m model1 -t yesNo -s 02 -o MNI152NLin2009cAsym_res-2
+sh run_level1.sh -m model1 -t yesNo -s 03 -o MNI152NLin2009cAsym_res-2
 ```
 
 ## Submit jobs to compute contrasts
@@ -106,12 +106,14 @@ Wait for the previous jobs to complete without errors. If you submit before some
 I haven't made all of these to run continuously to have the ability to run other arbitrary contrasts as needed without having to re-estimate the GLM.  
 
 ```
-sh run_compute_contrasts.sh -m model1 -t binaryChoice -s 1 -o MNI152NLin2009cAsym:res-2 -c binaryChoice_model1_constrasts.json
-sh run_compute_contrasts.sh -m model1 -t binaryChoice -s 2 -o MNI152NLin2009cAsym:res-2 -c binaryChoice_model1_constrasts.json
-sh run_compute_contrasts.sh -m model1 -t binaryChoice -s 3 -o MNI152NLin2009cAsym:res-2 -c binaryChoice_model1_constrasts.json
-sh run_compute_contrasts.sh -m model1 -t yesNo -s 1 -o MNI152NLin2009cAsym:res-2 -c yesNo_model1_constrasts.json
-sh run_compute_contrasts.sh -m model1 -t yesNo -s 2 -o MNI152NLin2009cAsym:res-2 -c yesNo_model1_constrasts.json
-sh run_compute_contrasts.sh -m model1 -t yesNo -s 3 -o MNI152NLin2009cAsym:res-2 -c yesNo_model1_constrasts.json
+cd /shared/fmri/analysis/01_level1/cluster_scripts
+
+sh run_compute_contrasts.sh -m model1 -t binaryChoice -s 01 -o MNI152NLin2009cAsym_res-2 -c binaryChoice_model1_contrasts.json
+sh run_compute_contrasts.sh -m model1 -t binaryChoice -s 02 -o MNI152NLin2009cAsym_res-2 -c binaryChoice_model1_contrasts.json
+sh run_compute_contrasts.sh -m model1 -t binaryChoice -s 03 -o MNI152NLin2009cAsym_res-2 -c binaryChoice_model1_contrasts.json
+sh run_compute_contrasts.sh -m model1 -t yesNo -s 01 -o MNI152NLin2009cAsym_res-2 -c yesNo_model1_contrasts.json
+sh run_compute_contrasts.sh -m model1 -t yesNo -s 02 -o MNI152NLin2009cAsym_res-2 -c yesNo_model1_contrasts.json
+sh run_compute_contrasts.sh -m model1 -t yesNo -s 03 -o MNI152NLin2009cAsym_res-2 -c yesNo_model1_contrasts.json
 ```
 
 

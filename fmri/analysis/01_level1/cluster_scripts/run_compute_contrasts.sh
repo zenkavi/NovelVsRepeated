@@ -16,9 +16,9 @@ for subnum in 601 609 611 619 621 629
       sed -e "s/{MODELNUM}/$modelnum/g" -e "s/{SUBNUM}/$subnum/g" -e "s/{TASK}/$task/g" -e "s/{SESSION}/$session/g" -e "s/{OUTPUTSPACE}/$outputSpace/g" -e "s/{CONTRASTSFILE}/$contrastsFile/g" run_compute_contrasts.batch | sbatch
     done
 
-# sh run_compute_contrasts.sh -m model1 -t binaryChoice -s 1 -o MNI152NLin2009cAsym:res-2 -c binaryChoice_model1_constrasts.json
-# sh run_compute_contrasts.sh -m model1 -t binaryChoice -s 2 -o MNI152NLin2009cAsym:res-2 -c binaryChoice_model1_constrasts.json
-# sh run_compute_contrasts.sh -m model1 -t binaryChoice -s 3 -o MNI152NLin2009cAsym:res-2 -c binaryChoice_model1_constrasts.json
-# sh run_compute_contrasts.sh -m model1 -t yesNo -s 1 -o MNI152NLin2009cAsym:res-2 -c yesNo_model1_constrasts.json
-# sh run_compute_contrasts.sh -m model1 -t yesNo -s 2 -o MNI152NLin2009cAsym:res-2 -c yesNo_model1_constrasts.json
-# sh run_compute_contrasts.sh -m model1 -t yesNo -s 3 -o MNI152NLin2009cAsym:res-2 -c yesNo_model1_constrasts.json
+# sh run_compute_contrasts.sh -m model1 -t binaryChoice -s 1 -o MNI152NLin2009cAsym_res-2-c binaryChoice_model1_constrasts.json
+# sh run_compute_contrasts.sh -m model1 -t binaryChoice -s 2 -o MNI152NLin2009cAsym_res-2 -c binaryChoice_model1_constrasts.json
+# sh run_compute_contrasts.sh -m model1 -t binaryChoice -s 3 -o MNI152NLin2009cAsym_res-2 -c binaryChoice_model1_constrasts.json
+# sh run_compute_contrasts.sh -m model1 -t yesNo -s 1 -o MNI152NLin2009cAsym_res-2 -c yesNo_model1_constrasts.json
+# sh run_compute_contrasts.sh -m model1 -t yesNo -s 2 -o MNI152NLin2009cAsym_res-2 -c yesNo_model1_constrasts.json
+# sh run_compute_contrasts.sh -m model1 -t yesNo -s 3 -o MNI152NLin2009cAsym_res-2 -c yesNo_model1_constrasts.json
