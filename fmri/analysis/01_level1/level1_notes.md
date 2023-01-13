@@ -133,6 +133,8 @@ docker run --rm -it -v ~/.aws:/root/.aws -v $BIDS_DIR:/bids amazon/aws-cli s3 sy
 
 docker run --rm -it -v ~/.aws:/root/.aws -v $BIDS_DIR:/bids amazon/aws-cli s3 sync s3://novel-vs-repeated/fmri/bids/derivatives /bids/derivatives --exclude '*' --include '*space-MNI152NLin2009cAsym_res-2_desc-preproc_T1w*'
 
+docker run --rm -it -v ~/.aws:/root/.aws -v $BIDS_DIR:/bids amazon/aws-cli s3 sync s3://novel-vs-repeated/fmri/bids/derivatives/nilearn/glm /bids/derivatives/nilearn/glm --exclude '*' --include '*val*'  --include '*reward*'
+
 ```
 
 ## Delete cluster
