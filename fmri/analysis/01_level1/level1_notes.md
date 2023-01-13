@@ -3,7 +3,7 @@
 ## Push behavior files to S3
 
 ```
-export BIDS_DIR=/Users/zeynepenkavi/Downloads/overtrained_decisions_bidsfmri
+export BIDS_DIR=/Users/zeynepenkavi/CpuEaters/overtrained_decisions_bidsfmri
 
 docker run --rm -it -v ~/.aws:/root/.aws -v $BIDS_DIR:/bids amazon/aws-cli s3 sync /bids s3://novel-vs-repeated/fmri/bids/ --exclude '*' --include '*beh/*'
 ```
@@ -122,6 +122,17 @@ sh run_compute_contrasts.sh -m model1 -t yesNo -s 03 -o MNI152NLin2009cAsym_res-
 ```
 export OUT_PATH=/shared/fmri/bids/derivatives/nilearn/glm/level1
 aws s3 sync $OUT_PATH s3://novel-vs-repeated/fmri/bids/derivatives/nilearn/glm/level1
+```
+
+## Download contrasts you want to visualize
+
+```
+export BIDS_DIR=/Users/zeynepenkavi/CpuEaters/overtrained_decisions_bidsfmri
+
+docker run --rm -it -v ~/.aws:/root/.aws -v $BIDS_DIR:/bids amazon/aws-cli s3 sync s3://novel-vs-repeated/fmri/bids/derivatives/nilearn/glm /bids/derivatives/nilearn/glm --exclude '*' --include '*val*_par*'  --include '*reward*'
+
+docker run --rm -it -v ~/.aws:/root/.aws -v $BIDS_DIR:/bids amazon/aws-cli s3 sync s3://novel-vs-repeated/fmri/bids/derivatives /bids/derivatives --exclude '*' --include '*space-MNI152NLin2009cAsym_res-2_desc-preproc_T1w*'
+
 ```
 
 ## Delete cluster

@@ -89,7 +89,7 @@ aws s3 sync /shared/fmri/bids s3://novel-vs-repeated/fmri/bids
 ## Update local bids directory with bidsonym outputs and fmriprep reports and review them
 
 ```
-export BIDS_DIR=/Users/zeynepenkavi/Downloads/overtrained_decisions_bidsfmri
+export BIDS_DIR=/Users/zeynepenkavi/CpuEaters/overtrained_decisions_bidsfmri
 
 docker run --rm -it -v ~/.aws:/root/.aws -v $BIDS_DIR:/bids amazon/aws-cli s3 sync s3://novel-vs-repeated/fmri/bids/sourcedata /bids/sourcedata
 
