@@ -2,6 +2,8 @@ from compute_contrast_utils import make_basic_contrasts
 from level1_utils import make_level1_design_matrix
 import json
 
+data_path = '/Users/zeynepenkavi/CpuEaters/overtrained_decisions_bidsfmri'
+
 # Binary Choice task
 
 subnum = '601'
@@ -53,7 +55,7 @@ contrasts = make_basic_contrasts(design_matrix)
 
 ## Add desired contrasts for the task
 contrasts['valHT-valRE'] = contrasts['valHT_par'] - contrasts['valRE_par']
-contrasts['valHT-valRE'] = contrasts['valRE_par'] - contrasts['valHT_par']
+contrasts['valRE-valHT'] = contrasts['valRE_par'] - contrasts['valHT_par']
 contrasts['rewardHT-rewardRE'] = contrasts['rewardHT_par'] - contrasts['rewardRE_par']
 contrasts['rewardRE-rewardHT'] = contrasts['rewardRE_par'] - contrasts['rewardHT_par']
 contrasts['correctHT-incorrectHT'] = contrasts['choiceCorrectHT_st'] - contrasts['choiceIncorrectHT_st']

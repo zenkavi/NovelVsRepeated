@@ -40,13 +40,18 @@ pcluster create-cluster --cluster-name fmrianalysis-cluster --cluster-configurat
 pcluster list-clusters
 ```
 
+## Connect to cluster
+
+```
+export KEYS_PATH=/Users/zeynepenkavi/aws_keys
+pcluster ssh --cluster-name fmrianalysis-cluster -i $KEYS_PATH/fmrianalysis-cluster.pem
+```
+
 ## Copy the preprocessed fmri data from s3 to cluster
 
 This takes a little bit
 
 ```
-pcluster ssh --cluster-name fmrianalysis-cluster -i $KEYS_PATH/fmrianalysis-cluster.pem
-
 export DATA_PATH=/shared/fmri/bids
 
 aws s3 sync s3://novel-vs-repeated/fmri/bids $DATA_PATH --exclude '*' --include '*_events.tsv' --include '*_beh.tsv' --include '*_bold.json' --include '*run-*_bold.nii.gz'
@@ -129,12 +134,15 @@ aws s3 sync $OUT_PATH s3://novel-vs-repeated/fmri/bids/derivatives/nilearn/glm/l
 ```
 export BIDS_DIR=/Users/zeynepenkavi/CpuEaters/overtrained_decisions_bidsfmri
 
-docker run --rm -it -v ~/.aws:/root/.aws -v $BIDS_DIR:/bids amazon/aws-cli s3 sync s3://novel-vs-repeated/fmri/bids/derivatives/nilearn/glm /bids/derivatives/nilearn/glm --exclude '*' --include '*val*_par*'  --include '*reward*'
+docker run --rm -it -v ~/.aws:/root/.aws -v $BIDS_DIR:/bids amazon/aws-cli s3 sync s3://novel-vs-repeated/fmri/bids/derivatives/nilearn/glm /bids/derivatives/nilearn/glm --exclude '*' --include '*val*'  --include '*reward*'
+```
+
+## Download preprocessed T1s for visualization backgrounds
+
+```
+export BIDS_DIR=/Users/zeynepenkavi/CpuEaters/overtrained_decisions_bidsfmri
 
 docker run --rm -it -v ~/.aws:/root/.aws -v $BIDS_DIR:/bids amazon/aws-cli s3 sync s3://novel-vs-repeated/fmri/bids/derivatives /bids/derivatives --exclude '*' --include '*space-MNI152NLin2009cAsym_res-2_desc-preproc_T1w*'
-
-docker run --rm -it -v ~/.aws:/root/.aws -v $BIDS_DIR:/bids amazon/aws-cli s3 sync s3://novel-vs-repeated/fmri/bids/derivatives/nilearn/glm /bids/derivatives/nilearn/glm --exclude '*' --include '*val*'  --include '*reward*'
-
 ```
 
 ## Delete cluster
