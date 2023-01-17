@@ -64,65 +64,6 @@ data_bc_clean = data_bc_clean %>%
          abs_val_diff_std = (abs_val_diff - mean(abs_val_diff))/sd(abs_val_diff))
 ```
 
-# Full RT distributions
-
-Is there evidence for some bi-modality for the repeated stimuli (especially after learning), which would suggest that choice is made with a “different fast process” with some probability.
-
-```{r}
-subjs = unique(data_yn_clean$subnum)
-
-for(i in 1:length(subjs)){
-  cur_sub = subjs[i]
-  
-  p = data_yn_clean %>%
-  filter(subnum == cur_sub) %>%
-  filter(abs_val_diff<175) %>%
-  filter(rt < 3) %>%
-  ggplot(aes(rt, fill=type))+
-  geom_density(alpha=.5, color=NA)+
-  facet_grid(val_diff_bin_str ~ day, scales = "free_y")+
-  scale_fill_brewer(palette = "Dark2")+
-  theme(panel.grid = element_blank(),
-        legend.position = "none",
-        axis.text = element_blank(),
-        axis.ticks = element_blank(),
-        legend.box.margin=margin(t = -10))+
-  labs(y="", x = "RT", fill="", title = paste0("Y/N Task - ", cur_sub))
-
-  ggsave(file=paste0(fig_out_path, 'yn_',cur_sub,'_fullRTdists.jpg'), p, height = 5, width = 8, units="in")
-
-}
-
-
-```
-
-```{r}
-subjs = unique(data_bc_clean$subnum)
-
-for(i in 1:length(subjs)){
-  cur_sub = subjs[i]
-  
-  p = data_bc_clean %>%
-  filter(subnum == cur_sub) %>%
-  filter(abs_val_diff<175) %>%
-  filter(rt < 3) %>%
-  ggplot(aes(rt, fill=type))+
-  geom_density(alpha=.5, color=NA)+
-  facet_grid(val_diff_bin_str ~ day, scales = "free_y")+
-  scale_fill_brewer(palette = "Dark2")+
-  theme(panel.grid = element_blank(),
-        legend.position = "none",
-        axis.text = element_blank(),
-        axis.ticks = element_blank(),
-        legend.box.margin=margin(t = -10))+
-  labs(y="", x = "RT", fill="", title = paste0("BC Task - ", cur_sub))
-
-  ggsave(file=paste0(fig_out_path, 'bc_',cur_sub,'_fullRTdists.jpg'), p, height = 5, width = 8, units="in")
-
-}
-
-```
-
 # Logits for choice in Y/N and BC
 
 ## YN task
@@ -189,9 +130,12 @@ if(file.exists(fn_draws) & file.exists(fn_ppc)){
 
 ```
 
-Examine chains for the three variables of interest  
 
-```{r}
+```{r eval=FALSE}
+# Model diagnostics
+
+## Examine chains for the three variables of interest  
+
 as.data.frame(yn_logit_draws) %>%
   select("b_val_diff_std.day_std", "b_val_diff_std.typeRE", "b_val_diff_std.day_std.typeRE", subnum, .chain, .iteration) %>%
   gather(key, value, -subnum, -.chain, -.iteration) %>%
@@ -203,12 +147,9 @@ as.data.frame(yn_logit_draws) %>%
         panel.grid = element_blank(),
         axis.ticks = element_blank(),
         axis.text = element_blank())
-  
-```
 
-Examine autocorrelation in the variables of interest.  
+## Examine autocorrelation in the variables of interest.  
 
-```{r}
 as.data.frame(yn_logit_draws) %>%
   select("b_val_diff_std.day_std", "b_val_diff_std.typeRE", "b_val_diff_std.day_std.typeRE", subnum, .chain, .iteration) %>%
   gather(key, value, -subnum, -.chain, -.iteration) %>%
@@ -250,7 +191,7 @@ yn_data_summary = data_yn_clean %>%
   filter(day %in% c(1, 3, 7, 11)) %>%
   mutate(day = paste0("Day ", day),
          day = factor(day, levels = c("Day 1", "Day 3", "Day 7", "Day 11")))
-  
+
 
 
 p = yn_logit_ppc %>% 
@@ -333,9 +274,13 @@ if(file.exists(fn_draws) & file.exists(fn_ppc)){
 
 ```
 
-Examine chains for the three variables of interest  
 
-```{r}
+
+```{r eval= FALSE}
+# Model diagnostics
+
+## Examine chains for the three variables of interest  
+
 as.data.frame(bc_logit_draws) %>%
   select("b_val_diff_std.day_std", "b_val_diff_std.typeRE", "b_val_diff_std.day_std.typeRE", subnum, .chain, .iteration) %>%
   gather(key, value, -subnum, -.chain, -.iteration) %>%
@@ -347,12 +292,9 @@ as.data.frame(bc_logit_draws) %>%
         panel.grid = element_blank(),
         axis.ticks = element_blank(),
         axis.text = element_blank())
-  
-```
 
-Examine autocorrelation in the variables of interest.  
 
-```{r}
+## Examine autocorrelation in the variables of interest.  
 as.data.frame(bc_logit_draws) %>%
   select("b_val_diff_std.day_std", "b_val_diff_std.typeRE", "b_val_diff_std.day_std.typeRE", subnum, .chain, .iteration) %>%
   gather(key, value, -subnum, -.chain, -.iteration) %>%
@@ -394,7 +336,7 @@ bc_data_summary = data_bc_clean %>%
   filter(day %in% c(1, 3, 7, 11)) %>%
   mutate(day = paste0("Day ", day),
          day = factor(day, levels = c("Day 1", "Day 3", "Day 7", "Day 11")))
-  
+
 
 
 p = bc_logit_ppc %>% 
@@ -420,8 +362,9 @@ p = bc_logit_ppc %>%
 p
 ```
 
-Examine parameter distributions for both tasks!
-Parameter distributions collapsed across subjects (similar to a random slopes analysis)
+## Parameter distributions
+
+For both tasks parameter distributions collapsed across subjects (similar to a random slopes analysis)
 
 ```{r}
 yn_par_summary = as.data.frame(yn_logit_draws) %>%
@@ -454,7 +397,7 @@ plim = max(abs(bc_par_summary$l95), abs(yn_par_summary$l95) ,bc_par_summary$h95,
 
 p = yn_par_summary %>%
   rbind(bc_par_summary) %>%
-    ggplot(aes(m, subnum, color=task)) +
+  ggplot(aes(m, subnum, color = task, alpha = task)) +
   geom_vline(aes(xintercept = 0), color = "light gray") + 
   geom_point(position = position_dodge(width=.75))+
   geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
@@ -464,7 +407,9 @@ p = yn_par_summary %>%
         panel.grid = element_blank(),
         legend.box.margin=margin(t = -10))+
   scale_x_continuous(breaks = c(0), limits = c(-plim, plim))+
-  scale_color_manual(values = c("red", "blue"))
+  scale_color_manual(values = c("red", "blue"))+
+  scale_alpha_manual(values = c(1, 1))+
+  guides(alpha=F)
 
 p
 # ggsave(file=paste0(fig_out_path, 'ynbc_logit_interactionParEsts.jpg'), p, height = 3, width = 9, units="in")
@@ -628,20 +573,52 @@ bc_par_summary = as_tibble(bc_logit_draws) %>%
   mutate(task = "BC")
 ```
 
+```{r}
+p = yn_par_summary %>%
+  ggplot(aes(day, m))+
+  geom_point(position = position_dodge(width=.75), color="blue")+
+  geom_errorbar(aes(ymin = l95, ymax = h95), width=.2, position = position_dodge(width=.75), color="blue")+
+  facet_grid(key~subnum, scales="free")+
+  theme(panel.grid = element_blank(),
+        axis.text.x = element_text(angle = 15, margin = margin(t = 5)),
+        legend.position = "bottom",
+        legend.box.margin=margin(t = -10))+
+  labs(x="", y="Parameter Estimate", title="95% HDI for posterior slopes - Y/N Task")
+
+# ggsave(file=paste0(fig_out_path, 'yn_logit_valdiff_slope.jpg'), p, height = 6, width = 9, units="in")
+p
+```
+```{r}
+p = bc_par_summary %>%
+  ggplot(aes(day, m))+
+  geom_point(position = position_dodge(width=.75), color="red")+
+  geom_errorbar(aes(ymin = l95, ymax = h95), width=.2, position = position_dodge(width=.75), color="red")+
+  facet_grid(key~subnum, scales="free")+
+  theme(panel.grid = element_blank(),
+        axis.text.x = element_text(angle = 15, margin = margin(t = 5)),
+        legend.position = "bottom",
+        legend.box.margin=margin(t = -10))+
+  labs(x="", y="Parameter Estimate", title="95% HDI for posterior slopes - BC Task")
+
+# ggsave(file=paste0(fig_out_path, 'bc_logit_valdiff_slope.jpg'), p, height = 6, width = 9, units="in")
+p
+```
 
 ```{r}
 p = yn_par_summary %>%
   rbind(bc_par_summary) %>%
-  ggplot(aes(day, m, color=task))+
+  ggplot(aes(day, m, color=task, alpha=task))+
   geom_point(position = position_dodge(width=.75))+
-    geom_errorbar(aes(ymin = l95, ymax = h95), width=.2, position = position_dodge(width=.75))+
+  geom_errorbar(aes(ymin = l95, ymax = h95), width=.2, position = position_dodge(width=.75))+
   facet_grid(key~subnum, scales="free")+
-    theme(panel.grid = element_blank(),
+  theme(panel.grid = element_blank(),
         axis.text.x = element_text(angle = 15, margin = margin(t = 5)),
         legend.position = "bottom",
         legend.box.margin=margin(t = -10))+
   labs(x="", y="Parameter Estimate", title="95% HDI for posterior slopes", color="")+
-  scale_color_manual(values = c("red", "blue"))
+  scale_color_manual(values = c("red", "blue"))+
+  scale_alpha_manual(values = c(0, 1))+
+  guides(alpha="none")
 
 # ggsave(file=paste0(fig_out_path, 'ynbc_logit_valdiff_slope.jpg'), p, height = 6, width = 9, units="in")
 p
@@ -684,13 +661,13 @@ if(file.exists(fn_draws) & file.exists(fn_ppc)){
     
     
     cur_yn_rt <- brm(formula = log_rt ~ abs_val_diff_std * day_std * type,
-                        data= cur_yn_data,
-                        warmup = 500,
-                        iter = 2500,
-                        chains = 4,
-                        init = "0",
-                        cores = 4,
-                        seed = 389253)
+                     data= cur_yn_data,
+                     warmup = 500,
+                     iter = 2500,
+                     chains = 4,
+                     init = "0",
+                     cores = 4,
+                     seed = 389253)
     
     cur_draws = as_draws_df(cur_yn_rt)
     cur_draws$subnum = cur_sub
@@ -715,9 +692,13 @@ if(file.exists(fn_draws) & file.exists(fn_ppc)){
 
 ```
 
-Examine chains for the three variables of interest  
 
-```{r}
+
+```{r eval = FALSE}
+# Model diagnostics
+
+## Examine chains for the three variables of interest  
+
 as.data.frame(yn_rt_draws) %>%
   select("b_abs_val_diff_std.day_std", "b_abs_val_diff_std.typeRE", "b_abs_val_diff_std.day_std.typeRE", subnum, .chain, .iteration) %>%
   gather(key, value, -subnum, -.chain, -.iteration) %>%
@@ -729,12 +710,9 @@ as.data.frame(yn_rt_draws) %>%
         panel.grid = element_blank(),
         axis.ticks = element_blank(),
         axis.text = element_blank())
-  
-```
 
-Examine autocorrelation in the variables of interest.  
+## Examine autocorrelation in the variables of interest.  
 
-```{r}
 as.data.frame(yn_rt_draws) %>%
   select("b_abs_val_diff_std.day_std", "b_abs_val_diff_std.typeRE", "b_abs_val_diff_std.day_std.typeRE", subnum, .chain, .iteration) %>%
   gather(key, value, -subnum, -.chain, -.iteration) %>%
@@ -859,13 +837,13 @@ if(file.exists(fn_draws) & file.exists(fn_ppc)){
     
     
     cur_bc_rt <- brm(formula = log_rt ~ abs_val_diff_std * day_std * type,
-                        data= cur_bc_data,
-                        warmup = 500,
-                        iter = 2500,
-                        chains = 4,
-                        init = "0",
-                        cores = 4,
-                        seed = 389253)
+                     data= cur_bc_data,
+                     warmup = 500,
+                     iter = 2500,
+                     chains = 4,
+                     init = "0",
+                     cores = 4,
+                     seed = 389253)
     
     cur_draws = as_draws_df(cur_bc_rt)
     cur_draws$subnum = cur_sub
@@ -890,9 +868,13 @@ if(file.exists(fn_draws) & file.exists(fn_ppc)){
 
 ```
 
-Examine chains for the three variables of interest  
+
 
 ```{r}
+# Model diagnostics
+
+## Examine chains for the three variables of interest  
+
 as.data.frame(bc_rt_draws) %>%
   select("b_abs_val_diff_std.day_std", "b_abs_val_diff_std.typeRE", "b_abs_val_diff_std.day_std.typeRE", subnum, .chain, .iteration) %>%
   gather(key, value, -subnum, -.chain, -.iteration) %>%
@@ -904,12 +886,9 @@ as.data.frame(bc_rt_draws) %>%
         panel.grid = element_blank(),
         axis.ticks = element_blank(),
         axis.text = element_blank())
-  
-```
 
-Examine autocorrelation in the variables of interest.  
+## Examine autocorrelation in the variables of interest.  
 
-```{r}
 as.data.frame(bc_rt_draws) %>%
   select("b_abs_val_diff_std.day_std", "b_abs_val_diff_std.typeRE", "b_abs_val_diff_std.day_std.typeRE", subnum, .chain, .iteration) %>%
   gather(key, value, -subnum, -.chain, -.iteration) %>%
@@ -1040,15 +1019,16 @@ bc_par_summary = as.data.frame(bc_rt_draws) %>%
          task = "BC")
 ```
 
-Examine parameter distributions for both tasks!
-Parameter distributions collapsed across subjects (similar to a random slopes analysis)
+## Parameter distributions
+ 
+For both tasks parameter distributions collapsed across subjects (similar to a random slopes analysis)
 
 ```{r}
 plim = max(abs(bc_par_summary$l95), abs(yn_par_summary$l95) ,bc_par_summary$h95, yn_par_summary$h95)
 
 p = yn_par_summary %>%
   rbind(bc_par_summary) %>%
-    ggplot(aes(m, subnum, color=task)) +
+  ggplot(aes(m, subnum, color=task)) +
   geom_vline(aes(xintercept = 0), color = "light gray") + 
   geom_point(position = position_dodge(width=.75))+
   geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
@@ -1065,6 +1045,158 @@ p
 
 
 ```
+
+## Bimodality
+
+Is there evidence for some bi-modality for the repeated stimuli (especially after learning), which would suggest that choice is made with a “different fast process” with some probability.
+
+For most subjects HTs are faster than RE for all value bins and almost every day but the difference does not change across days with learning.
+
+```{r}
+subjs = unique(data_yn_clean$subnum)
+
+for(i in 1:length(subjs)){
+  cur_sub = subjs[i]
+  
+  p = data_yn_clean %>%
+    filter(subnum == cur_sub) %>%
+    filter(abs_val_diff<175) %>%
+    filter(rt < 3) %>%
+    group_by(type, day, val_diff_bin_str) %>%
+    summarise(mean_log_rt = mean(log(rt)),
+              sem_log_rt = sd(log(rt))/sqrt(n()),
+              .groups = "keep") %>%
+    mutate(day = factor(day, levels = seq(1, 11, 1))) %>%
+    ggplot(aes(day, mean_log_rt, color=type))+
+    geom_point(position = position_dodge(width=.9))+
+    geom_errorbar(aes(ymin = mean_log_rt - sem_log_rt, ymax = mean_log_rt + sem_log_rt, alpha = .5), position = position_dodge(width=.9), width=0)+
+    facet_grid(.~ val_diff_bin_str) + 
+    scale_color_brewer(palette = "Dark2")+
+    theme(panel.grid = element_blank(),
+          legend.position = "none",
+          axis.text.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          legend.box.margin=margin(t = -10))+
+    scale_x_discrete(breaks = c(1, 3, 5, 7, 9, 11))+
+    labs(y="Mean Log RT", x = "Day", fill="", title = paste0("Y/N Task - ", cur_sub))
+  
+  ggsave(file=paste0(fig_out_path, 'yn_',cur_sub,'_logRTSummary.jpg'), p, height = 5, width = 8, units="in")
+  
+}
+
+
+```
+
+
+```{r}
+
+subjs = unique(data_yn_clean$subnum)
+
+for(i in 1:length(subjs)){
+  cur_sub = subjs[i]
+  
+  tmp = data_yn_clean %>%
+    filter(subnum == cur_sub) %>%
+    filter(abs_val_diff<175) %>%
+    filter(rt < 3) %>%
+    group_by(type, day, val_diff_bin_str) %>%
+    summarise(mean_log_rt = mean(log(rt)),
+              sem_log_rt = sd(log(rt))/sqrt(n()),
+              .groups = "keep")
+  
+  tmp1 = tmp %>% filter(type == "HT") %>% 
+    rename(mean_log_rt_HT = mean_log_rt, sem_log_rt_HT = sem_log_rt) %>%
+    ungroup() %>%
+    select(-type)
+  
+  tmp2 = tmp %>% filter(type == "RE") %>% 
+    rename(mean_log_rt_RE = mean_log_rt, sem_log_rt_RE = sem_log_rt) %>%
+    ungroup() %>%
+    select(-type)
+  
+  tmp = tmp1 %>%
+    left_join(tmp2, by=c("day", "val_diff_bin_str"))
+  
+  p = tmp %>%
+    mutate(mean_log_rt_diff = mean_log_rt_HT - mean_log_rt_RE,
+           sem_log_rt_diff = sem_log_rt_HT + sem_log_rt_RE) %>%
+    mutate(day = factor(day, levels = seq(1, 11, 1))) %>%
+    ggplot(aes(day, mean_log_rt_diff))+
+    geom_point(position = position_dodge(width=.9))+
+    geom_errorbar(aes(ymin = mean_log_rt_diff - sem_log_rt_diff, ymax = mean_log_rt_diff + sem_log_rt_diff, alpha = .5), position = position_dodge(width=.9), width=0)+
+    facet_grid(.~ val_diff_bin_str) + 
+    theme(panel.grid = element_blank(),
+          legend.position = "none",
+          axis.text.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          legend.box.margin=margin(t = -10))+
+    scale_x_discrete(breaks = c(1, 3, 5, 7, 9, 11))+
+    labs(y="Mean Log RT DIff", x = "Day", fill="", title = paste0("Y/N Task - ", cur_sub))
+  
+  ggsave(file=paste0(fig_out_path, 'yn_',cur_sub,'_logRTDiff.jpg'), p, height = 5, width = 8, units="in")
+  
+}
+
+rm(tmp, tmp1, tmp2)
+```
+
+```{r}
+subjs = unique(data_yn_clean$subnum)
+
+for(i in 1:length(subjs)){
+  cur_sub = subjs[i]
+  
+  p = data_yn_clean %>%
+    filter(subnum == cur_sub) %>%
+    filter(abs_val_diff<175) %>%
+    filter(rt < 3) %>%
+    ggplot(aes(rt, fill=type))+
+    geom_density(alpha=.5, color=NA)+
+    # facet_grid(val_diff_bin_str ~ day, scales = "free_y")+
+    facet_grid(day ~ val_diff_bin_str, scales = "free_y")+
+    scale_fill_brewer(palette = "Dark2")+
+    theme(panel.grid = element_blank(),
+          legend.position = "none",
+          axis.text = element_blank(),
+          axis.ticks = element_blank(),
+          legend.box.margin=margin(t = -10))+
+    labs(y="", x = "RT", fill="", title = paste0("Y/N Task - ", cur_sub))
+  
+  ggsave(file=paste0(fig_out_path, 'yn_',cur_sub,'_fullRTdists.jpg'), p, height = 5, width = 8, units="in")
+  
+}
+
+
+```
+
+```{r}
+subjs = unique(data_bc_clean$subnum)
+
+for(i in 1:length(subjs)){
+  cur_sub = subjs[i]
+  
+  p = data_bc_clean %>%
+    filter(subnum == cur_sub) %>%
+    filter(abs_val_diff<175) %>%
+    filter(rt < 3) %>%
+    ggplot(aes(rt, fill=type))+
+    geom_density(alpha=.5, color=NA)+
+    # facet_grid(val_diff_bin_str ~ day, scales = "free_y")+
+    facet_grid(day ~ val_diff_bin_str, scales = "free_y")+
+    scale_fill_brewer(palette = "Dark2")+
+    theme(panel.grid = element_blank(),
+          legend.position = "none",
+          axis.text = element_blank(),
+          axis.ticks = element_blank(),
+          legend.box.margin=margin(t = -10))+
+    labs(y="", x = "RT", fill="", title = paste0("BC Task - ", cur_sub))
+  
+  ggsave(file=paste0(fig_out_path, 'bc_',cur_sub,'_fullRTdists.jpg'), p, height = 5, width = 8, units="in")
+  
+}
+
+```
+
 
 # DDM for YN
 
@@ -1143,7 +1275,7 @@ p = yn_ddm_summary %>%
          day = as.numeric(day)) %>%
   filter(par_name != "deviance") %>%
   filter(par_group == "mu" ) %>%
-
+  
   ggplot(aes(day, Mean, color=stim_type))+
   geom_point(position = position_dodge(width=.9))+
   geom_errorbar(aes(ymin = Lower95, ymax = Upper95), position = position_dodge(width=.9), width=.5)+
@@ -1237,7 +1369,7 @@ p = bc_ddm_summary %>%
          day = as.numeric(day)) %>%
   filter(par_name != "deviance") %>%
   filter(par_group == "mu" ) %>%
-
+  
   ggplot(aes(day, Mean, color=stim_type))+
   geom_point(position = position_dodge(width=.9))+
   geom_errorbar(aes(ymin = Lower95, ymax = Upper95), position = position_dodge(width=.9), width=.5)+
@@ -1329,7 +1461,7 @@ p = bc_addm_summary %>%
          day = as.numeric(day)) %>%
   filter(par_name != "deviance") %>%
   filter(par_group == "mu" ) %>%
-
+  
   ggplot(aes(day, Mean, color=stim_type))+
   geom_point(position = position_dodge(width=.9))+
   geom_errorbar(aes(ymin = Lower95, ymax = Upper95), position = position_dodge(width=.9), width=.5)+
