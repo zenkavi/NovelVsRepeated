@@ -33,6 +33,9 @@ def get_model_regs(mnum, task):
     if task == 'yesNo':
         if mnum == 'model1':
             regs = ['cross_ev', 'stimHT_ev', 'rewardHT_ev', 'rewardHT_par', 'stimRE_ev', 'rewardRE_ev', 'rewardRE_par', 'choiceCorrectHT_st', 'choiceCorrectRE_st', 'choiceIncorrectHT_st', 'choiceIncorrectRE_st', 'choiceYes_st', 'choiceNo_st', 'valHT_par', 'valRE_par']
+
+        if mnum == 'model2':
+            regs = ['cross_ev', 'stimHT_ev', 'rewardHT_ev', 'rewardHT_par', 'stimRE_ev', 'rewardRE_ev', 'rewardRE_par', 'choice_st', 'valHT_par', 'valRE_par']
     return regs
 
 
@@ -147,6 +150,12 @@ def get_events(subnum, session, task, runnum, mnum, data_path):
             cond_choiceIncorrectRE_st['modulation'] = 1 - behavior['correct'].reset_index(drop=True)
             cond_choiceIncorrectRE_st['stim_type'] = behavior['type'].reset_index(drop=True)
             cond_choiceIncorrectRE_st = cond_choiceIncorrectRE_st.query('stim_type == 0').drop('stim_type', axis=1).reset_index(drop=True)
+
+        if reg == 'choice_st':
+            cond_choice_st = pd.DataFrame(events.query('trial_type == "stim"')['onset'] + events.query('trial_type == "stim"')['duration'], columns = ['onset']).reset_index(drop=True) # this is the same as the feedback onsets
+            cond_choice_st['duration'] = 0
+            cond_choice_st['trial_type'] = 'choice_st'
+            cond_choice_st['modulation'] = 1
 
         if reg == 'choiceLeft_st':
             cond_choiceLeft_st = pd.DataFrame(events.query('trial_type == "stim"')['onset'] + events.query('trial_type == "stim"')['duration'], columns = ['onset']).reset_index(drop=True) # this is the same as the feedback onsets

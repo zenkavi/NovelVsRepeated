@@ -33,7 +33,7 @@ def plot_stat_map_matrix(reg, task, mnum, contrasts_path, map_type,
     for ax, col in zip(a[0], cols):
         ax.set_title(col)
 
-    fig.suptitle('%s-%s'%(task, reg))
+    fig.suptitle('%s-%s-thr-%s'%(task, reg, str(threshold)))
     fig.subplots_adjust(top=0.95)
 
     for i, cur_sub in enumerate(subnums):
@@ -63,9 +63,7 @@ def plot_stat_map_matrix(reg, task, mnum, contrasts_path, map_type,
 # figs_list = [{'reg': 'valSumHT_par', 'task': 'binaryChoice', 'cut': -6, 'disp_mode': 'x'},
 #             {'reg': 'valSumHT_par', 'task': 'binaryChoice', 'cut': 4, 'disp_mode': 'x'},
 #             {'reg': 'valSumHT_par', 'task': 'binaryChoice', 'cut': 8, 'disp_mode': 'y'},
-#             {'reg': 'valSumHT_par', 'task': 'binaryChoice', 'cut': 24, 'disp_mode': 'y'},
-#             {'reg': 'valSumHT_par', 'task': 'binaryChoice', 'cut': 40, 'disp_mode': 'y'},
-#             {'reg': 'valSumHT_par', 'task': 'binaryChoice', 'cut': -6, 'disp_mode': 'z'}]
+#             {'reg': 'valSumHT_par', 'task': 'binaryChoice', 'cut': 40, 'disp_mode': 'y'}]
 #
 # mnum = 'model1'
 # map_type = 'tmap'
@@ -79,4 +77,27 @@ def plot_stat_map_matrix(reg, task, mnum, contrasts_path, map_type,
 #     plot_stat_map_matrix(reg, task, mnum, contrasts_path, map_type, cut_coords = [cut, ], display_mode = disp_mode)
 #
 #     fig_fn = task + '_' + mnum + '_' + reg + '_' + map_type + '_matrix_' + disp_mode + '_'+ str(cut) + '.jpeg'
-#     plt.savefig(os.path.join(fig_path, fig_fn), transparent=False, pad_inches = 0.05, bbox_inches = 'tight')
+#     plt.savefig(os.path.join(fig_path, task, mnum, fig_fn), transparent=False, pad_inches = 0.05, bbox_inches = 'tight')
+
+def get_mean_desmat_cor(task, mnum, l1_path, save_ = True, float_format_ = '%.4f'):
+
+    des_mats = glob.glob(os.path.join(l1_path, task, mnum, '**/**/*design_matrix*'))
+
+    beh_regs = pd.read_csv(des_mats[0]).columns
+    to_filter = ['trans', 'rot', 'drift', 'framewise', 'scrub', 'constant', 'dvars']
+    beh_regs = [x for x in beh_regs if all(y not in x for y in to_filter)]
+
+    cor_mats = []
+    for i, cur_des_mat in enumerate(des_mats):
+        cur_des_mat = pd.read_csv(cur_des_mat)
+        cor_mats.append(cur_des_mat[beh_regs].corr())
+
+    df_concat = pd.concat(cor_mats)
+    by_row_index = df_concat.groupby(df_concat.index)
+    df_means = by_row_index.mean()
+    
+    if save_:
+        out_path = os.path.join(l1_path, task, mnum)
+        df_means.to_csv(os.path.join(out_path, 'task-%s_%s_mean_desmat_cor.csv'%(task, mnum)), float_format = float_format_)
+
+    return df_means
