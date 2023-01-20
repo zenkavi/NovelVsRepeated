@@ -1241,11 +1241,13 @@ p = yn_ddm_summary %>%
   mutate(b = ifelse(is.na(b), d, b)) %>%
   select(-d, -par) %>%
   rename(par_name = c, par_group = b) %>%
-  mutate(par_name = ifelse(par_name == "theta", "ndt", par_name),
+  mutate(par_name = ifelse(par_name == "theta", "ndt", ifelse(par_name == "b", "d", ifelse(par_name == "alpha", "sigma", par_name))),
+         par_group = ifelse(par_group == 'p[1]', "601", ifelse(par_group == "p[2]", "609", ifelse(par_group == 'p[3]', "611", ifelse(par_group == "p[4]", "619", ifelse(par_group == "p[5]", "621", ifelse(par_group == "p[6]", "629", par_group)))))),
          day = as.numeric(day)) %>%
   filter(par_name != "deviance") %>%
   filter(par_group != "kappa" & par_group != "pr") %>%
   filter(par_group != "mu") %>% #Not showing group estimates in this plot
+  mutate(par_name = factor(par_name, levels = c("d", "sigma", "bias", "ndt"))) %>%
   ggplot(aes(day, Mean, color=stim_type))+
   geom_point(position = position_dodge(width=.75))+
   geom_errorbar(aes(ymin = Lower95, ymax = Upper95), position = position_dodge(width=.75), width=.5)+
@@ -1260,7 +1262,7 @@ p = yn_ddm_summary %>%
                      labels = c("1", "", "3", "", "5", "", "7", "", "9", "", "11"))
 
 p
-# ggsave(file=paste0(fig_out_path, 'yn_subj_hddm_parests.jpg'), p, height = 6, width=9, units="in")
+# ggsave(file=paste0(fig_out_path, 'yn_subj_hddm_parests_build.jpg'), p, height = 6, width=9, units="in")
 ```
 
 ```{r}
@@ -1294,6 +1296,7 @@ p = yn_ddm_summary %>%
 p
 # ggsave(file=paste0(fig_out_path, 'yn_group_hddm_parests.jpg'), p, height = 3, width=9, units="in")
 ```
+
 # DDM for BC
 
 ```{r}
@@ -1335,12 +1338,14 @@ p = bc_ddm_summary %>%
   mutate(b = ifelse(is.na(b), d, b)) %>%
   select(-d, -par) %>%
   rename(par_name = c, par_group = b) %>%
-  mutate(par_name = ifelse(par_name == "theta", "ndt", par_name),
+    mutate(par_name = ifelse(par_name == "theta", "ndt", ifelse(par_name == "b", "d", ifelse(par_name == "alpha", "sigma", par_name))),
+         par_group = ifelse(par_group == 'p[1]', "601", ifelse(par_group == "p[2]", "609", ifelse(par_group == 'p[3]', "611", ifelse(par_group == "p[4]", "619", ifelse(par_group == "p[5]", "621", ifelse(par_group == "p[6]", "629", par_group)))))),
          day = as.numeric(day)) %>%
   filter(par_name != "deviance") %>%
   filter(par_group != "kappa" & par_group != "pr") %>%
   filter(par_group != "mu") %>% #Not showing group estimates in this plot
-  ggplot(aes(day, Mean, color=stim_type))+
+  mutate(par_name = factor(par_name, levels = c("d", "sigma", "bias", "ndt"))) %>%
+ ggplot(aes(day, Mean, color=stim_type))+
   geom_point(position = position_dodge(width=.75))+
   geom_errorbar(aes(ymin = Lower95, ymax = Upper95), position = position_dodge(width=.75), width=.5)+
   facet_grid(par_name ~ par_group, scale = "free_y")+
@@ -1371,7 +1376,6 @@ p = bc_ddm_summary %>%
          day = as.numeric(day)) %>%
   filter(par_name != "deviance") %>%
   filter(par_group == "mu" ) %>%
-  
   ggplot(aes(day, Mean, color=stim_type))+
   geom_point(position = position_dodge(width=.9))+
   geom_errorbar(aes(ymin = Lower95, ymax = Upper95), position = position_dodge(width=.9), width=.5)+
