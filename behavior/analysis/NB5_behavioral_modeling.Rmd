@@ -1028,7 +1028,7 @@ plim = max(abs(bc_par_summary$l95), abs(yn_par_summary$l95) ,bc_par_summary$h95,
 
 p = yn_par_summary %>%
   rbind(bc_par_summary) %>%
-  ggplot(aes(m, subnum, color=task)) +
+  ggplot(aes(m, subnum, color=task,  alpha=task)) +
   geom_vline(aes(xintercept = 0), color = "light gray") + 
   geom_point(position = position_dodge(width=.75))+
   geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
@@ -1038,7 +1038,9 @@ p = yn_par_summary %>%
         panel.grid = element_blank(),
         legend.box.margin=margin(t = -10))+
   scale_x_continuous(breaks = c(0), limits = c(-plim, plim))+
-  scale_color_manual(values = c("red", "blue"))
+  scale_color_manual(values = c("red", "blue"))+
+  scale_alpha_manual(values = c(1, 1))+
+  guides(alpha="none")
 
 p
 # ggsave(file=paste0(fig_out_path, 'ynbc_rt_interactionParEsts.jpg'), p, height = 3, width = 9, units="in")
@@ -1052,7 +1054,7 @@ Is there evidence for some bi-modality for the repeated stimuli (especially afte
 
 For most subjects HTs are faster than RE for all value bins and almost every day but the difference does not change across days with learning.
 
-```{r}
+```{r eval = FALSE}
 subjs = unique(data_yn_clean$subnum)
 
 for(i in 1:length(subjs)){

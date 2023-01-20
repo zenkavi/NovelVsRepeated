@@ -5,6 +5,8 @@ import numpy as np
 import nibabel as nib
 from nilearn.plotting import plot_stat_map
 import matplotlib.pyplot as plt
+from nilearn.image import new_img_like, load_img, math_img, get_data
+import itertools
 
 fig_path = '/Users/zeynepenkavi/Documents/RangelLab/NovelVsRepeated/fmri/analysis/01_level1/figs'
 
@@ -25,6 +27,41 @@ def plot_stat_map_matrix(reg, task, mnum, contrasts_path, map_type,
                          black_bg = False, vmax = 6, fig_w = 12, fig_h = 24,
                          space = 'MNI152NLin2009cAsym_res-2',
                          subnums = ['601', '609', '611', '619', '621', '629'], sessions = ['01', '02', '03']):
+    
+    # Example Usage:
+
+    # fig_path = '/Users/zeynepenkavi/Documents/RangelLab/NovelVsRepeated/fmri/analysis/01_level1/figs'
+
+    # base_path = '/Users/zeynepenkavi/CpuEaters/overtrained_decisions_bidsfmri'
+    # contrasts_path = os.path.join(base_path, 'derivatives/nilearn/glm/level1')
+
+    # import matplotlib.pyplot as plt
+
+    # task = 'yesNo'
+    # mnum = 'model2'
+    # map_type = 'tmap'
+
+
+    # figs_list = [{'reg': 'valHT_par', 'task': task, 'cut': -6, 'disp_mode': 'x'},
+    #             {'reg': 'valHT_par', 'task': task, 'cut': 4, 'disp_mode': 'x'},
+    #             {'reg': 'valHT_par', 'task': task, 'cut': 8, 'disp_mode': 'y'},
+    #             {'reg': 'valHT_par', 'task': task, 'cut': 40, 'disp_mode': 'y'}]
+
+
+    # out_path = os.path.join(fig_path, task, mnum)
+    # if not os.path.exists(out_path):
+    #     os.makedirs(out_path)
+
+    # for cur_dict in figs_list:
+    #     reg = cur_dict['reg']
+    #     task = cur_dict['task']
+    #     cut = cur_dict['cut']
+    #     disp_mode = cur_dict['disp_mode']
+
+    #     plot_stat_map_matrix(reg, task, mnum, contrasts_path, map_type, cut_coords = [cut, ], display_mode = disp_mode)
+
+    #     fig_fn = task + '_' + mnum + '_' + reg + '_' + map_type + '_matrix_' + disp_mode + '_'+ str(cut) + '.jpeg'
+    #     plt.savefig(os.path.join(out_path, fig_fn), transparent=False, pad_inches = 0.05, bbox_inches = 'tight')
 
     fig, a = plt.subplots(len(subnums), len(sessions), figsize=(fig_w, fig_h))
 
@@ -58,26 +95,106 @@ def plot_stat_map_matrix(reg, task, mnum, contrasts_path, map_type,
                           axes = a[i, j],
                           vmax = vmax)
 
-# Example Usage:
 
-# figs_list = [{'reg': 'valSumHT_par', 'task': 'binaryChoice', 'cut': -6, 'disp_mode': 'x'},
-#             {'reg': 'valSumHT_par', 'task': 'binaryChoice', 'cut': 4, 'disp_mode': 'x'},
-#             {'reg': 'valSumHT_par', 'task': 'binaryChoice', 'cut': 8, 'disp_mode': 'y'},
-#             {'reg': 'valSumHT_par', 'task': 'binaryChoice', 'cut': 40, 'disp_mode': 'y'}]
-#
-# mnum = 'model1'
-# map_type = 'tmap'
-#
-# for cur_dict in figs_list:
-#     reg = cur_dict['reg']
-#     task = cur_dict['task']
-#     cut = cur_dict['cut']
-#     disp_mode = cur_dict['disp_mode']
-#
-#     plot_stat_map_matrix(reg, task, mnum, contrasts_path, map_type, cut_coords = [cut, ], display_mode = disp_mode)
-#
-#     fig_fn = task + '_' + mnum + '_' + reg + '_' + map_type + '_matrix_' + disp_mode + '_'+ str(cut) + '.jpeg'
-#     plt.savefig(os.path.join(fig_path, task, mnum, fig_fn), transparent=False, pad_inches = 0.05, bbox_inches = 'tight')
+
+
+def plot_diff_stat_map_matrix(reg, task, mnum, contrasts_path, map_type,
+                         cut_coords = (10), threshold = 2, display_mode = 'y',
+                         black_bg = False, vmax = 6, fig_w = 16, fig_h = 18,
+                         space = 'MNI152NLin2009cAsym_res-2',
+                         subnums = ['601', '609', '611', '619', '621', '629'], sessions = ['01', '02', '03']):
+    
+    
+    # Example Usage:
+
+    # fig_path = '/Users/zeynepenkavi/Documents/RangelLab/NovelVsRepeated/fmri/analysis/01_level1/figs'
+
+    # base_path = '/Users/zeynepenkavi/CpuEaters/overtrained_decisions_bidsfmri'
+    # contrasts_path = os.path.join(base_path, 'derivatives/nilearn/glm/level1')
+
+    # import matplotlib.pyplot as plt
+
+    # task = 'yesNo'
+    # mnum = 'model2'
+    # map_type = 'tmap'
+
+
+    # fig_reg = 'valRE_par'
+
+    # figs_list = [{'reg': fig_reg, 'task': task, 'cut': -6, 'disp_mode': 'x'},
+    #             {'reg': fig_reg, 'task': task, 'cut': 4, 'disp_mode': 'x'},
+    #             {'reg': fig_reg, 'task': task, 'cut': 8, 'disp_mode': 'y'},
+    #             {'reg': fig_reg, 'task': task, 'cut': 40, 'disp_mode': 'y'}]
+
+
+    # out_path = os.path.join(fig_path, task, mnum)
+    # if not os.path.exists(out_path):
+    #     os.makedirs(out_path)
+
+    # for cur_dict in figs_list:
+    #     reg = cur_dict['reg']
+    #     task = cur_dict['task']
+    #     cut = cur_dict['cut']
+    #     disp_mode = cur_dict['disp_mode']
+
+    #     plot_diff_stat_map_matrix(reg, task, mnum, contrasts_path, map_type, cut_coords = [cut, ], display_mode = disp_mode)
+
+    #     fig_fn = task + '_' + mnum + '_' + reg + '_diff_' + map_type + '_matrix_' + disp_mode + '_'+ str(cut) + '.jpeg'
+    #     plt.savefig(os.path.join(out_path, fig_fn), transparent=False, pad_inches = 0.05, bbox_inches = 'tight')
+
+    fig, a = plt.subplots(len(subnums), len(sessions)+1, figsize=(fig_w, fig_h))
+    
+    pairs = list(itertools.combinations(['01', '02', '03'], 2))
+
+    cols = ['ses-01'] + ['ses-'+i[0]+'_min_'+'ses-'+i[1] for i in pairs]
+
+    for ax, col in zip(a[0], cols):
+        ax.set_title(col)
+
+    fig.suptitle('%s-%s-thr-%s'%(task, reg, str(threshold)))
+    fig.subplots_adjust(top=0.95)
+
+    for i, cur_sub in enumerate(subnums):
+        
+        anat_path = os.path.join(base_path, 'derivatives/sub-' + cur_sub + '/anat')
+        bg_img_fn = 'sub-'+ cur_sub + '_space-' + space + '_desc-preproc_T1w.nii.gz'
+        bg_img = os.path.join(anat_path, bg_img_fn)
+        
+        col1_img_fn = 'sub-%s_%s_task-%s_space-%s_%s_%s_tmap.nii.gz' %(cur_sub, 'ses-01', task, space, mnum, reg)
+        col1_img = os.path.join(contrasts_path, task, mnum, 'sub-'+cur_sub, 'ses-01/contrasts', col1_img_fn)
+        
+        plot_stat_map(col1_img,
+                      bg_img = bg_img,
+                      cut_coords = cut_coords,
+                      threshold = threshold,
+                      draw_cross=False,
+                      display_mode = display_mode,
+                      black_bg = black_bg,
+                      axes = a[i, 0],
+                      vmax = vmax)
+        
+        for j, cur_pair in enumerate(pairs):
+            
+            cur_ses_a = 'ses-'+cur_pair[0]
+            cur_ses_b = 'ses-'+cur_pair[1]
+            
+            fn1 = 'sub-%s_%s_task-%s_space-%s_%s_%s_tmap.nii.gz' %(cur_sub, cur_ses_a, task, space, mnum, reg)
+            tmap1 = load_img(os.path.join(contrasts_path, task, mnum, 'sub-'+cur_sub, cur_ses_a+'/contrasts', fn1))
+            
+            fn2 = 'sub-%s_%s_task-%s_space-%s_%s_%s_tmap.nii.gz' %(cur_sub, cur_ses_b, task, space, mnum, reg)
+            tmap2 = load_img(os.path.join(contrasts_path, task, mnum, 'sub-'+cur_sub, cur_ses_b+'/contrasts', fn2))
+            
+            diff_img = new_img_like(tmap1, get_data(tmap1) - get_data(tmap2))
+
+            plot_stat_map(diff_img,
+                          bg_img = bg_img,
+                          cut_coords = cut_coords,
+                          threshold = threshold,
+                          draw_cross=False,
+                          display_mode = display_mode,
+                          black_bg = black_bg,
+                          axes = a[i, j+1],
+                          vmax = vmax)
 
 def get_mean_desmat_cor(task, mnum, l1_path, save_ = True, float_format_ = '%.4f'):
 

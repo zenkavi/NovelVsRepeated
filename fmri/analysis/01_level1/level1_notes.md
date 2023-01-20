@@ -13,7 +13,7 @@ docker run --rm -it -v ~/.aws:/root/.aws -v $BIDS_DIR:/bids amazon/aws-cli s3 sy
 ```
 export STUDY_DIR=/Users/zeynepenkavi/Documents/RangelLab/NovelVsRepeated
 cd $STUDY_DIR
-docker run --rm -it -v ~/.aws:/root/.aws -v $(pwd)/fmri/analysis/01_level1/cluster_scripts:/fmri/analysis/01_level1/cluster_scripts amazon/aws-cli s3 sync /fmri/analysis/01_level1/cluster_scripts s3://novel-vs-repeated/fmri/analysis/01_level1/cluster_scripts --exclude "*.DS_Store" exclude "*.jpeg"
+docker run --rm -it -v ~/.aws:/root/.aws -v $(pwd)/fmri/analysis/01_level1/cluster_scripts:/fmri/analysis/01_level1/cluster_scripts amazon/aws-cli s3 sync /fmri/analysis/01_level1/cluster_scripts s3://novel-vs-repeated/fmri/analysis/01_level1/cluster_scripts --exclude "*.DS_Store" --exclude "*.jpeg"
 ```
 
 ## Make key pair for `fmrianalysis-cluster`
@@ -121,7 +121,6 @@ sh run_compute_contrasts.sh -m model1 -t yesNo -s 02 -o MNI152NLin2009cAsym_res-
 sh run_compute_contrasts.sh -m model1 -t yesNo -s 03 -o MNI152NLin2009cAsym_res-2 -c yesNo_model1_contrasts.json
 ```
 
-
 ## Push level 1 outputs back to s3
 
 ```
@@ -134,9 +133,7 @@ aws s3 sync $OUT_PATH s3://novel-vs-repeated/fmri/bids/derivatives/nilearn/glm/l
 ```
 export BIDS_DIR=/Users/zeynepenkavi/CpuEaters/overtrained_decisions_bidsfmri
 
-docker run --rm -it -v ~/.aws:/root/.aws -v $BIDS_DIR:/bids amazon/aws-cli s3 sync s3://novel-vs-repeated/fmri/bids/derivatives/nilearn/glm /bids/derivatives/nilearn/glm --exclude '*' --include '*val*_tmap'  --include '*reward*_tmap'
-
-docker run --rm -it -v ~/.aws:/root/.aws -v $BIDS_DIR:/bids amazon/aws-cli s3 sync s3://novel-vs-repeated/fmri/bids/derivatives/nilearn/glm /bids/derivatives/nilearn/glm --exclude '*' --include '*stimHT_ev_tmap*'  --include '*stimRE_ev_tmap*'
+docker run --rm -it -v ~/.aws:/root/.aws -v $BIDS_DIR:/bids amazon/aws-cli s3 sync s3://novel-vs-repeated/fmri/bids/derivatives/nilearn/glm /bids/derivatives/nilearn/glm --exclude '*' --include '*val*_tmap*'  --include '*reward*_tmap*' --include '*stimHT_ev_tmap*'  --include '*stimRE_ev_tmap*'
 ```
 
 ## Download preprocessed T1s for visualization backgrounds
