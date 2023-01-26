@@ -39,7 +39,7 @@ data_bc_fix = data_bc_fix %>%
 
 ```{r}
 p = data_bc_fix %>%
-  filter(lastFix == 1) %>%
+  filter(lastFix == 0) %>%
   group_by(subnum, day, type, val_diff_bin_str) %>%
   summarise(mean_num_fix = mean(numTotalFix), .groups="keep") %>%
   ungroup() %>%

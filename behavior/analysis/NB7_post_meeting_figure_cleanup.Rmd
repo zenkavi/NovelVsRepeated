@@ -1,5 +1,5 @@
 ---
-title: "Novel vs. repeated choice project: Psychometrics"
+title: "Novel vs. repeated choice project: Figure clean up"
 output: 
   html_document:
     toc: true
@@ -497,7 +497,7 @@ p
 
 ```{r}
 sub_summary = data_bc_fix %>%
-  filter(lastFix == 1) %>%
+  filter(lastFix != 1) %>%
   group_by(subnum, day, type, val_diff_bin_str) %>%
   summarise(mean_num_fix = mean(numTotalFix), 
             sem_num_fix = sd(numTotalFix)/sqrt(n()),
@@ -527,6 +527,37 @@ p = sub_summary %>%
 # ggsave(file=paste0(fig_out_path, 'bc_subj_meanNumFixOverValDiff.jpg'), p, height = 6, width = 8, units="in")
 p
 ```
+
+```{r}
+sub_summary = data_bc_fix %>%
+  filter(lastFix != 1) %>%
+  group_by(subnum, day, type,abs_val_diff_bin_str) %>%
+  summarise(mean_num_fix = mean(numTotalFix), 
+            sem_num_fix = sd(numTotalFix)/sqrt(n()),
+            .groups="keep") %>%
+  mutate(day = paste0("Day ", day),
+         day = factor(day, levels = c("Day 3", "Day 7", "Day 11")))
+```
+
+```{r}
+p = sub_summary %>%
+  ggplot(aes(abs_val_diff_bin_str, mean_num_fix, color = type))+
+  geom_point(size = 1.5)+
+  geom_errorbar(aes(ymin = mean_num_fix - sem_num_fix, ymax = mean_num_fix + sem_num_fix), width = 0, size = 1, alpha = .5)+
+  geom_line(aes(group = type))+
+  labs(title = "BC Task", x = "|Value Left - Value Right|", y = "Mean Number of Fixations", color="")+
+  facet_grid(subnum ~ day, scales = 'free_y')+
+  theme(panel.grid = element_blank(),
+        legend.position = "none",
+        axis.text.x = element_text(angle = 15, margin = margin(t = 5)),
+        legend.box.margin=margin(t = -10))+
+  scale_color_brewer(palette = "Dark2")+
+  scale_y_continuous(breaks = seq(0,10,2))
+
+# ggsave(file=paste0(fig_out_path, 'bc_subj_meanNumFixOverAbsValDiff.jpg'), p, height = 6, width = 8, units="in")
+p
+```
+
 # First Fixation Location
 
 ```{r}
@@ -668,73 +699,8 @@ p = data_bc_fix %>%
 p
 ```
 
-# Fixation change models
-
-Models:
-
-fixation duration ~ fixation type (1 = first, 2 = middle, 3 = last) * day * type --> linear effect of later fixations 
-fixation duration ~ (fixation type ^ 2) * day * type --> quadratic effect of later fixations
-
-number of fixations ~ (value difference^2) * day * type
-
-logit(first fixation == left) ~ value difference * day * type
-
-logit(choice == left) ~ first fixation side * value difference * day * type
-
-logit(choice == left) ~ lastt fixation side * value difference * day * type
-
-
 ```{r}
-fn_draws = paste0(helpers_path, '/inputs/yn_logit_draws.csv')
-fn_ppc = paste0(helpers_path, '/inputs/yn_logit_ppc.csv')
-
-if(file.exists(fn_draws) & file.exists(fn_ppc)){
-  yn_logit_draws = read.csv(fn_draws)
-  yn_logit_ppc = read.csv(fn_ppc)
-} else{
-  subnums = unique(data_yn_clean$subnum)
-  
-  yn_logit_draws = data_frame()
-  yn_logit_ppc = data_frame()
-  
-  for(i in 1:length(subnums)){
-    cur_sub = subnums[i]
-    
-    cur_yn_data = data_yn_clean %>% 
-      ungroup() %>%
-      filter(subnum == cur_sub) %>%
-      select(val_diff_bin_str, val_diff_std, day_std, type, val_diff, day, yesChosen)
-    
-    
-    cur_yn_logit <- brm(formula = yesChosen ~ val_diff_std * day_std * type,
-                        data= cur_yn_data,
-                        family = bernoulli(link = "logit"),
-                        warmup = 500,
-                        iter = 2500,
-                        chains = 4,
-                        init = "0",
-                        cores = 4,
-                        seed = 389253)
-    
-    cur_draws = as_draws_df(cur_yn_logit)
-    cur_draws$subnum = cur_sub
-    
-    yn_logit_draws = rbind(yn_logit_draws, cur_draws)
-    
-    cur_pred = fitted(cur_yn_logit, newdata = cur_yn_data %>%
-                        select(-val_diff, -day, -yesChosen, -val_diff_bin_str), scale = "linear") %>%
-      as_tibble() %>%
-      transmute(prob = Estimate %>% inv_logit_scaled()) %>%
-      bind_cols(cur_yn_data) %>%
-      mutate(subnum = cur_sub)
-    
-    yn_logit_ppc = rbind(yn_logit_ppc, cur_pred)
-  }
-  names(yn_logit_draws) = gsub(":", ".", names(yn_logit_draws))
-  write.csv(yn_logit_draws, fn_draws, row.names = F)
-  write.csv(yn_logit_ppc, fn_ppc, row.names = F)
-  
-  rm(cur_yn_data, cur_yn_logit, cur_draws, cur_pred)
-}
-
+rm(p, sub_summary, group_summary)
 ```
+
+
