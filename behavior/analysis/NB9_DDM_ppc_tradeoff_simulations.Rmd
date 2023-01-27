@@ -12,15 +12,17 @@ output:
 ```{r include=FALSE}
 library(tidyverse)
 library(here)
+library(brms)
 theme_set(theme_bw())
 helpers_path = paste0(here(),'/analysis/helpers/')
-source(paste0(helpers_path, '01_clean_behavioral_data.R'))
 fig_out_path = paste0(here(), '/outputs/fig/')
 ```
 
 Add columns that will be used for plots below.
 
 ```{r}
+source(paste0(helpers_path, '01_clean_behavioral_data.R'))
+
 data_yn_clean = data_yn_clean %>%
   mutate(correct = ifelse(possiblePayoff>reference & yesChosen == 1, 1, ifelse(possiblePayoff < reference & yesChosen == 0, 1, 0))) %>%
   mutate(type = ifelse(type == 1, "HT", "RE"),
@@ -41,5 +43,400 @@ data_bc_clean = data_bc_clean %>%
          val_diff_bin_str = paste0(val_diff_bin*50-25,":",val_diff_bin*50+25),
          val_diff_bin_str = factor(val_diff_bin_str, levels = c("-275:-225","-225:-175", "-175:-125", "-125:-75", "-75:-25", "-25:25", "25:75", "75:125", "125:175", "175:225", "225:275"))) %>%
   filter(!is.na(val_diff_bin_str))
+```
+
+# Changes in DDM pars
+
+## YN Task
+
+Read in parameter estimates
+
+```{r}
+fn = file.path(here(), "inputs",'yn_hddm_mcmc_draws.csv')
+
+if(file.exists(fn)){
+  all_results_df = read.csv(fn)
+
+} else{
+  stim_types = c("HT", "RE")
+  days = as.character(seq(1,11,1))
+  
+  in_path = file.path(here(), "inputs")
+  
+  all_results_df = data.frame()
+  
+  for(i in 1:length(stim_types)) {
+    for(j in 1:length(days)) {
+      
+      cur_stim_type = stim_types[i]
+      cur_day = days[j]
+      
+      fn = file.path(in_path, paste0('results_YN_HDDM_FIT_', cur_stim_type,'_day_', cur_day,'.RData'))
+      
+      if(file.exists(fn)) {
+        
+        load(fn)
+        
+        cur_results_df = data.frame()
+        for(k in 1:length(results$mcmc)){
+          cur_chain = as.data.frame(results$mcmc[[k]])
+          cur_results_df = rbind(cur_results_df, cur_chain)
+        }
+        
+        cur_results_df = cur_results_df %>%
+          gather(par, estimate) %>%
+          filter(grepl("\\[", par)) %>%
+          mutate(type = cur_stim_type,
+                 day = cur_day)
+        
+        cur_results_df = cur_results_df %>%
+          separate(par, c("a", "b"), sep = '\\.', remove = F, fill = "right") %>%
+          separate(a, c("c", "d"), sep = "\\[", remove = F, fill = "right") %>%
+          select(-a) %>%
+          mutate(d = paste0('p[',d)) %>%
+          mutate(b = ifelse(is.na(b), d, b)) %>%
+          select(-d, -par) %>%
+          rename(par_name = c, subnum = b) %>%
+          mutate(par_name = ifelse(par_name == "theta", "ndt", ifelse(par_name == "b", "d", ifelse(par_name == "alpha", "sigma", par_name))),
+                 subnum = ifelse(subnum == 'p[1]', "601", ifelse(subnum == "p[2]", "609", ifelse(subnum == 'p[3]', "611", ifelse(subnum == "p[4]", "619", ifelse(subnum == "p[5]", "621", ifelse(subnum == "p[6]", "629", subnum)))))),
+                 day = as.numeric(day))
+        
+        all_results_df = rbind(all_results_df, cur_results_df)
+        
+      } else {
+        next
+      }
+    }
+  }
+  fn = file.path(here(), "inputs",'yn_hddm_mcmc_draws.csv')
+  write.csv(all_results_df, fn, row.names = F)
+  rm(cur_chain, cur_results_df, results, cur_day, cur_stim_type, days, fn, i, j, k, stim_types)
+}
+
+
+
+```
+
+### Drift rate
+
+```{r}
+fn_draws = paste0(helpers_path, '/inputs/yn_ddm_dRegressions_draws.csv')
+
+if(file.exists(fn_draws)){
+  yn_rt_draws = read.csv(fn_draws)
+} else{
+  subnums = unique(data_yn_clean$subnum)
+  
+  yn_ddm_draws = data_frame()
+  
+  for(i in 1:length(subnums)){
+    cur_sub = subnums[i]
+    
+    cur_par_data = all_results_df %>% 
+      filter(subnum == cur_sub & par_name == "d")
+    
+    # REDUCE AMOUNT OF DATA! 100 datapoints per bin
+    cur_par_data = cur_par_data %>%
+      group_by(type, day) %>%
+      sample_n(100)
+    
+    cur_m <- brm(formula = estimate ~ day * type,
+                     data= cur_par_data,
+                     warmup = 500,
+                     iter = 2500,
+                     chains = 4,
+                     init = "0",
+                     cores = 4,
+                     seed = 389253)
+    
+    cur_draws = as_draws_df(cur_m)
+    cur_draws$subnum = cur_sub
+    
+    yn_ddm_draws = rbind(yn_ddm_draws, cur_draws)
+    
+  }
+  names(yn_ddm_draws) = gsub(":", ".", names(yn_ddm_draws))
+  write.csv(yn_ddm_draws, fn_draws, row.names = F)
+  
+  rm(cur_par_data, cur_m, cur_draws)
+}
+
+```
+
+```{r}
+yn_par_summary = as.data.frame(yn_ddm_draws) %>%
+  select("b_day" ,"b_typeRE", "b_day.typeRE", subnum) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key = ifelse(key == "b_day", "Day", ifelse(key == "b_typeRE", "Type (RE)", ifelse(key == "b_day.typeRE", "Day * Type (RE)", NA))),
+         key = factor(key, levels = c("Type (RE)", "Day", "Day * Type (RE)"))) %>%
+  group_by(subnum, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(subnum = as.factor(subnum),
+         task = "Y/N") 
+```
+
+```{r}
+plim = max(abs(yn_par_summary$l95), yn_par_summary$h95)
+
+p = yn_par_summary %>%
+  ggplot(aes(m, subnum)) +
+  geom_vline(aes(xintercept = 0), color = "light gray") + 
+  geom_point(position = position_dodge(width=.75))+
+  geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
+  facet_grid(.~key) +
+  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - d ~ Day * Type") +
+  theme(legend.position = "bottom",
+        panel.grid = element_blank(),
+        legend.box.margin=margin(t = -10))+
+  scale_x_continuous(breaks = c(0), limits = c(-plim, plim))
+
+p
+# ggsave(file=paste0(fig_out_path, 'yn_ddmD_parEsts.jpg'), p, height = 3, width = 7, units="in")
+
+```
+### Sigma
+
+```{r}
+fn_draws = paste0(helpers_path, '/inputs/yn_ddm_sigmaRegressions_draws.csv')
+
+if(file.exists(fn_draws)){
+  yn_rt_draws = read.csv(fn_draws)
+} else{
+  subnums = unique(data_yn_clean$subnum)
+  
+  yn_ddm_draws = data_frame()
+  
+  for(i in 1:length(subnums)){
+    cur_sub = subnums[i]
+    
+    cur_par_data = all_results_df %>% 
+      filter(subnum == cur_sub & par_name == "sigma")
+    
+    # REDUCE AMOUNT OF DATA! 100 datapoints per bin
+    cur_par_data = cur_par_data %>%
+      group_by(type, day) %>%
+      sample_n(100)
+    
+    cur_m <- brm(formula = estimate ~ day * type,
+                     data= cur_par_data,
+                     warmup = 500,
+                     iter = 2500,
+                     chains = 4,
+                     init = "0",
+                     cores = 4,
+                     seed = 389253)
+    
+    cur_draws = as_draws_df(cur_m)
+    cur_draws$subnum = cur_sub
+    
+    yn_ddm_draws = rbind(yn_ddm_draws, cur_draws)
+    
+  }
+  names(yn_ddm_draws) = gsub(":", ".", names(yn_ddm_draws))
+  write.csv(yn_ddm_draws, fn_draws, row.names = F)
+  
+  rm(cur_par_data, cur_m, cur_draws)
+}
+
+```
+
+```{r}
+yn_par_summary = as.data.frame(yn_ddm_draws) %>%
+  select("b_day" ,"b_typeRE", "b_day.typeRE", subnum) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key = ifelse(key == "b_day", "Day", ifelse(key == "b_typeRE", "Type (RE)", ifelse(key == "b_day.typeRE", "Day * Type (RE)", NA))),
+         key = factor(key, levels = c("Type (RE)", "Day", "Day * Type (RE)"))) %>%
+  group_by(subnum, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(subnum = as.factor(subnum),
+         task = "Y/N") 
+```
+
+```{r}
+plim = max(abs(yn_par_summary$l95), yn_par_summary$h95)
+
+p = yn_par_summary %>%
+  ggplot(aes(m, subnum)) +
+  geom_vline(aes(xintercept = 0), color = "light gray") + 
+  geom_point(position = position_dodge(width=.75))+
+  geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
+  facet_grid(.~key) +
+  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - sigma ~ Day * Type") +
+  theme(legend.position = "bottom",
+        panel.grid = element_blank(),
+        legend.box.margin=margin(t = -10))+
+  scale_x_continuous(breaks = c(0), limits = c(-plim, plim))
+
+p
+# ggsave(file=paste0(fig_out_path, 'yn_ddmSigma_parEsts.jpg'), p, height = 3, width = 7, units="in")
+
+```
+
+### Bias
+
+```{r}
+fn_draws = paste0(helpers_path, '/inputs/yn_ddm_biasRegressions_draws.csv')
+
+if(file.exists(fn_draws)){
+  yn_rt_draws = read.csv(fn_draws)
+} else{
+  subnums = unique(data_yn_clean$subnum)
+  
+  yn_ddm_draws = data_frame()
+  
+  for(i in 1:length(subnums)){
+    cur_sub = subnums[i]
+    
+    cur_par_data = all_results_df %>% 
+      filter(subnum == cur_sub & par_name == "bias")
+    
+    # REDUCE AMOUNT OF DATA! 100 datapoints per bin
+    cur_par_data = cur_par_data %>%
+      group_by(type, day) %>%
+      sample_n(100)
+    
+    cur_m <- brm(formula = estimate ~ day * type,
+                     data= cur_par_data,
+                     warmup = 500,
+                     iter = 2500,
+                     chains = 4,
+                     init = "0",
+                     cores = 4,
+                     seed = 389253)
+    
+    cur_draws = as_draws_df(cur_m)
+    cur_draws$subnum = cur_sub
+    
+    yn_ddm_draws = rbind(yn_ddm_draws, cur_draws)
+    
+  }
+  names(yn_ddm_draws) = gsub(":", ".", names(yn_ddm_draws))
+  write.csv(yn_ddm_draws, fn_draws, row.names = F)
+  
+  rm(cur_par_data, cur_m, cur_draws)
+}
+
+```
+
+```{r}
+yn_par_summary = as.data.frame(yn_ddm_draws) %>%
+  select("b_day" ,"b_typeRE", "b_day.typeRE", subnum) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key = ifelse(key == "b_day", "Day", ifelse(key == "b_typeRE", "Type (RE)", ifelse(key == "b_day.typeRE", "Day * Type (RE)", NA))),
+         key = factor(key, levels = c("Type (RE)", "Day", "Day * Type (RE)"))) %>%
+  group_by(subnum, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(subnum = as.factor(subnum),
+         task = "Y/N") 
+```
+
+```{r}
+plim = max(abs(yn_par_summary$l95), yn_par_summary$h95)
+
+p = yn_par_summary %>%
+  ggplot(aes(m, subnum)) +
+  geom_vline(aes(xintercept = 0), color = "light gray") + 
+  geom_point(position = position_dodge(width=.75))+
+  geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
+  facet_grid(.~key) +
+  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - bias ~ Day * Type") +
+  theme(legend.position = "bottom",
+        panel.grid = element_blank(),
+        legend.box.margin=margin(t = -10))+
+  scale_x_continuous(breaks = c(0), limits = c(-plim, plim))
+
+p
+# ggsave(file=paste0(fig_out_path, 'yn_ddmBias_parEsts.jpg'), p, height = 3, width = 7, units="in")
+
+```
+
+### NDT
+
+```{r}
+fn_draws = paste0(helpers_path, '/inputs/yn_ddm_ndtRegressions_draws.csv')
+
+if(file.exists(fn_draws)){
+  yn_rt_draws = read.csv(fn_draws)
+} else{
+  subnums = unique(data_yn_clean$subnum)
+  
+  yn_ddm_draws = data_frame()
+  
+  for(i in 1:length(subnums)){
+    cur_sub = subnums[i]
+    
+    cur_par_data = all_results_df %>% 
+      filter(subnum == cur_sub & par_name == "ndt")
+    
+    # REDUCE AMOUNT OF DATA! 100 datapoints per bin
+    cur_par_data = cur_par_data %>%
+      group_by(type, day) %>%
+      sample_n(100)
+    
+    cur_m <- brm(formula = estimate ~ day * type,
+                     data= cur_par_data,
+                     warmup = 500,
+                     iter = 2500,
+                     chains = 4,
+                     init = "0",
+                     cores = 4,
+                     seed = 389253)
+    
+    cur_draws = as_draws_df(cur_m)
+    cur_draws$subnum = cur_sub
+    
+    yn_ddm_draws = rbind(yn_ddm_draws, cur_draws)
+    
+  }
+  names(yn_ddm_draws) = gsub(":", ".", names(yn_ddm_draws))
+  write.csv(yn_ddm_draws, fn_draws, row.names = F)
+  
+  rm(cur_par_data, cur_m, cur_draws)
+}
+
+```
+
+```{r}
+yn_par_summary = as.data.frame(yn_ddm_draws) %>%
+  select("b_day" ,"b_typeRE", "b_day.typeRE", subnum) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key = ifelse(key == "b_day", "Day", ifelse(key == "b_typeRE", "Type (RE)", ifelse(key == "b_day.typeRE", "Day * Type (RE)", NA))),
+         key = factor(key, levels = c("Type (RE)", "Day", "Day * Type (RE)"))) %>%
+  group_by(subnum, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(subnum = as.factor(subnum),
+         task = "Y/N") 
+```
+
+```{r}
+plim = max(abs(yn_par_summary$l95), yn_par_summary$h95)
+
+p = yn_par_summary %>%
+  ggplot(aes(m, subnum)) +
+  geom_vline(aes(xintercept = 0), color = "light gray") + 
+  geom_point(position = position_dodge(width=.75))+
+  geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
+  facet_grid(.~key) +
+  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - ndt ~ Day * Type") +
+  theme(legend.position = "bottom",
+        panel.grid = element_blank(),
+        legend.box.margin=margin(t = -10))+
+  scale_x_continuous(breaks = c(0), limits = c(-plim, plim))
+
+p
+# ggsave(file=paste0(fig_out_path, 'yn_ddmNDT_parEsts.jpg'), p, height = 3, width = 7, units="in")
+
 ```
 
