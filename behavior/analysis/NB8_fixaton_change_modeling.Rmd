@@ -41,11 +41,6 @@ data_bc_fix = data_bc_fix %>%
 
 Models:
 
-fixation duration ~ fixation type (1 = first, 2 = middle, 3 = last) * day * type --> linear effect of later fixations 
-fixation duration ~ (fixation type ^ 2) * day * type --> quadratic effect of later fixations
-
-number of fixations ~ (value difference^2) * day * type
-
 logit(first fixation == left) ~ value difference * day * type
 
 logit(choice == left) ~ first fixation side * value difference * day * type
@@ -406,10 +401,6 @@ if(file.exists(fn_draws) & file.exists(fn_ppc)){
 ```
 
 ```{r}
-data_bc_fix_cut
-```
-
-```{r}
 bc_par_summary = as.data.frame(bc_numfix_draws) %>%
   select("b_abs_val_diff", "b_abs_val_diff.day", "b_abs_val_diff.typeRE", "b_abs_val_diff.day.typeRE", subnum) %>%
   gather(key, value, -subnum) %>%
@@ -444,3 +435,162 @@ p
 # ggsave(file=paste0(fig_out_path, 'bc_numFixOverAbsValDiff_interactionParEsts.jpg'), p, height = 3, width = 9, units="in")
 ```
 ## First fixation location
+
+logit(first fixation == left) ~ value difference * day * type
+
+```{r}
+fn_draws = paste0(helpers_path, '/inputs/bc_firstFixLoc_draws.csv')
+fn_ppc = paste0(helpers_path, '/inputs/bc_firstFixLoc_ppc.csv')
+
+if(file.exists(fn_draws) & file.exists(fn_ppc)){
+  bc_firstFixLoc_draws = read.csv(fn_draws)
+  bc_firstFixLoc_ppc = read.csv(fn_ppc)
+} else{
+  
+  data_bc_fix_cut = data_bc_fix %>%
+    filter(firstFix == 1) %>%
+    select(subnum, day, leftFix, val_diff, type)
+  
+  subnums = unique(data_bc_fix_cut$subnum)
+  
+  bc_firstFixLoc_draws = data_frame()
+  bc_firstFixLoc_ppc = data_frame()
+  
+  for(i in 1:length(subnums)){
+    cur_sub = subnums[i]
+    
+    cur_bc_fix_data = data_bc_fix_cut %>% 
+      ungroup() %>%
+      filter(subnum == cur_sub)
+    
+    
+    cur_bc_firstFixLoc <- brm(formula = leftFix ~ val_diff * day * type,
+                        data= cur_bc_fix_data,
+                        family = bernoulli(link = "logit"),
+                        warmup = 500,
+                        iter = 2500,
+                        chains = 4,
+                        init = "0",
+                        cores = 4,
+                        seed = 389253)
+    
+    cur_draws = as_draws_df(cur_bc_firstFixLoc)
+    cur_draws$subnum = cur_sub
+    
+    bc_firstFixLoc_draws = rbind(bc_firstFixLoc_draws, cur_draws)
+    
+    cur_pred = fitted(cur_bc_firstFixLoc, newdata = cur_bc_fix_data, scale = "linear") %>%
+      as_tibble() %>%
+      transmute(prob = Estimate %>% inv_logit_scaled()) %>%
+      bind_cols(cur_bc_fix_data) %>%
+      mutate(subnum = cur_sub)
+    
+    bc_firstFixLoc_ppc = rbind(bc_firstFixLoc_ppc, cur_pred)
+  }
+  names(bc_firstFixLoc_draws) = gsub(":", ".", names(bc_firstFixLoc_draws))
+  write.csv(bc_firstFixLoc_draws, fn_draws, row.names = F)
+  write.csv(bc_firstFixLoc_ppc, fn_ppc, row.names = F)
+  
+  rm(cur_bc_fix_data, cur_bc_firstFixLoc, cur_draws, cur_pred)
+}
+
+```
+
+```{r}
+as.data.frame(bc_firstFixLoc_draws)
+```
+
+```{r}
+bc_par_summary = as.data.frame(bc_firstFixLoc_draws) %>%
+  select("b_val_diff", "b_val_diff.day", "b_val_diff.typeRE", "b_val_diff.day.typeRE", subnum) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key = ifelse(key == "b_val_diff", "Value Difference", ifelse(key == "b_val_diff.day", "Val Diff * Day", ifelse(key == "b_val_diff.typeRE", "Val Diff * Type (RE)", ifelse(key == "b_val_diff.day.typeRE", "Val Diff * Day * Type (RE)", NA)))),
+         key = factor(key, levels = c("Value Difference", "Val Diff * Type (RE)", "Val Diff|* Day", "Val Diff * Day * Type (RE)"))) %>%
+  group_by(subnum, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(subnum = as.factor(subnum),
+         task = "BC") 
+```
+
+
+```{r}
+plim = max(abs(bc_par_summary$l95),bc_par_summary$h95)
+
+p = bc_par_summary %>%
+  ggplot(aes(m, subnum), color = "red") +
+  geom_vline(aes(xintercept = 0), color = "light gray") + 
+  geom_point(position = position_dodge(width=.75))+
+  geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
+  facet_grid(.~key) +
+  labs(x = "Parameter Estimate", y = "Subject", title = "95% HDI for posterior slopes - First Fixation == Left ~ Value Difference * Day * Type") +
+  theme(legend.position = "bottom",
+        panel.grid = element_blank(),
+        legend.box.margin=margin(t = -10))+
+  scale_x_continuous(breaks = c(0), limits = c(-plim, plim))
+
+p
+# ggsave(file=paste0(fig_out_path, 'bc_firstFixLocsValDiff_interactionParEsts.jpg'), p, height = 3, width = 9, units="in")
+```
+## First fixation effect on choice
+
+```{r}
+```{r}
+fn_draws = paste0(helpers_path, '/inputs/bc_logit_draws.csv')
+fn_ppc = paste0(helpers_path, '/inputs/bc_logit_ppc.csv')
+
+if(file.exists(fn_draws) & file.exists(fn_ppc)){
+  bc_logit_draws = read.csv(fn_draws)
+  bc_logit_ppc = read.csv(fn_ppc)
+} else{
+  subnums = unique(data_bc_clean$subnum)
+  
+  bc_logit_draws = data_frame()
+  bc_logit_ppc = data_frame()
+  
+  for(i in 1:length(subnums)){
+    cur_sub = subnums[i]
+    
+    cur_bc_data = data_bc_clean %>% 
+      ungroup() %>%
+      filter(subnum == cur_sub) %>%
+      select(val_diff_bin_str, val_diff_std, day_std, type, val_diff, day, leftChosen)
+    
+    
+    cur_bc_logit <- brm(formula = leftChosen ~ val_diff_std * day_std * type,
+                        data= cur_bc_data,
+                        family = bernoulli(link = "logit"),
+                        warmup = 500,
+                        iter = 2500,
+                        chains = 4,
+                        init = "0",
+                        cores = 4,
+                        seed = 389253)
+    
+    cur_draws = as_draws_df(cur_bc_logit)
+    cur_draws$subnum = cur_sub
+    
+    bc_logit_draws = rbind(bc_logit_draws, cur_draws)
+    
+    cur_pred = fitted(cur_bc_logit, newdata = cur_bc_data %>%
+                        select(-val_diff, -day, -leftChosen, -val_diff_bin_str), scale = "linear") %>%
+      as_tibble() %>%
+      transmute(prob = Estimate %>% inv_logit_scaled()) %>%
+      bind_cols(cur_bc_data) %>%
+      mutate(subnum = cur_sub)
+    
+    bc_logit_ppc = rbind(bc_logit_ppc, cur_pred)
+  }
+  names(bc_logit_draws) = gsub(":", ".", names(bc_logit_draws))
+  write.csv(bc_logit_draws, fn_draws, row.names = F)
+  write.csv(bc_logit_ppc, fn_ppc, row.names = F)
+  
+  rm(cur_bc_data, cur_bc_logit, cur_draws, cur_pred)
+}
+
+```
+```
+
+## Last fixation effect on choice
