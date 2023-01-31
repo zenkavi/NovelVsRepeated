@@ -7,6 +7,7 @@ import os
 import pandas as pd
 import pickle
 from level1_utils import get_model_regs
+from nilearn.image import new_img_like, load_img, math_img, get_data
 
 def make_basic_contrasts(design_matrix):
     # first generate canonical contrasts (i.e. regressors vs. baseline)
@@ -169,4 +170,4 @@ def compute_session_contrasts(subnum, session1, session2, task, mnum, reg, base_
     print("***********************************************")
     print("Saving contrast tmap for sub-%s %s_min_%s task-%s %s %s"%(subnum, session2, session1, task, mnum, reg))
     print("***********************************************")
-    nib.save(contrast_beta, '%s/sub-%s_%s_min_%s_task-%s_space-%s_%s_%s_%s.nii.gz'%(out_path, subnum, session2, session1, task, output_space, mnum, reg, 'tmap'))
+    nib.save(contrast_tmap, '%s/sub-%s_%s_min_%s_task-%s_space-%s_%s_%s_%s.nii.gz'%(out_path, subnum, session2, session1, task, output_space, mnum, reg, 'tmap'))
