@@ -91,3 +91,82 @@ def compute_contrasts(subnum, session, task, mnum, contrasts_fn, out_path, outpu
         print("***********************************************")
         print("Done saving contrasts for sub-%s ses-%s task-%s"%(subnum, session, task))
         print("***********************************************")
+
+def compute_session_contrasts(subnum, session1, session2, task, mnum, reg, base_path, output_space = 'MNI152NLin2009cAsym_res-2'):
+
+    # Example Usage
+    #
+    # base_path = '/Users/zeynepenkavi/CpuEaters/overtrained_decisions_bidsfmri'
+    #
+    # task = 'yesNo'
+    # mnum = 'model2'
+    #
+    # regs = ['valHT_par', 'valRE_par', 'stimHT_ev', 'stimRE_ev']
+    # subnums = ['601', '609', '611', '619', '621', '629']
+    # sessions = [{'session1': 'ses-01', 'session2': 'ses-02'},
+    #             {'session1': 'ses-01', 'session2': 'ses-03'},
+    #             {'session1': 'ses-02', 'session2': 'ses-03'}]
+    #
+    # for cur_reg in regs:
+    #     for cur_sub in subnums:
+    #         for cur_sessions in sessions:
+    #             cur_session1 = cur_sessions['session1']
+    #             cur_session2 = cur_sessions['session2']
+    #
+    #             compute_session_contrasts(cur_sub, cur_session1, cur_session2, task, mnum, cur_reg, base_path)
+
+    in_path = os.path.join(base_path, 'derivatives/nilearn/glm/level1', task, mnum, 'sub-'+subnum)
+
+    out_path = os.path.join(in_path, "session_contrasts")
+    if not os.path.exists(out_path):
+        os.makedirs(out_path)
+
+    # Read in beta maps
+    ## Session 1
+    map_type = 'effect_size'
+    fn1 = 'sub-%s_%s_task-%s_space-%s_%s_%s_%s.nii.gz' %(subnum, session1, task, output_space, mnum, reg, map_type)
+    beta1 = load_img(os.path.join(in_path, session1+'/contrasts', fn1))
+    beta1_data = get_data(beta1)
+
+    ## Session 2
+    fn2 = 'sub-%s_%s_task-%s_space-%s_%s_%s_%s.nii.gz' %(subnum, session2, task, output_space, mnum, reg, map_type)
+    beta2 = load_img(os.path.join(in_path, session2+'/contrasts', fn2))
+    beta2_data = get_data(beta2)
+
+
+    # Read in tmaps
+    ## Session 1
+    map_type = 'tmap'
+    fn1 = 'sub-%s_%s_task-%s_space-%s_%s_%s_%s.nii.gz' %(subnum, session1, task, output_space, mnum, reg, map_type)
+    tmap1 = load_img(os.path.join(in_path, session1+'/contrasts', fn1))
+    tmap1_data = get_data(tmap1)
+
+    ## Session 2
+    fn2 = 'sub-%s_%s_task-%s_space-%s_%s_%s_%s.nii.gz' %(subnum, session2, task, output_space, mnum, reg, map_type)
+    tmap2 = load_img(os.path.join(in_path, session2+'/contrasts', fn2))
+    tmap2_data = get_data(tmap2)
+
+
+    # Compute SE maps
+    ## Session 1
+    se1_data = np.divide(beta1_data, tmap1_data, out=np.zeros_like(beta1_data), where = tmap1_data!=0)
+
+    ## Session 2
+    se2_data = np.divide(beta2_data, tmap2_data, out=np.zeros_like(beta2_data), where = tmap2_data!=0)
+
+    # Compute session contrast beta map
+    contrast_beta_data = np.subtract(beta2_data, beta1_data)
+    contrast_beta = new_img_like(beta1, contrast_beta_data)
+    print("***********************************************")
+    print("Saving contrast beta map for sub-%s %s_min_%s task-%s %s %s"%(subnum, session2, session1, task, mnum, reg))
+    print("***********************************************")
+    nib.save(contrast_beta, '%s/sub-%s_%s_min_%s_task-%s_space-%s_%s_%s_%s.nii.gz'%(out_path, subnum, session2, session1, task, output_space, mnum, reg, 'effect_size'))
+
+    # Compute session contrast tmap
+    contrast_denom_data = np.sqrt(np.power(se1_data, 2) + np.power(se2_data, 2))
+    contrast_tmap_data = np.divide(contrast_beta_data, contrast_denom_data, out = np.zeros_like(contrast_beta_data), where = tmap2_data!=contrast_denom_data)
+    contrast_tmap = new_img_like(tmap1, contrast_tmap_data)
+    print("***********************************************")
+    print("Saving contrast tmap for sub-%s %s_min_%s task-%s %s %s"%(subnum, session2, session1, task, mnum, reg))
+    print("***********************************************")
+    nib.save(contrast_beta, '%s/sub-%s_%s_min_%s_task-%s_space-%s_%s_%s_%s.nii.gz'%(out_path, subnum, session2, session1, task, output_space, mnum, reg, 'tmap'))
