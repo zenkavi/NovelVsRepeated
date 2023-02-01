@@ -100,10 +100,10 @@ zenkavi/fsl:6.0.3 python ./code/level2.py --mnum model2 --reg valHT_par --sign p
 ```
 cd /shared/fmri/analysis/02_level2/cluster_scripts
 
-....
+sh run_level2.sh
 ```
 
-## Push level 1 outputs back to s3
+## Push level 2 outputs back to s3
 
 ```
 export OUT_PATH=/shared/fmri/bids/derivatives/nilearn/glm/level2
@@ -115,7 +115,7 @@ aws s3 sync $OUT_PATH s3://novel-vs-repeated/fmri/bids/derivatives/nilearn/glm/l
 ```
 export BIDS_DIR=/Users/zeynepenkavi/CpuEaters/overtrained_decisions_bidsfmri
 
-docker run --rm -it -v ~/.aws:/root/.aws -v $BIDS_DIR:/bids amazon/aws-cli s3 sync s3://novel-vs-repeated/fmri/bids/derivatives/nilearn/glm/level2 /bids/derivatives/nilearn/glm/level2 --exclude '*' --include '...'
+docker run --rm -it -v ~/.aws:/root/.aws -v $BIDS_DIR:/bids amazon/aws-cli s3 sync s3://novel-vs-repeated/fmri/bids/derivatives/nilearn/glm/level2 /bids/derivatives/nilearn/glm/level2 --exclude '*' --include '*logp_max_tfce*'
 ```
 
 

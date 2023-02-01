@@ -44,8 +44,7 @@ def plot_stat_map_matrix(reg, task, mnum, contrasts_path, map_type,
 
     # figs_list = [{'reg': 'valHT_par', 'task': task, 'cut': -6, 'disp_mode': 'x'},
     #             {'reg': 'valHT_par', 'task': task, 'cut': 4, 'disp_mode': 'x'},
-    #             {'reg': 'valHT_par', 'task': task, 'cut': 8, 'disp_mode': 'y'},
-    #             {'reg': 'valHT_par', 'task': task, 'cut': 40, 'disp_mode': 'y'}]
+    #             {'reg': 'valHT_par', 'task': task, 'cut': 8, 'disp_mode': 'y'}]
 
 
     # out_path = os.path.join(fig_path, task, mnum)
