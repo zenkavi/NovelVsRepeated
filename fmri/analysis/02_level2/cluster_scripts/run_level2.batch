@@ -1,11 +1,11 @@
 #!/bin/bash
 
-#SBATCH -J level2-{REGNAME}-{MODELNUM}-{SESSION}-{SIGN}
+#SBATCH -J level2-{TASK}-{REGNAME}-{MODELNUM}-{SESSION}-{SIGN}
 #SBATCH -c 7
 
 # Outputs ----------------------------------
-#SBATCH -o /shared/.out/level2-{REGNAME}-{MODELNUM}-{SESSION}-{SIGN}.out
-#SBATCH -e /shared/.err/level2-{REGNAME}-{MODELNUM}-{SESSION}-{SIGN}.err
+#SBATCH -o /shared/.out/level2-{TASK}-{REGNAME}-{MODELNUM}-{SESSION}-{SIGN}.out
+#SBATCH -e /shared/.err/level2-{TASK}-{REGNAME}-{MODELNUM}-{SESSION}-{SIGN}.err
 # ------------------------------------------
 
 export DATA_PATH=/shared/fmri/bids/derivatives/nilearn/glm/level1/{TASK}/{MODELNUM}
