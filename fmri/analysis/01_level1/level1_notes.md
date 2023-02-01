@@ -89,8 +89,6 @@ docker run --rm -e DATA_PATH=/data -e OUT_PATH=/out \
 zenkavi/fsl:6.0.3 python ./code/compute_contrasts.py --subnum 601 --session 01 --task binaryChoice --mnum model1 --output_space 'MNI152NLin2009cAsym_res-2' --contrasts_fn binaryChoice_model1_contrasts.json
 ```
 
-**Analyses in native space?**
-
 ## Submit jobs for levels 1s of all subjects and sessions for both tasks
 
 ```

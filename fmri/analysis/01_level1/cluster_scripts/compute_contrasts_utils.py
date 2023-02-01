@@ -97,6 +97,7 @@ def compute_session_contrasts(subnum, session1, session2, task, mnum, reg, base_
 
     # Example Usage
     #
+    # from nilearn.image import new_img_like, load_img, math_img, get_data
     # base_path = '/Users/zeynepenkavi/CpuEaters/overtrained_decisions_bidsfmri'
     #
     # task = 'yesNo'
@@ -118,7 +119,7 @@ def compute_session_contrasts(subnum, session1, session2, task, mnum, reg, base_
 
     in_path = os.path.join(base_path, 'derivatives/nilearn/glm/level1', task, mnum, 'sub-'+subnum)
 
-    out_path = os.path.join(in_path, "session_contrasts")
+    out_path = os.path.join(in_path, "%s_min_%s/contrasts"%(session2, session1))
     if not os.path.exists(out_path):
         os.makedirs(out_path)
 

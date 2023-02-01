@@ -1,0 +1,17 @@
+#!/bin/bash
+
+#SBATCH -J level2-{REGNAME}-{MODELNUM}-{SESSION}-{SIGN}
+#SBATCH -c 7
+
+# Outputs ----------------------------------
+#SBATCH -o /shared/.out/level2-{REGNAME}-{MODELNUM}-{SESSION}-{SIGN}.out
+#SBATCH -e /shared/.err/level2-{REGNAME}-{MODELNUM}-{SESSION}-{SIGN}.err
+# ------------------------------------------
+
+export DATA_PATH=/shared/fmri/bids/derivatives/nilearn/glm/level1/{TASK}/{MODELNUM}
+export OUT_PATH=/shared/fmri/bids/derivatives/nilearn/glm/level2/{TASK}/{MODELNUM}/overall-mean
+export CODE_PATH=/shared/fmri/analysis/02_level2/cluster_scripts
+
+docker run --rm -e DATA_PATH=/data -e OUT_PATH=/out \
+-v $DATA_PATH:/data -v $OUT_PATH:/out -v $CODE_PATH:/code \
+zenkavi/fsl:6.0.3 python ./code/level2.py --mnum {MODELNUM} --reg {REGNAME} --sign {SIGN} --session {SESSION} --num_perm 10000

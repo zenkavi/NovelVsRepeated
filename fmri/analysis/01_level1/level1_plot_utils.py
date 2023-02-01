@@ -136,7 +136,7 @@ def plot_diff_stat_map_matrix(reg, task, mnum, contrasts_path,
         for j, cur_col in enumerate(cols[1:]):
                         
             fn = 'sub-%s_%s_task-%s_space-%s_%s_%s_tmap.nii.gz' %(cur_sub, cur_col, task, space, mnum, reg)
-            tmap = os.path.join(contrasts_path, task, mnum, 'sub-'+cur_sub, 'session_contrasts', fn)
+            tmap = os.path.join(contrasts_path, task, mnum, 'sub-'+cur_sub, cur_col+'/contrasts', fn)
             
             plot_stat_map(tmap,
                           bg_img = bg_img,
