@@ -216,32 +216,100 @@ Conversion to a scale with the variance parameter fixed at any s can be done by 
 ```
 
 ```{r}
-cur_sub = 601
-cur_type = 'HT'
-cur_day = 1
+sim_post_pred_data = function(n_samples, subs, types, days, interim_save = TRUE){
+  
+  set.seed(20572380)
+  
+  if(!exists("data_yn_clean")){
+    library(tidyverse)
+    library(here)
+    
+    helpers_path = here()
+    
+    data_yn = read.csv(paste0(helpers_path, '/inputs/data_choiceYN.csv'))
+    
+    data_yn_clean = data_yn %>%
+      filter(session != -99) %>%
+      select(-inizialTime, -inizialTimeResp, -endTime, -endTimeResp)
+    
+    rm(data_yn)
+  }
+  
+  if(!exists("all_results_df")){
+    fn = file.path(here(), "inputs",'yn_hddm_mcmc_draws.csv')
+    
+    all_results_df = read.csv(fn)
+  }
+  
+  fn = file.path(here(), "inputs", paste0('yn_ddm_ppc_interim_save.csv'))
+  for(i in 1:length(subs)){
+    cur_sub = subs[i]
+    print(paste0("Beginning sub-", cur_sub))
+    
+    for(j in 1:length(types)){
+      cur_type = types[j]
+      print(paste0("Beginning type: ", cur_type))
+      
+      for(k in 1:length(days)){
+        cur_day = days[k]
+        print(paste0("Beginning day: ", cur_day))  
+        
+        cur_pred = sim_subj_cond_day_nsamples(n_samples, cur_sub, cur_type, cur_day)
+        
+        if(!exists("pred_data")){
+          pred_data = cur_pred
+        } else{
+          pred_data = rbind(pred_data, cur_pred)
+        }
+        
+        if(interim_save){
+          write.csv(pred_data, fn, row.names = F)
+        }
+      }
+    }
+  }
+  
+  return(pred_data)
+}
 
-cur_stims = data_yn_clean %>%
-  filter(subnum == cur_sub & day == cur_day & type == cur_type) %>%
-  select(possiblePayoff, reference, yesChosen, rt)
+sim_subj_cond_day_nsamples = function(n_samples, cur_sub, cur_type, cur_day){
+  
+  cur_stims = data_yn_clean %>%
+    filter(subnum == cur_sub & day == cur_day & type == cur_type) %>%
+    select(subnum, day, type, possiblePayoff, reference, yesChosen, rt)
+  
+  cur_cond_pars = all_results_df %>%
+    filter(subnum == cur_sub & day == cur_day & type == cur_type)
+  
+  i = 0
+  while(i < n_samples){
+    
+    sampled_pars = cur_cond_pars %>%
+      group_by(par_name, type, day) %>%
+      sample_n(1)
+    
+    sampled_sigma = as.numeric(sampled_pars[sampled_pars$par_name == "sigma", 'estimate'])
+    sampled_d = as.numeric(sampled_pars[sampled_pars$par_name == "d", 'estimate'])
+    sampled_ndt = as.numeric(sampled_pars[sampled_pars$par_name == "ndt", 'estimate'])
+    sampled_bias = as.numeric(sampled_pars[sampled_pars$par_name == "bias", 'estimate'])
+    
+    cur_pred = sim_subj_cond_day_once(cur_stims, sampled_sigma, sampled_d, sampled_ndt, sampled_bias)
+    cur_pred$sample = i+1
+    
+    if(i == 0){
+      pred_data = cur_pred
+    } else{
+      pred_data = rbind(pred_data, cur_pred)
+    }
+    
+    i = i+1
+  }
+  
+  return(pred_data)
+}
 
-cur_cond_pars = all_results_df %>%
-  filter(subnum == cur_sub & day == cur_day & type == cur_type)
 
-
-# N times
-sampled_pars = cur_cond_pars %>%
-  group_by(par_name, type, day) %>%
-  sample_n(1)
-
-sampled_sigma = as.numeric(sampled_pars[sampled_pars$par_name == "sigma", 'estimate'])
-sampled_d = as.numeric(sampled_pars[sampled_pars$par_name == "d", 'estimate'])
-sampled_ndt = as.numeric(sampled_pars[sampled_pars$par_name == "ndt", 'estimate'])
-sampled_bias = as.numeric(sampled_pars[sampled_pars$par_name == "bias", 'estimate'])
-
-
-# Simulate each trial
-
-sim_subj_data = function(cur_stims, sampled_sigma, sampled_d, sampled_ndt, sampled_bias){
+sim_subj_cond_day_once = function(cur_stims, sampled_sigma, sampled_d, sampled_ndt, sampled_bias){
   
   pred_data = cur_stims
   pred_data$sampled_sigma = sampled_sigma
@@ -278,8 +346,44 @@ sim_trial = function(trial_vdiff, sampled_sigma, sampled_d, sampled_ndt, sampled
 ```
 
 ```{r}
-sim_subj_data(cur_stims, sampled_sigma, sampled_d, sampled_ndt, sampled_bias)
+fn = file.path(here(), "inputs",'yn_ddm_ppc_data.csv')
+
+if(file.exists(fn)){
+  yn_ddm_ppc_data = read.csv(fn)
+  
+} else{
+  
+  n_samples = 100
+  subs = unique(data_yn_clean$subnum)
+  days = seq(1,11,1)
+  types = c('HT', 'RE')
+  
+  yn_ddm_ppc_data = sim_post_pred_data(n_samples, subs, types, days)
+  
+  write.csv(pred_data, fn, row.names = F)
+}
 ```
+
+How similar are the multiple sets of simulated data to each other?
+
+```{r}
+tmp %>%
+  filter(rt < 3) %>%
+  mutate(rt = ifelse(yesChosen == 0, rt*(-1), rt),
+         pred_rt = ifelse(pred_yesChosen == 0, pred_rt*(-1), pred_rt)) %>%
+  ggplot()+
+  geom_density(aes(x = pred_rt), position = "identity", alpha = .5) +
+  geom_histogram(aes(x = rt, y = ..density..), bins = 30,  position = "identity", alpha = .5, color = NA)+
+  # facet_grid(. ~ sample)+
+  theme(panel.grid = element_blank(),
+        axis.text.x = element_text(margin = margin(t = 5)))+
+  geom_vline(aes(xintercept = 0), color = "gray") +
+  scale_fill_brewer(palette = "Dark2")+
+  labs(y = "", fill = "")
+```
+
+How similar is the simulated data to the true data?
+
 
 # Changes in DDM pars
 
