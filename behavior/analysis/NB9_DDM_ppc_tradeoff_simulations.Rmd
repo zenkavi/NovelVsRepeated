@@ -13,6 +13,7 @@ output:
 library(tidyverse)
 library(here)
 library(brms)
+library(gridExtra)
 theme_set(theme_bw())
 helpers_path = paste0(here(),'/analysis/helpers/')
 fig_out_path = paste0(here(), '/outputs/fig/')
@@ -45,13 +46,11 @@ data_bc_clean = data_bc_clean %>%
   filter(!is.na(val_diff_bin_str))
 ```
 
-# Changes in DDM pars
-
-## YN Task
+# YN Task
 
 Read in parameter estimates
 
-```{r}
+```{r eval = FALSE}
 fn = file.path(here(), "inputs",'yn_hddm_mcmc_draws.csv')
 
 if(file.exists(fn)){
@@ -116,6 +115,175 @@ if(file.exists(fn)){
 
 
 ```
+
+### Correlations between estimates
+
+```{r}
+all_d_sigma = all_results_df %>%
+  filter(par_name %in% c("d", "sigma"))
+
+rm(all_results_df)
+```
+
+```{r}
+subs = c('601', '609', '611', '619', '621', '629')
+types = c('HT', 'RE')
+days = seq(1,11,1)
+
+d_sigma_cors =  data.frame(subnum = NA, type = NA, day = NA, cor = NA)
+
+for (i in 1:length(subs)){
+  for (j in 1:length(types)){
+    for (k in 1:length(days)){
+     
+      cur_sub = subs[i]
+      cur_type = types[j]
+      cur_day = days[k]
+      
+      cur_ds = all_d_sigma %>%
+        filter(subnum == cur_sub & type == cur_type & day == cur_day & par_name == "d") %>%
+        select(estimate)
+      
+      cur_sigmas = all_d_sigma %>%
+        filter(subnum == cur_sub & type == cur_type & day == cur_day & par_name == "sigma") %>%
+        select(estimate)
+      
+      cur_cor = round(cor(cur_ds, cur_sigmas), 3)
+      
+      cur_row = data.frame(subnum = cur_sub, type = cur_type, day = cur_day, cor = as.numeric(cur_cor))
+        
+      d_sigma_cors = rbind(d_sigma_cors, cur_row)
+    }
+  }
+}
+
+
+d_sigma_cors = d_sigma_cors %>%
+  drop_na()
+```
+
+```{r}
+p = d_sigma_cors %>%
+  ggplot(aes(type, cor, fill=type))+
+  geom_boxplot()+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text.x = element_text(margin = margin(t = 5)),
+        legend.box.margin=margin(t = -10))+
+  scale_fill_brewer(palette = "Dark2")+
+  labs(x = "", fill = "", y = "Correlation between d and sigma estimates")
+
+# ggsave(file=paste0(fig_out_path, 'yn_ddm_d_sigma_cor.jpg'), p, height = 5, width = 5, units="in")
+```
+
+## RT by response
+
+```{r}
+p = data_yn_clean %>%
+  filter(rt < 3) %>%
+  select(subnum, day, type, yesChosen, rt) %>%
+  mutate(rt = ifelse(yesChosen == 0, rt*(-1), rt),
+         day = paste0("Day ", day),
+         day = factor(day, levels = paste0("Day ", seq(1,11, 1)))) %>%
+  ggplot(aes(rt, fill = type))+
+  geom_density(position = "identity", alpha = .5, color = NA)+
+  facet_grid(subnum ~ day)+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text.x = element_text(margin = margin(t = 5)),
+        legend.box.margin=margin(t = -10))+
+  geom_vline(aes(xintercept = 0), color = "gray") +
+  scale_fill_brewer(palette = "Dark2")+
+  labs(y = "", fill = "")
+
+p
+# ggsave(file=paste0(fig_out_path, 'yn_ddm_raw_rt_dists.jpg'), p, height = 10, width = 18, units="in")
+```
+
+### Posterior predictive RTs
+
+For each participant
+for each day
+for each stim type
+n times:
+sample the parameters
+generate posterior predictive data for all the stimuli of that participant
+
+
+The `rwiener` function fixes the sd of the diffusion process to 1. Wabersich and Vandekerckhove (2014) explain how to change this:
+```
+Conversion to a scale with the variance parameter fixed at any s can be done by multiplying the α and δ parameters by 
+```
+
+```{r}
+cur_sub = 601
+cur_type = 'HT'
+cur_day = 1
+
+cur_stims = data_yn_clean %>%
+  filter(subnum == cur_sub & day == cur_day & type == cur_type) %>%
+  select(possiblePayoff, reference, yesChosen, rt)
+
+cur_cond_pars = all_results_df %>%
+  filter(subnum == cur_sub & day == cur_day & type == cur_type)
+
+
+# N times
+sampled_pars = cur_cond_pars %>%
+  group_by(par_name, type, day) %>%
+  sample_n(1)
+
+sampled_sigma = as.numeric(sampled_pars[sampled_pars$par_name == "sigma", 'estimate'])
+sampled_d = as.numeric(sampled_pars[sampled_pars$par_name == "d", 'estimate'])
+sampled_ndt = as.numeric(sampled_pars[sampled_pars$par_name == "ndt", 'estimate'])
+sampled_bias = as.numeric(sampled_pars[sampled_pars$par_name == "bias", 'estimate'])
+
+
+# Simulate each trial
+
+sim_subj_data = function(cur_stims, sampled_sigma, sampled_d, sampled_ndt, sampled_bias){
+  
+  pred_data = cur_stims
+  pred_data$sampled_sigma = sampled_sigma
+  pred_data$sampled_d = sampled_d
+  pred_data$sampled_ndt = sampled_ndt
+  pred_data$sampled_bias = sampled_bias
+  pred_data$pred_rt = NA
+  pred_data$pred_yesChosen = NA
+  
+  for(i in 1:nrow(cur_stims)){
+    
+    trial_vdiff = cur_stims$possiblePayoff[i] - cur_stims$reference[i]
+    cur_pred = sim_trial(trial_vdiff, sampled_sigma, sampled_d, sampled_ndt, sampled_bias)
+    
+    pred_data$pred_rt[i] = cur_pred$q
+    pred_data$pred_yesChosen[i] = cur_pred$resp
+    
+  }
+  
+  return(pred_data)
+}
+
+sim_trial = function(trial_vdiff, sampled_sigma, sampled_d, sampled_ndt, sampled_bias){
+  
+  trial_drift = sampled_sigma * (sampled_d * trial_vdiff)
+  
+  cur_pred = rwiener(1, 2*sampled_sigma, sampled_ndt, sampled_bias, trial_drift)
+  
+  return(cur_pred)
+  
+}
+
+
+```
+
+```{r}
+sim_subj_data(cur_stims, sampled_sigma, sampled_d, sampled_ndt, sampled_bias)
+```
+
+# Changes in DDM pars
+
+**[THIS ISN'T THE BEST APPROACH. TRY MODELING EACH SUBJECT HIERARCHICALLY INSTEAD]**
 
 ### Drift rate
 
@@ -197,6 +365,7 @@ p
 # ggsave(file=paste0(fig_out_path, 'yn_ddmD_parEsts.jpg'), p, height = 3, width = 7, units="in")
 
 ```
+
 ### Sigma
 
 ```{r}

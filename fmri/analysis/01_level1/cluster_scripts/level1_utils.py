@@ -36,6 +36,13 @@ def get_model_regs(mnum, task):
 
         if mnum == 'model2':
             regs = ['cross_ev', 'stimHT_ev', 'rewardHT_ev', 'rewardHT_par', 'stimRE_ev', 'rewardRE_ev', 'rewardRE_par', 'choice_st', 'valHT_par', 'valRE_par']
+
+        if mnum == 'model3':
+            regs = ['cross_ev', 'stimHT_ev', 'rewardHT_ev', 'rewardHT_par', 'stimRE_ev', 'rewardRE_ev', 'rewardRE_par', 'choiceYesHT_st', 'choiceNoHT_st', 'choiceYesRE_st', 'choiceNoRE_st', 'valHT_par', 'valRE_par']
+
+        if mnum == 'model4':
+            regs = ['cross_ev', 'stimHT_ev', 'rewardHT_ev', 'rewardHT_par', 'stimRE_ev', 'rewardRE_ev', 'rewardRE_par', 'choiceCorrectHT_st', 'choiceCorrectRE_st', 'choiceIncorrectHT_st', 'choiceIncorrectRE_st', 'valHT_par', 'valRE_par']
+
     return regs
 
 
@@ -175,11 +182,43 @@ def get_events(subnum, session, task, runnum, mnum, data_path):
             cond_choiceYes_st['trial_type'] = 'choiceYes_st'
             cond_choiceYes_st['modulation'] = behavior['choiceYes'].reset_index(drop=True)
 
+        if reg == 'choiceYesHT_st':
+            cond_choiceYesHT_st = events.query('trial_type == "feedback"')[['onset', 'duration']].reset_index(drop=True)
+            cond_choiceYesHT_st['duration'] = 0
+            cond_choiceYesHT_st['trial_type'] = 'choiceYesHT_st'
+            cond_choiceYesHT_st['modulation'] = behavior['choiceYes'].reset_index(drop=True)
+            cond_choiceYesHT_st['stim_type'] = behavior['type'].reset_index(drop=True)
+            cond_choiceYesHT_st = cond_choiceYesHT_st.query('stim_type == 1').drop('stim_type', axis=1).reset_index(drop=True)
+
+        if reg == 'choiceYesRE_st':
+            cond_choiceYesRE_st = events.query('trial_type == "feedback"')[['onset', 'duration']].reset_index(drop=True)
+            cond_choiceYesRE_st['duration'] = 0
+            cond_choiceYesRE_st['trial_type'] = 'choiceYesRE_st'
+            cond_choiceYesRE_st['modulation'] = behavior['choiceYes'].reset_index(drop=True)
+            cond_choiceYesRE_st['stim_type'] = behavior['type'].reset_index(drop=True)
+            cond_choiceYesRE_st = cond_choiceYesRE_st.query('stim_type == 0').drop('stim_type', axis=1).reset_index(drop=True)
+
         if reg == 'choiceNo_st':
             cond_choiceNo_st = pd.DataFrame(events.query('trial_type == "stim"')['onset'] + events.query('trial_type == "stim"')['duration'], columns = ['onset']).reset_index(drop=True) # this is the same as the feedback onsets
             cond_choiceNo_st['duration'] = 0
             cond_choiceNo_st['trial_type'] = 'choiceNo_st'
             cond_choiceNo_st['modulation'] = 1 - behavior['choiceYes'].reset_index(drop=True)
+
+        if reg == 'choiceNoHT_st':
+            cond_choiceNoHT_st = events.query('trial_type == "feedback"')[['onset', 'duration']].reset_index(drop=True)
+            cond_choiceNoHT_st['duration'] = 0
+            cond_choiceNoHT_st['trial_type'] = 'choiceNoHT_st'
+            cond_choiceNoHT_st['modulation'] = 1 - behavior['choiceYes'].reset_index(drop=True)
+            cond_choiceNoHT_st['stim_type'] = behavior['type'].reset_index(drop=True)
+            cond_choiceNoHT_st = cond_choiceNoHT_st.query('stim_type == 1').drop('stim_type', axis=1).reset_index(drop=True)
+
+        if reg == 'choiceNoRE_st':
+            cond_choiceNoRE_st = events.query('trial_type == "feedback"')[['onset', 'duration']].reset_index(drop=True)
+            cond_choiceNoRE_st['duration'] = 0
+            cond_choiceNoRE_st['trial_type'] = 'choiceNoRE_st'
+            cond_choiceNoRE_st['modulation'] = 1 - behavior['choiceYes'].reset_index(drop=True)
+            cond_choiceNoRE_st['stim_type'] = behavior['type'].reset_index(drop=True)
+            cond_choiceNoRE_st = cond_choiceNoRE_st.query('stim_type == 0').drop('stim_type', axis=1).reset_index(drop=True)
 
         if reg == 'valHT_par':
             cond_valHT_par = events.query('trial_type == "stim"')[['onset', 'duration']].reset_index(drop=True)
