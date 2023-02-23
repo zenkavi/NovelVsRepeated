@@ -11,4 +11,4 @@ RUN wget https://sourceforge.net/projects/mcmc-jags/files/JAGS/4.x/Source/JAGS-4
   && tar -xf JAGS-WIENER-MODULE-1.1.tar.gz \
   && cd JAGS-WIENER-MODULE-1.1 \
   && ./configure && make && make install \
-  && install2.r runjags here optparse
+  && install2.r runjags here optparse RWiener

@@ -345,26 +345,34 @@ sim_trial = function(trial_vdiff, sampled_sigma, sampled_d, sampled_ndt, sampled
 
 ```
 
-```{r}
-fn = file.path(here(), "inputs",'yn_ddm_ppc_data.csv')
+This is too inefficient.
 
-if(file.exists(fn)){
-  yn_ddm_ppc_data = read.csv(fn)
-  
-} else{
-  
-  n_samples = 100
-  subs = unique(data_yn_clean$subnum)
-  days = seq(1,11,1)
-  types = c('HT', 'RE')
-  
-  yn_ddm_ppc_data = sim_post_pred_data(n_samples, subs, types, days)
-  
-  write.csv(pred_data, fn, row.names = F)
-}
+```{r}
+# fn = file.path(here(), "inputs",'yn_ddm_ppc_data.csv')
+# 
+# if(file.exists(fn)){
+#   yn_ddm_ppc_data = read.csv(fn)
+#   
+# } else{
+#   
+#   n_samples = 100
+#   subs = unique(data_yn_clean$subnum)
+#   days = seq(1,11,1)
+#   types = c('HT', 'RE')
+#   
+#   yn_ddm_ppc_data = sim_post_pred_data(n_samples, subs, types, days)
+#   
+#   write.csv(pred_data, fn, row.names = F)
+# }
+```
+
+```{r}
+sim_subj_cond_day_nsamples(10, 601, "HT", 5)
 ```
 
 How similar are the multiple sets of simulated data to each other?
+
+How similar is the simulated data to the true data?
 
 ```{r}
 tmp %>%
@@ -382,7 +390,6 @@ tmp %>%
   labs(y = "", fill = "")
 ```
 
-How similar is the simulated data to the true data?
 
 
 # Changes in DDM pars

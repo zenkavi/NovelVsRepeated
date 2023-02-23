@@ -8,6 +8,6 @@ do
     esac
 done
 
-sed -e "s/{STIM}/$stim/g" -e "s/{DAY}/$day/g" run_yn_hddm_rjags.batch | sbatch
+sed -e "s/{STIM}/$stim/g" -e "s/{DAY}/$day/g" run_fit_yn_hddm_rjags.batch | sbatch
 
-# sh run_hddm_rjags.sh -s RE -d 4
+# sh run_fit_yn_hddm_rjags.sh -s RE -d 4
