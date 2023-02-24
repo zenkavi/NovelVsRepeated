@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH -J yn-sim-hddm-sub-{SUBNUM}-{COND}-day-{DAY}_%j
+#SBATCH -J yn-sim-hddm-sub-{SUBNUM}-{COND}-day-{DAY}
 #SBATCH -c 2
 
 # Outputs ----------------------------------

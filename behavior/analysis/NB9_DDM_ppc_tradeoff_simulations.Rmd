@@ -202,192 +202,246 @@ p
 
 ### Posterior predictive RTs
 
-For each participant
-for each day
-for each stim type
-n times:
-sample the parameters
-generate posterior predictive data for all the stimuli of that participant
+```{r}
+inpath = '/Users/zeynepenkavi/CpuEaters/NovelVsRepeated/behavior/inputs'
 
 
-The `rwiener` function fixes the sd of the diffusion process to 1. Wabersich and Vandekerckhove (2014) explain how to change this:
+conds = c('HT', 'RE')
+# subs = c('609', '621', '629')
+subs = c('601', '611', '619')
+days = seq(1, 11, 1)
+
+
+for (k in 1:length(conds)){
+  cur_cond = conds[k]
+  
+  for (j in 1:length(subs)){
+    cur_sub = subs[j]
+    
+    for (i in 1:length(days)){
+      cur_day = days[i]
+      fn = file.path(inpath, paste0("yn_sim_ddm_sub-", cur_sub, "_", cur_cond, "_day-", cur_day, ".csv"))
+      
+      if(!file.exists(fn)){
+        next
+      } else{
+        tmp = read.csv(fn)
+      }
+      
+      
+      if(i == 1){
+        sub_cond_sim_data = tmp
+      } else {
+        sub_cond_sim_data = rbind(sub_cond_sim_data, tmp)
+      }
+    }
+    fill_col = ifelse(cur_cond == "HT", "#1B9E77", "#D95F02")
+    
+    p = sub_cond_sim_data %>%
+      filter(rt < 3 & pred_rt < 3) %>%
+      mutate(rt = ifelse(yesChosen == 1, rt, rt*(-1)),
+             pred_rt = ifelse(pred_yesChosen == 1, pred_rt, pred_rt*(-1)), 
+             day = paste0("Day ", day),
+             day = factor(day, levels = paste0("Day ", seq(1,11, 1)))) %>%
+      ggplot()+
+      geom_density(aes(x = pred_rt), position = "identity", alpha = .5) +
+      geom_histogram(aes(x = rt, y = ..density..), bins = 30,  position = "identity", alpha = .5, color = NA, fill = fill_col)+
+      facet_grid(subnum ~ day)+
+      theme(panel.grid = element_blank(),
+            axis.text = element_blank(),
+            axis.ticks = element_blank())+
+      geom_vline(aes(xintercept = 0), color = "gray") +
+      labs(y = "", x = "")
+    
+    fn = paste0(fig_out_path,'yn_ddm_sim_rt_ppc_sub-',cur_sub, '_cond-',cur_cond, '.jpg')
+    print(paste("Saving", fn))
+    ggsave(file = fn, p, height = 2, width = 18, units="in") 
+    
+  }
+}
+
+
 ```
-Conversion to a scale with the variance parameter fixed at any s can be done by multiplying the α and δ parameters by 
+
+#### Debug failed jobs
+
+Is it a filtering issue?
+
+```{r}
+conds = c('HT', 'RE')
+subs = c(601, 609, 611, 619, 621, 629)
+days = seq(1, 11, 1)
+
+for(i in 1:length(conds)){
+  cur_cond = conds[i]
+  
+  for(j in 1:length(subs)){
+    cur_sub = subs[j]
+    
+    for(k in 1:length(days)){
+    cur_day = days[k]
+    
+    tmp = data_yn_clean %>%
+      filter(subnum == cur_sub & day == cur_day & type == cur_cond)
+    
+    print(paste0("N Rows for sub-", cur_sub, " day-", cur_day, " cond-", cur_cond, ": ", nrow(tmp)))
+    
+    }
+  }
+}
 ```
 
 ```{r}
-sim_post_pred_data = function(n_samples, subs, types, days, interim_save = TRUE){
+conds = c('HT', 'RE')
+subs = c(601, 609, 611, 619, 621, 629)
+days = seq(1, 11, 1)
+
+for(i in 1:length(conds)){
+  cur_cond = conds[i]
   
-  set.seed(20572380)
-  
-  if(!exists("data_yn_clean")){
-    library(tidyverse)
-    library(here)
+  for(j in 1:length(subs)){
+    cur_sub = subs[j]
     
-    helpers_path = here()
+    for(k in 1:length(days)){
+    cur_day = days[k]
     
-    data_yn = read.csv(paste0(helpers_path, '/inputs/data_choiceYN.csv'))
+    tmp = all_results_df %>%
+      filter(subnum == cur_sub & day == cur_day & type == cur_cond)
     
-    data_yn_clean = data_yn %>%
-      filter(session != -99) %>%
-      select(-inizialTime, -inizialTimeResp, -endTime, -endTimeResp)
+    print(paste0("N Pars sub-", cur_sub, " day-", cur_day, " cond-", cur_cond, ": ", nrow(tmp)/30000))
     
-    rm(data_yn)
-  }
-  
-  if(!exists("all_results_df")){
-    fn = file.path(here(), "inputs",'yn_hddm_mcmc_draws.csv')
-    
-    all_results_df = read.csv(fn)
-  }
-  
-  fn = file.path(here(), "inputs", paste0('yn_ddm_ppc_interim_save.csv'))
-  for(i in 1:length(subs)){
-    cur_sub = subs[i]
-    print(paste0("Beginning sub-", cur_sub))
-    
-    for(j in 1:length(types)){
-      cur_type = types[j]
-      print(paste0("Beginning type: ", cur_type))
-      
-      for(k in 1:length(days)){
-        cur_day = days[k]
-        print(paste0("Beginning day: ", cur_day))  
-        
-        cur_pred = sim_subj_cond_day_nsamples(n_samples, cur_sub, cur_type, cur_day)
-        
-        if(!exists("pred_data")){
-          pred_data = cur_pred
-        } else{
-          pred_data = rbind(pred_data, cur_pred)
-        }
-        
-        if(interim_save){
-          write.csv(pred_data, fn, row.names = F)
-        }
-      }
     }
   }
-  
-  return(pred_data)
 }
+```
 
-sim_subj_cond_day_nsamples = function(n_samples, cur_sub, cur_type, cur_day){
-  
-  cur_stims = data_yn_clean %>%
-    filter(subnum == cur_sub & day == cur_day & type == cur_type) %>%
-    select(subnum, day, type, possiblePayoff, reference, yesChosen, rt)
-  
-  cur_cond_pars = all_results_df %>%
-    filter(subnum == cur_sub & day == cur_day & type == cur_type)
-  
-  i = 0
-  while(i < n_samples){
-    
-    sampled_pars = cur_cond_pars %>%
-      group_by(par_name, type, day) %>%
-      sample_n(1)
-    
-    sampled_sigma = as.numeric(sampled_pars[sampled_pars$par_name == "sigma", 'estimate'])
-    sampled_d = as.numeric(sampled_pars[sampled_pars$par_name == "d", 'estimate'])
-    sampled_ndt = as.numeric(sampled_pars[sampled_pars$par_name == "ndt", 'estimate'])
-    sampled_bias = as.numeric(sampled_pars[sampled_pars$par_name == "bias", 'estimate'])
-    
-    cur_pred = sim_subj_cond_day_once(cur_stims, sampled_sigma, sampled_d, sampled_ndt, sampled_bias)
-    cur_pred$sample = i+1
-    
-    if(i == 0){
-      pred_data = cur_pred
-    } else{
-      pred_data = rbind(pred_data, cur_pred)
-    }
-    
-    i = i+1
-  }
-  
-  return(pred_data)
-}
+```{r}
+cur_sub = 601
+cur_day = 8
+cur_cond = "HT"
 
+tmp = all_results_df %>%
+      filter(subnum == cur_sub & day == cur_day & type == cur_cond)
 
-sim_subj_cond_day_once = function(cur_stims, sampled_sigma, sampled_d, sampled_ndt, sampled_bias){
-  
-  pred_data = cur_stims
-  pred_data$sampled_sigma = sampled_sigma
-  pred_data$sampled_d = sampled_d
-  pred_data$sampled_ndt = sampled_ndt
-  pred_data$sampled_bias = sampled_bias
-  pred_data$pred_rt = NA
-  pred_data$pred_yesChosen = NA
-  
-  for(i in 1:nrow(cur_stims)){
-    
-    trial_vdiff = cur_stims$possiblePayoff[i] - cur_stims$reference[i]
-    cur_pred = sim_trial(trial_vdiff, sampled_sigma, sampled_d, sampled_ndt, sampled_bias)
-    
-    pred_data$pred_rt[i] = cur_pred$q
-    pred_data$pred_yesChosen[i] = cur_pred$resp
-    
-  }
-  
-  return(pred_data)
-}
+unique(tmp$subnum)
+```
 
-sim_trial = function(trial_vdiff, sampled_sigma, sampled_d, sampled_ndt, sampled_bias){
+```{r}
+subnum = 601
+day = 8
+cond = "HT"
+
+tmp = all_results_df %>%
+      filter(subnum == subnum & day == day & type == cond)
+
+unique(tmp$subnum)
+```
+
+Is it a parameter value issues?
+
+```{r}
+cur_sub = 601
+cur_day = 8
+cur_cond = "HT"
+
+tmp = all_results_df %>%
+      filter(subnum == cur_sub & day == cur_day & type == cur_cond) %>%
+  filter(par_name == "d")
+
+summary(tmp$estimate)
+
+tmp = all_results_df %>%
+      filter(subnum == cur_sub & day == cur_day & type == cur_cond) %>%
+  filter(par_name == "sigma")
+
+summary(tmp$estimate)
+
+tmp = all_results_df %>%
+      filter(subnum == cur_sub & day == cur_day & type == cur_cond) %>%
+  filter(par_name == "ndt")
+
+summary(tmp$estimate)
+
+tmp = all_results_df %>%
+      filter(subnum == cur_sub & day == cur_day & type == cur_cond) %>%
+  filter(par_name == "bias")
+
+summary(tmp$estimate)
+```
+
+Single iteration debugging found these parameters problematic:
+
+```{r}
+sampled_bias = 0.514
+sampled_d = 0.0665
+sampled_ndt = 0.351
+# sampled_sigma = 1.45
+sampled_sigma = 1.32
+
+# sampled_bias = 0.522
+# sampled_d = 0.0624
+# sampled_ndt = 0.357
+# sampled_sigma = 1.32
+
+cur_sub = 601
+cur_day = 8
+cur_type = "HT"
+
+cur_stims = data_yn_clean %>%
+      filter(subnum == cur_sub & day == cur_day & type == cur_type) %>%
+      select(subnum, day, type, possiblePayoff, reference, yesChosen, rt)
+
+sim_subj_cond_day_once(cur_stims, sampled_sigma, sampled_d, sampled_ndt, sampled_bias)
+```
+
+```{r}
+sampled_bias = 0.514
+sampled_d = 0.0665
+sampled_ndt = 0.351
+sampled_sigma = 1.45
+
+for (i in 1:nrow(cur_stims)){
+  trial_vdiff = cur_stims$possiblePayoff[i] - cur_stims$reference[i]
   
   trial_drift = sampled_sigma * (sampled_d * trial_vdiff)
   
-  cur_pred = rwiener(1, 2*sampled_sigma, sampled_ndt, sampled_bias, trial_drift)
-  
-  return(cur_pred)
-  
+  print(i) #stuck at 275
+  RWiener::rwiener(1, 2*sampled_sigma, sampled_ndt, sampled_bias, trial_drift)
 }
 
-
-```
-
-This is too inefficient.
-
-```{r}
-# fn = file.path(here(), "inputs",'yn_ddm_ppc_data.csv')
-# 
-# if(file.exists(fn)){
-#   yn_ddm_ppc_data = read.csv(fn)
-#   
-# } else{
-#   
-#   n_samples = 100
-#   subs = unique(data_yn_clean$subnum)
-#   days = seq(1,11,1)
-#   types = c('HT', 'RE')
-#   
-#   yn_ddm_ppc_data = sim_post_pred_data(n_samples, subs, types, days)
-#   
-#   write.csv(pred_data, fn, row.names = F)
-# }
 ```
 
 ```{r}
-sim_subj_cond_day_nsamples(10, 601, "HT", 5)
+i = 275
+# trial_vdiff = cur_stims$possiblePayoff[i] - cur_stims$reference[i]
+trial_vdiff = 160
+trial_drift = sampled_sigma * (sampled_d * trial_vdiff)
+RWiener::rwiener(1, 2*sampled_sigma, sampled_ndt, sampled_bias, trial_drift)
 ```
-
-How similar are the multiple sets of simulated data to each other?
-
-How similar is the simulated data to the true data?
+Is it because when the drift rate is so high it tries to predict a very short rt but it's not allowed due to the sampled ndt?
 
 ```{r}
-tmp %>%
-  filter(rt < 3) %>%
-  mutate(rt = ifelse(yesChosen == 0, rt*(-1), rt),
-         pred_rt = ifelse(pred_yesChosen == 0, pred_rt*(-1), pred_rt)) %>%
-  ggplot()+
-  geom_density(aes(x = pred_rt), position = "identity", alpha = .5) +
-  geom_histogram(aes(x = rt, y = ..density..), bins = 30,  position = "identity", alpha = .5, color = NA)+
-  # facet_grid(. ~ sample)+
-  theme(panel.grid = element_blank(),
-        axis.text.x = element_text(margin = margin(t = 5)))+
-  geom_vline(aes(xintercept = 0), color = "gray") +
-  scale_fill_brewer(palette = "Dark2")+
-  labs(y = "", fill = "")
+RWiener::dwiener(q = sampled_ndt+10e-1, 2*sampled_sigma, sampled_ndt, sampled_bias, trial_drift, resp = "upper")
+```
+
+```{r}
+sampled_bias = 0.522
+sampled_d = 0.0624
+sampled_ndt = 0.357
+sampled_sigma = 1.32
+
+cur_sub = 601
+cur_day = 8
+cur_type = "HT"
+
+cur_stims = data_yn_clean %>%
+      filter(subnum == cur_sub & day == cur_day & type == cur_type) %>%
+      select(subnum, day, type, possiblePayoff, reference, yesChosen, rt)
+
+start = Sys.time()
+sim_subj_cond_day_once(cur_stims, sampled_sigma, sampled_d, sampled_ndt, sampled_bias)
+end = Sys.time()
+print(end-start)
 ```
 
 

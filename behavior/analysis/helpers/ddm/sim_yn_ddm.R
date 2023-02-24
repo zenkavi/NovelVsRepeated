@@ -26,9 +26,9 @@ option_list = list(
 opt_parser = OptionParser(option_list=option_list)
 opt = parse_args(opt_parser)
 
-subnum = as.numeric(opt$subnum)
-cond = opt$cond
-day = as.numeric(opt$day)
+cur_sub = as.numeric(opt$subnum)
+cur_cond = opt$cond
+cur_day = as.numeric(opt$day)
 n_samples = as.numeric(opt$n_samples)
 
 #########################
@@ -59,7 +59,10 @@ sim_trial = function(trial_vdiff, sampled_sigma, sampled_d, sampled_ndt, sampled
   # Multiplying boundary separation and drift rate my sigma to account for that parameter
   trial_drift = sampled_sigma * (sampled_d * trial_vdiff)
 
-  cur_pred = rwiener(1, 2*sampled_sigma, sampled_ndt, sampled_bias, trial_drift)
+  # brms::rwiener response levels: upper == 1; lower == 0
+  # cur_pred = brms::rwiener(1, 2*sampled_sigma, sampled_ndt, sampled_bias, trial_drift)
+  # RWiener::rwiener response levels: upper == 1; lower == 2
+  cur_pred = RWiener::rwiener(1, 2*sampled_sigma, sampled_ndt, sampled_bias, trial_drift)
 
   return(cur_pred)
 
@@ -90,38 +93,51 @@ sim_subj_cond_day_once = function(cur_stims, sampled_sigma, sampled_d, sampled_n
 
 sim_subj_cond_day_nsamples = function(n_samples, cur_sub, cur_type, cur_day){
 
-  cur_stims = data_yn_clean %>%
-    filter(subnum == cur_sub & day == cur_day & type == cur_type) %>%
-    select(subnum, day, type, possiblePayoff, reference, yesChosen, rt)
-
   cur_cond_pars = all_results_df %>%
     filter(subnum == cur_sub & day == cur_day & type == cur_type)
 
-  i = 0
-  while(i < n_samples){
+  if(nrow(cur_cond_pars)/30000 != 4){
+    print("Parameters not filtered correctly. Aborting...")
+  } else {
 
-    sampled_pars = cur_cond_pars %>%
-      group_by(par_name, type, day) %>%
-      sample_n(1)
+    cur_stims = data_yn_clean %>%
+      filter(subnum == cur_sub & day == cur_day & type == cur_type) %>%
+      select(subnum, day, type, possiblePayoff, reference, yesChosen, rt)
 
-    sampled_sigma = as.numeric(sampled_pars[sampled_pars$par_name == "sigma", 'estimate'])
-    sampled_d = as.numeric(sampled_pars[sampled_pars$par_name == "d", 'estimate'])
-    sampled_ndt = as.numeric(sampled_pars[sampled_pars$par_name == "ndt", 'estimate'])
-    sampled_bias = as.numeric(sampled_pars[sampled_pars$par_name == "bias", 'estimate'])
+    i = 0
+    while(i < n_samples){
 
-    cur_pred = sim_subj_cond_day_once(cur_stims, sampled_sigma, sampled_d, sampled_ndt, sampled_bias)
-    cur_pred$sample = i+1
+      sampled_pars = cur_cond_pars %>%
+        group_by(par_name, type, day) %>%
+        sample_n(1)
 
-    if(i == 0){
-      pred_data = cur_pred
-    } else{
-      pred_data = rbind(pred_data, cur_pred)
+      print(sampled_pars)
+
+      sampled_sigma = as.numeric(sampled_pars[sampled_pars$par_name == "sigma", 'estimate'])
+      sampled_d = as.numeric(sampled_pars[sampled_pars$par_name == "d", 'estimate'])
+      sampled_ndt = as.numeric(sampled_pars[sampled_pars$par_name == "ndt", 'estimate'])
+      sampled_bias = as.numeric(sampled_pars[sampled_pars$par_name == "bias", 'estimate'])
+
+      cur_pred = sim_subj_cond_day_once(cur_stims, sampled_sigma, sampled_d, sampled_ndt, sampled_bias)
+      cur_pred$sample = i+1
+
+      if(i == 0){
+        pred_data = cur_pred
+      } else{
+        pred_data = rbind(pred_data, cur_pred)
+      }
+
+      # if (i %% 25 == 0){
+      print(paste0("Iteration number ", i+1, " complete"))
+      # }
+
+      i = i+1
     }
 
-    i = i+1
+    return(pred_data)
   }
 
-  return(pred_data)
+
 }
 
 
@@ -129,11 +145,11 @@ sim_subj_cond_day_nsamples = function(n_samples, cur_sub, cur_type, cur_day){
 # Simulate data using the true stimuli plugging in parameters sampled from the posteriors
 #########################
 
-pred_data = sim_subj_cond_day_nsamples(n_samples, subnum, cond, day)
+pred_data = sim_subj_cond_day_nsamples(n_samples, cur_sub, cur_cond, cur_day)
 
 #########################
 # Save output
 #########################
 
-fn = file.path(here(), "inputs", paste0('yn_sim_ddm_sub-', subnum,'_',cond, '_day-', day, '.csv'))
+fn = file.path(here(), "inputs", paste0('yn_sim_ddm_sub-', cur_sub,'_', cur_cond, '_day-', cur_day, '.csv'))
 write.csv(pred_data, fn, row.names = F)
