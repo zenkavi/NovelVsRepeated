@@ -24,6 +24,8 @@ Add columns that will be used for plots below.
 ```{r}
 source(paste0(helpers_path, '01_clean_behavioral_data.R'))
 
+rm(data_bc_clean)
+
 data_yn_clean = data_yn_clean %>%
   mutate(correct = ifelse(possiblePayoff>reference & yesChosen == 1, 1, ifelse(possiblePayoff < reference & yesChosen == 0, 1, 0))) %>%
   mutate(type = ifelse(type == 1, "HT", "RE"),
@@ -33,29 +35,18 @@ data_yn_clean = data_yn_clean %>%
          val_diff_bin = round(val_diff/50),
          val_diff_bin_str = paste0(val_diff_bin*50-25,":",val_diff_bin*50+25),
          val_diff_bin_str = factor(val_diff_bin_str, levels = c("-225:-175", "-175:-125", "-125:-75", "-75:-25", "-25:25", "25:75", "75:125", "125:175", "175:225")))
-
-data_bc_clean = data_bc_clean %>%
-  mutate(correct = ifelse(possiblePayoffleft>possiblePayoffright & leftChosen == 1, 1, ifelse(possiblePayoffleft<possiblePayoffright & leftChosen == 0, 1, 0))) %>%
-  mutate(type = ifelse(typeLeft == 1, "HT", "RE"),
-         week = ifelse(week == 1, "Week 1", ifelse(week == 2, "Week 2", ifelse(week == 3, "Week 3", NA))),
-         week = factor(week, levels = c("Week 1", "Week 2", "Week 3"))) %>%
-  mutate(val_diff = possiblePayoffleft - possiblePayoffright,
-         val_diff_bin = round(val_diff/50),
-         val_diff_bin_str = paste0(val_diff_bin*50-25,":",val_diff_bin*50+25),
-         val_diff_bin_str = factor(val_diff_bin_str, levels = c("-275:-225","-225:-175", "-175:-125", "-125:-75", "-75:-25", "-25:25", "25:75", "75:125", "125:175", "175:225", "225:275"))) %>%
-  filter(!is.na(val_diff_bin_str))
 ```
 
 # YN Task
 
-Read in parameter estimates
+Read in parameter estimates. This contains all 30000 samples per parameter for each subject and day. Takes a while to read in.
 
 ```{r eval = FALSE}
 fn = file.path(here(), "inputs",'yn_hddm_mcmc_draws.csv')
 
 if(file.exists(fn)){
   all_results_df = read.csv(fn)
-
+  
 } else{
   stim_types = c("HT", "RE")
   days = as.character(seq(1,11,1))
@@ -116,7 +107,7 @@ if(file.exists(fn)){
 
 ```
 
-### Correlations between estimates
+## Correlations between estimates
 
 ```{r}
 all_d_sigma = all_results_df %>%
@@ -135,7 +126,7 @@ d_sigma_cors =  data.frame(subnum = NA, type = NA, day = NA, cor = NA)
 for (i in 1:length(subs)){
   for (j in 1:length(types)){
     for (k in 1:length(days)){
-     
+      
       cur_sub = subs[i]
       cur_type = types[j]
       cur_day = days[k]
@@ -151,7 +142,7 @@ for (i in 1:length(subs)){
       cur_cor = round(cor(cur_ds, cur_sigmas), 3)
       
       cur_row = data.frame(subnum = cur_sub, type = cur_type, day = cur_day, cor = as.numeric(cur_cor))
-        
+      
       d_sigma_cors = rbind(d_sigma_cors, cur_row)
     }
   }
@@ -200,15 +191,22 @@ p
 # ggsave(file=paste0(fig_out_path, 'yn_ddm_raw_rt_dists.jpg'), p, height = 10, width = 18, units="in")
 ```
 
-### Posterior predictive RTs
+## Posterior predictive checks
 
-```{r}
+### Predicted data accounting for posterior uncertainty
+
+With 1000 samples from posteriors to account for uncertainty in estimates.
+
+```{r eval=FALSE}
+
+# Takes a while
 inpath = '/Users/zeynepenkavi/CpuEaters/NovelVsRepeated/behavior/inputs'
 
+conds = c('HT')
+subs = c('609','621')
 
-conds = c('HT', 'RE')
-# subs = c('609', '621', '629')
-subs = c('601', '611', '619')
+# conds = c('HT', 'RE')
+# subs = c('601', '609','611', '619', '621', '629')
 days = seq(1, 11, 1)
 
 
@@ -263,514 +261,209 @@ for (k in 1:length(conds)){
 
 ```
 
-#### Debug failed jobs
+### Mean a posteriori data
 
-Is it a filtering issue?
+Does mean a posteriori data capture other choice and RT patterns?
+
+Read in parameter posterior summaries and organize them
 
 ```{r}
-conds = c('HT', 'RE')
-subs = c(601, 609, 611, 619, 621, 629)
-days = seq(1, 11, 1)
+stim_types = c("HT", "RE")
+days = as.character(seq(1,11,1))
 
-for(i in 1:length(conds)){
-  cur_cond = conds[i]
-  
-  for(j in 1:length(subs)){
-    cur_sub = subs[j]
+in_path = file.path(here(), "inputs")
+
+yn_ddm_summary = data.frame()
+
+for(i in 1:length(stim_types)){
+  for(j in 1:length(days)){
     
-    for(k in 1:length(days)){
-    cur_day = days[k]
+    cur_stim_type = stim_types[i]
+    cur_day = days[j]
     
-    tmp = data_yn_clean %>%
-      filter(subnum == cur_sub & day == cur_day & type == cur_cond)
-    
-    print(paste0("N Rows for sub-", cur_sub, " day-", cur_day, " cond-", cur_cond, ": ", nrow(tmp)))
-    
+    if(file.exists(file.path(in_path, paste0('summary_YN_HDDM_FIT_', cur_stim_type,'_day_', cur_day,'.csv')))){
+      cur_summary = read.csv(file.path(in_path, paste0('summary_YN_HDDM_FIT_', cur_stim_type,'_day_', cur_day,'.csv')))
+      cur_summary = cur_summary %>%
+        rename(par = X) %>%
+        mutate(stim_type = cur_stim_type,
+               day = cur_day)
+      
+      yn_ddm_summary = rbind(yn_ddm_summary, cur_summary)
+    } else {
+      next
     }
   }
 }
 ```
 
 ```{r}
-conds = c('HT', 'RE')
-subs = c(601, 609, 611, 619, 621, 629)
-days = seq(1, 11, 1)
-
-for(i in 1:length(conds)){
-  cur_cond = conds[i]
-  
-  for(j in 1:length(subs)){
-    cur_sub = subs[j]
-    
-    for(k in 1:length(days)){
-    cur_day = days[k]
-    
-    tmp = all_results_df %>%
-      filter(subnum == cur_sub & day == cur_day & type == cur_cond)
-    
-    print(paste0("N Pars sub-", cur_sub, " day-", cur_day, " cond-", cur_cond, ": ", nrow(tmp)/30000))
-    
-    }
-  }
-}
+yn_ddm_summary = yn_ddm_summary %>%
+  select(par, Mean, day, stim_type ) %>%
+  separate(par, c("a", "b"), sep = '\\.', remove = F, fill = "right") %>%
+  separate(a, c("c", "d"), sep = "\\[", remove = F, fill = "right") %>%
+  select(-a) %>%
+  mutate(d = paste0('p[',d)) %>%
+  mutate(b = ifelse(is.na(b), d, b)) %>%
+  select(-d, -par) %>%
+  rename(par_name = c, par_group = b) %>%
+  mutate(par_name = ifelse(par_name == "theta", "ndt", ifelse(par_name == "b", "d", ifelse(par_name == "alpha", "sigma", par_name))),
+         par_group = ifelse(par_group == 'p[1]', "601", ifelse(par_group == "p[2]", "609", ifelse(par_group == 'p[3]', "611", ifelse(par_group == "p[4]", "619", ifelse(par_group == "p[5]", "621", ifelse(par_group == "p[6]", "629", par_group)))))),
+         day = as.numeric(day)) %>%
+  filter(par_name != "deviance") %>%
+  filter(par_group != "kappa" & par_group != "pr") %>%
+  filter(par_group != "mu") %>% #Not showing group estimates in this plot
+  mutate(par_name = factor(par_name, levels = c("d", "sigma", "bias", "ndt")))
 ```
 
-```{r}
-cur_sub = 601
-cur_day = 8
-cur_cond = "HT"
-
-tmp = all_results_df %>%
-      filter(subnum == cur_sub & day == cur_day & type == cur_cond)
-
-unique(tmp$subnum)
-```
+Simulation helper functions
 
 ```{r}
-subnum = 601
-day = 8
-cond = "HT"
+sim_trial = function(trial_vdiff, sampled_sigma, sampled_d, sampled_ndt, sampled_bias){
 
-tmp = all_results_df %>%
-      filter(subnum == subnum & day == day & type == cond)
-
-unique(tmp$subnum)
-```
-
-Is it a parameter value issues?
-
-```{r}
-cur_sub = 601
-cur_day = 8
-cur_cond = "HT"
-
-tmp = all_results_df %>%
-      filter(subnum == cur_sub & day == cur_day & type == cur_cond) %>%
-  filter(par_name == "d")
-
-summary(tmp$estimate)
-
-tmp = all_results_df %>%
-      filter(subnum == cur_sub & day == cur_day & type == cur_cond) %>%
-  filter(par_name == "sigma")
-
-summary(tmp$estimate)
-
-tmp = all_results_df %>%
-      filter(subnum == cur_sub & day == cur_day & type == cur_cond) %>%
-  filter(par_name == "ndt")
-
-summary(tmp$estimate)
-
-tmp = all_results_df %>%
-      filter(subnum == cur_sub & day == cur_day & type == cur_cond) %>%
-  filter(par_name == "bias")
-
-summary(tmp$estimate)
-```
-
-Single iteration debugging found these parameters problematic:
-
-```{r}
-sampled_bias = 0.514
-sampled_d = 0.0665
-sampled_ndt = 0.351
-# sampled_sigma = 1.45
-sampled_sigma = 1.32
-
-# sampled_bias = 0.522
-# sampled_d = 0.0624
-# sampled_ndt = 0.357
-# sampled_sigma = 1.32
-
-cur_sub = 601
-cur_day = 8
-cur_type = "HT"
-
-cur_stims = data_yn_clean %>%
-      filter(subnum == cur_sub & day == cur_day & type == cur_type) %>%
-      select(subnum, day, type, possiblePayoff, reference, yesChosen, rt)
-
-sim_subj_cond_day_once(cur_stims, sampled_sigma, sampled_d, sampled_ndt, sampled_bias)
-```
-
-```{r}
-sampled_bias = 0.514
-sampled_d = 0.0665
-sampled_ndt = 0.351
-sampled_sigma = 1.45
-
-for (i in 1:nrow(cur_stims)){
-  trial_vdiff = cur_stims$possiblePayoff[i] - cur_stims$reference[i]
-  
+  # Multiplying boundary separation and drift rate my sigma to account for that parameter
   trial_drift = sampled_sigma * (sampled_d * trial_vdiff)
-  
-  print(i) #stuck at 275
-  RWiener::rwiener(1, 2*sampled_sigma, sampled_ndt, sampled_bias, trial_drift)
-}
 
-```
-
-```{r}
-i = 275
-# trial_vdiff = cur_stims$possiblePayoff[i] - cur_stims$reference[i]
-trial_vdiff = 160
-trial_drift = sampled_sigma * (sampled_d * trial_vdiff)
-RWiener::rwiener(1, 2*sampled_sigma, sampled_ndt, sampled_bias, trial_drift)
-```
-Is it because when the drift rate is so high it tries to predict a very short rt but it's not allowed due to the sampled ndt?
-
-```{r}
-RWiener::dwiener(q = sampled_ndt+10e-1, 2*sampled_sigma, sampled_ndt, sampled_bias, trial_drift, resp = "upper")
-```
-
-```{r}
-sampled_bias = 0.522
-sampled_d = 0.0624
-sampled_ndt = 0.357
-sampled_sigma = 1.32
-
-cur_sub = 601
-cur_day = 8
-cur_type = "HT"
-
-cur_stims = data_yn_clean %>%
-      filter(subnum == cur_sub & day == cur_day & type == cur_type) %>%
-      select(subnum, day, type, possiblePayoff, reference, yesChosen, rt)
-
-start = Sys.time()
-sim_subj_cond_day_once(cur_stims, sampled_sigma, sampled_d, sampled_ndt, sampled_bias)
-end = Sys.time()
-print(end-start)
-```
-
-
-
-# Changes in DDM pars
-
-**[THIS ISN'T THE BEST APPROACH. TRY MODELING EACH SUBJECT HIERARCHICALLY INSTEAD]**
-
-### Drift rate
-
-```{r}
-fn_draws = paste0(helpers_path, '/inputs/yn_ddm_dRegressions_draws.csv')
-
-if(file.exists(fn_draws)){
-  yn_rt_draws = read.csv(fn_draws)
-} else{
-  subnums = unique(data_yn_clean$subnum)
-  
-  yn_ddm_draws = data_frame()
-  
-  for(i in 1:length(subnums)){
-    cur_sub = subnums[i]
-    
-    cur_par_data = all_results_df %>% 
-      filter(subnum == cur_sub & par_name == "d")
-    
-    # REDUCE AMOUNT OF DATA! 100 datapoints per bin
-    cur_par_data = cur_par_data %>%
-      group_by(type, day) %>%
-      sample_n(100)
-    
-    cur_m <- brm(formula = estimate ~ day * type,
-                     data= cur_par_data,
-                     warmup = 500,
-                     iter = 2500,
-                     chains = 4,
-                     init = "0",
-                     cores = 4,
-                     seed = 389253)
-    
-    cur_draws = as_draws_df(cur_m)
-    cur_draws$subnum = cur_sub
-    
-    yn_ddm_draws = rbind(yn_ddm_draws, cur_draws)
-    
+  if(abs(trial_drift) < 10){
+    cur_pred = RWiener::rwiener(1, 2*sampled_sigma, sampled_ndt, sampled_bias, trial_drift)
+  } else {
+    print("d too large. Sampling RT.")
+    pq = sampled_ndt + abs(rnorm(1, mean = 0, sd = 0.01))
+    pr = ifelse(trial_drift>10, factor("upper", levels = c("upper", "lower")), factor("lower", levels = c("upper", "lower")))
+    cur_pred = data.frame(q = pq, resp = pr)
   }
-  names(yn_ddm_draws) = gsub(":", ".", names(yn_ddm_draws))
-  write.csv(yn_ddm_draws, fn_draws, row.names = F)
-  
-  rm(cur_par_data, cur_m, cur_draws)
+  return(cur_pred)
+
 }
 
-```
+sim_subj_cond_day_once = function(cur_stims, sampled_sigma, sampled_d, sampled_ndt, sampled_bias){
 
-```{r}
-yn_par_summary = as.data.frame(yn_ddm_draws) %>%
-  select("b_day" ,"b_typeRE", "b_day.typeRE", subnum) %>%
-  gather(key, value, -subnum) %>%
-  mutate(key = ifelse(key == "b_day", "Day", ifelse(key == "b_typeRE", "Type (RE)", ifelse(key == "b_day.typeRE", "Day * Type (RE)", NA))),
-         key = factor(key, levels = c("Type (RE)", "Day", "Day * Type (RE)"))) %>%
-  group_by(subnum, key) %>%
-  summarise(.groups = 'keep',
-            m = mean(value),
-            l95 = HDInterval::hdi(value)[1],
-            h95 = HDInterval::hdi(value)[2]) %>%
-  mutate(subnum = as.factor(subnum),
-         task = "Y/N") 
-```
+  pred_data = cur_stims
+  pred_data$sampled_sigma = sampled_sigma
+  pred_data$sampled_d = sampled_d
+  pred_data$sampled_ndt = sampled_ndt
+  pred_data$sampled_bias = sampled_bias
+  pred_data$pred_rt = NA
+  pred_data$pred_yesChosen = NA
 
-```{r}
-plim = max(abs(yn_par_summary$l95), yn_par_summary$h95)
+  for(i in 1:nrow(cur_stims)){
 
-p = yn_par_summary %>%
-  ggplot(aes(m, subnum)) +
-  geom_vline(aes(xintercept = 0), color = "light gray") + 
-  geom_point(position = position_dodge(width=.75))+
-  geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
-  facet_grid(.~key) +
-  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - d ~ Day * Type") +
-  theme(legend.position = "bottom",
-        panel.grid = element_blank(),
-        legend.box.margin=margin(t = -10))+
-  scale_x_continuous(breaks = c(0), limits = c(-plim, plim))
+    trial_vdiff = cur_stims$possiblePayoff[i] - cur_stims$reference[i]
+    cur_pred = sim_trial(trial_vdiff, sampled_sigma, sampled_d, sampled_ndt, sampled_bias)
 
-p
-# ggsave(file=paste0(fig_out_path, 'yn_ddmD_parEsts.jpg'), p, height = 3, width = 7, units="in")
+    pred_data$pred_rt[i] = cur_pred$q
+    pred_data$pred_yesChosen[i] = cur_pred$resp
 
-```
-
-### Sigma
-
-```{r}
-fn_draws = paste0(helpers_path, '/inputs/yn_ddm_sigmaRegressions_draws.csv')
-
-if(file.exists(fn_draws)){
-  yn_rt_draws = read.csv(fn_draws)
-} else{
-  subnums = unique(data_yn_clean$subnum)
-  
-  yn_ddm_draws = data_frame()
-  
-  for(i in 1:length(subnums)){
-    cur_sub = subnums[i]
-    
-    cur_par_data = all_results_df %>% 
-      filter(subnum == cur_sub & par_name == "sigma")
-    
-    # REDUCE AMOUNT OF DATA! 100 datapoints per bin
-    cur_par_data = cur_par_data %>%
-      group_by(type, day) %>%
-      sample_n(100)
-    
-    cur_m <- brm(formula = estimate ~ day * type,
-                     data= cur_par_data,
-                     warmup = 500,
-                     iter = 2500,
-                     chains = 4,
-                     init = "0",
-                     cores = 4,
-                     seed = 389253)
-    
-    cur_draws = as_draws_df(cur_m)
-    cur_draws$subnum = cur_sub
-    
-    yn_ddm_draws = rbind(yn_ddm_draws, cur_draws)
-    
   }
-  names(yn_ddm_draws) = gsub(":", ".", names(yn_ddm_draws))
-  write.csv(yn_ddm_draws, fn_draws, row.names = F)
-  
-  rm(cur_par_data, cur_m, cur_draws)
+
+  return(pred_data)
 }
-
 ```
 
 ```{r}
-yn_par_summary = as.data.frame(yn_ddm_draws) %>%
-  select("b_day" ,"b_typeRE", "b_day.typeRE", subnum) %>%
-  gather(key, value, -subnum) %>%
-  mutate(key = ifelse(key == "b_day", "Day", ifelse(key == "b_typeRE", "Type (RE)", ifelse(key == "b_day.typeRE", "Day * Type (RE)", NA))),
-         key = factor(key, levels = c("Type (RE)", "Day", "Day * Type (RE)"))) %>%
-  group_by(subnum, key) %>%
-  summarise(.groups = 'keep',
-            m = mean(value),
-            l95 = HDInterval::hdi(value)[1],
-            h95 = HDInterval::hdi(value)[2]) %>%
-  mutate(subnum = as.factor(subnum),
-         task = "Y/N") 
-```
+conds = c('HT', 'RE')
+subs = c('601', '609','611', '619', '621', '629')
+days = seq(1, 11, 1)
 
-```{r}
-plim = max(abs(yn_par_summary$l95), yn_par_summary$h95)
-
-p = yn_par_summary %>%
-  ggplot(aes(m, subnum)) +
-  geom_vline(aes(xintercept = 0), color = "light gray") + 
-  geom_point(position = position_dodge(width=.75))+
-  geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
-  facet_grid(.~key) +
-  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - sigma ~ Day * Type") +
-  theme(legend.position = "bottom",
-        panel.grid = element_blank(),
-        legend.box.margin=margin(t = -10))+
-  scale_x_continuous(breaks = c(0), limits = c(-plim, plim))
-
-p
-# ggsave(file=paste0(fig_out_path, 'yn_ddmSigma_parEsts.jpg'), p, height = 3, width = 7, units="in")
-
-```
-
-### Bias
-
-```{r}
-fn_draws = paste0(helpers_path, '/inputs/yn_ddm_biasRegressions_draws.csv')
-
-if(file.exists(fn_draws)){
-  yn_rt_draws = read.csv(fn_draws)
-} else{
-  subnums = unique(data_yn_clean$subnum)
+for(i in 1:length(conds)){
+  cur_type = conds[i]
   
-  yn_ddm_draws = data_frame()
-  
-  for(i in 1:length(subnums)){
-    cur_sub = subnums[i]
+  for (j in 1:length(subs)){
+    cur_sub = subs[j]
     
-    cur_par_data = all_results_df %>% 
-      filter(subnum == cur_sub & par_name == "bias")
-    
-    # REDUCE AMOUNT OF DATA! 100 datapoints per bin
-    cur_par_data = cur_par_data %>%
-      group_by(type, day) %>%
-      sample_n(100)
-    
-    cur_m <- brm(formula = estimate ~ day * type,
-                     data= cur_par_data,
-                     warmup = 500,
-                     iter = 2500,
-                     chains = 4,
-                     init = "0",
-                     cores = 4,
-                     seed = 389253)
-    
-    cur_draws = as_draws_df(cur_m)
-    cur_draws$subnum = cur_sub
-    
-    yn_ddm_draws = rbind(yn_ddm_draws, cur_draws)
-    
+    for (k in 1:length(days)){
+      cur_day = days[k]
+      
+      cur_stims = data_yn_clean %>%
+        filter(subnum == cur_sub & day == cur_day & type == cur_type) %>%
+        select(subnum, day, type, possiblePayoff, reference, yesChosen, rt)
+      
+      cur_pars = yn_ddm_summary %>%
+        filter(par_group == cur_sub & day == cur_day & stim_type == cur_type) %>%
+        select(par_name, Mean) %>%
+        spread(par_name, Mean)
+      
+      cur_pred = sim_subj_cond_day_once(cur_stims, cur_pars$sigma, cur_pars$d, cur_pars$ndt, cur_pars$bias)
+      
+      if(!exists("sim_yn_map")){
+        sim_yn_map = cur_pred
+      } else{
+        sim_yn_map = rbind(sim_yn_map, cur_pred)
+      }
+    }
   }
-  names(yn_ddm_draws) = gsub(":", ".", names(yn_ddm_draws))
-  write.csv(yn_ddm_draws, fn_draws, row.names = F)
-  
-  rm(cur_par_data, cur_m, cur_draws)
 }
-
 ```
 
 ```{r}
-yn_par_summary = as.data.frame(yn_ddm_draws) %>%
-  select("b_day" ,"b_typeRE", "b_day.typeRE", subnum) %>%
-  gather(key, value, -subnum) %>%
-  mutate(key = ifelse(key == "b_day", "Day", ifelse(key == "b_typeRE", "Type (RE)", ifelse(key == "b_day.typeRE", "Day * Type (RE)", NA))),
-         key = factor(key, levels = c("Type (RE)", "Day", "Day * Type (RE)"))) %>%
-  group_by(subnum, key) %>%
-  summarise(.groups = 'keep',
-            m = mean(value),
-            l95 = HDInterval::hdi(value)[1],
-            h95 = HDInterval::hdi(value)[2]) %>%
-  mutate(subnum = as.factor(subnum),
-         task = "Y/N") 
+rm(cur_pars, cur_pred, cur_stims, cur_summary, cur_day, cur_stim_type, cur_Sub, cur_type)
+rm(i, j, k)
+```
+
+Check RT/Choice plots look similar to the simulated data using samples from the posterior
+
+```{r}
+cur_cond = 'HT'
+fill_col = ifelse(cur_cond == "HT", "#1B9E77", "#D95F02")
+
+sim_yn_map %>%
+  filter(type == cur_cond) %>%
+  filter(rt < 3 & pred_rt < 3) %>%
+  mutate(rt = ifelse(yesChosen == 1, rt, rt*(-1)),
+         pred_rt = ifelse(pred_yesChosen == 1, pred_rt, pred_rt*(-1)), 
+         day = paste0("Day ", day),
+         day = factor(day, levels = paste0("Day ", seq(1,11, 1)))) %>%
+  ggplot()+
+  geom_density(aes(x = pred_rt), position = "identity", alpha = .5) +
+  geom_histogram(aes(x = rt, y = ..density..), bins = 30,  position = "identity", alpha = .5, color = NA, fill = fill_col)+
+  facet_grid(subnum ~ day)+
+  theme(panel.grid = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank())+
+  geom_vline(aes(xintercept = 0), color = "gray") +
+  labs(y = "", x = "")
 ```
 
 ```{r}
-plim = max(abs(yn_par_summary$l95), yn_par_summary$h95)
+cur_cond = 'RE'
+fill_col = ifelse(cur_cond == "HT", "#1B9E77", "#D95F02")
 
-p = yn_par_summary %>%
-  ggplot(aes(m, subnum)) +
-  geom_vline(aes(xintercept = 0), color = "light gray") + 
-  geom_point(position = position_dodge(width=.75))+
-  geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
-  facet_grid(.~key) +
-  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - bias ~ Day * Type") +
-  theme(legend.position = "bottom",
-        panel.grid = element_blank(),
-        legend.box.margin=margin(t = -10))+
-  scale_x_continuous(breaks = c(0), limits = c(-plim, plim))
-
-p
-# ggsave(file=paste0(fig_out_path, 'yn_ddmBias_parEsts.jpg'), p, height = 3, width = 7, units="in")
-
+sim_yn_map %>%
+  filter(type == cur_cond) %>%
+  filter(rt < 3 & pred_rt < 3) %>%
+  mutate(rt = ifelse(yesChosen == 1, rt, rt*(-1)),
+         pred_rt = ifelse(pred_yesChosen == 1, pred_rt, pred_rt*(-1)), 
+         day = paste0("Day ", day),
+         day = factor(day, levels = paste0("Day ", seq(1,11, 1)))) %>%
+  ggplot()+
+  geom_density(aes(x = pred_rt), position = "identity", alpha = .5) +
+  geom_histogram(aes(x = rt, y = ..density..), bins = 30,  position = "identity", alpha = .5, color = NA, fill = fill_col)+
+  facet_grid(subnum ~ day)+
+  theme(panel.grid = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank())+
+  geom_vline(aes(xintercept = 0), color = "gray") +
+  labs(y = "", x = "")
 ```
 
-### NDT
+What are the other choice and RT patterns the predicted data should capture?
 
-```{r}
-fn_draws = paste0(helpers_path, '/inputs/yn_ddm_ndtRegressions_draws.csv')
+### Value difference on choice
 
-if(file.exists(fn_draws)){
-  yn_rt_draws = read.csv(fn_draws)
-} else{
-  subnums = unique(data_yn_clean$subnum)
-  
-  yn_ddm_draws = data_frame()
-  
-  for(i in 1:length(subnums)){
-    cur_sub = subnums[i]
-    
-    cur_par_data = all_results_df %>% 
-      filter(subnum == cur_sub & par_name == "ndt")
-    
-    # REDUCE AMOUNT OF DATA! 100 datapoints per bin
-    cur_par_data = cur_par_data %>%
-      group_by(type, day) %>%
-      sample_n(100)
-    
-    cur_m <- brm(formula = estimate ~ day * type,
-                     data= cur_par_data,
-                     warmup = 500,
-                     iter = 2500,
-                     chains = 4,
-                     init = "0",
-                     cores = 4,
-                     seed = 389253)
-    
-    cur_draws = as_draws_df(cur_m)
-    cur_draws$subnum = cur_sub
-    
-    yn_ddm_draws = rbind(yn_ddm_draws, cur_draws)
-    
-  }
-  names(yn_ddm_draws) = gsub(":", ".", names(yn_ddm_draws))
-  write.csv(yn_ddm_draws, fn_draws, row.names = F)
-  
-  rm(cur_par_data, cur_m, cur_draws)
-}
+Choice:
+- Slope of value difference on choice logit always positive?
+- Slope of value difference on choice logit smaller for RE than HT?
+- Slope of value difference on choice logit increases with days?
+- Slope of value difference on choice logit increases less for RE than HT with days?
+- Is the value difference effect nonlinear?
 
-```
+### Value difference on RT
 
-```{r}
-yn_par_summary = as.data.frame(yn_ddm_draws) %>%
-  select("b_day" ,"b_typeRE", "b_day.typeRE", subnum) %>%
-  gather(key, value, -subnum) %>%
-  mutate(key = ifelse(key == "b_day", "Day", ifelse(key == "b_typeRE", "Type (RE)", ifelse(key == "b_day.typeRE", "Day * Type (RE)", NA))),
-         key = factor(key, levels = c("Type (RE)", "Day", "Day * Type (RE)"))) %>%
-  group_by(subnum, key) %>%
-  summarise(.groups = 'keep',
-            m = mean(value),
-            l95 = HDInterval::hdi(value)[1],
-            h95 = HDInterval::hdi(value)[2]) %>%
-  mutate(subnum = as.factor(subnum),
-         task = "Y/N") 
-```
+RT: 
+- Is the RT jump from day 1 to day 2 largest
+- Slope of absolute value difference on RT is negative?
+- Slope of absolute value difference on RT smaller for RE than HT?
 
-```{r}
-plim = max(abs(yn_par_summary$l95), yn_par_summary$h95)
 
-p = yn_par_summary %>%
-  ggplot(aes(m, subnum)) +
-  geom_vline(aes(xintercept = 0), color = "light gray") + 
-  geom_point(position = position_dodge(width=.75))+
-  geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
-  facet_grid(.~key) +
-  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - ndt ~ Day * Type") +
-  theme(legend.position = "bottom",
-        panel.grid = element_blank(),
-        legend.box.margin=margin(t = -10))+
-  scale_x_continuous(breaks = c(0), limits = c(-plim, plim))
+-------------------------------------------------------------------------------
 
-p
-# ggsave(file=paste0(fig_out_path, 'yn_ddmNDT_parEsts.jpg'), p, height = 3, width = 7, units="in")
-
-```
-
+Tradeoff simulations????
