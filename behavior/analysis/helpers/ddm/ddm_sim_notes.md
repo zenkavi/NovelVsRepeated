@@ -91,7 +91,7 @@ export OUT_PATH=/shared/behavior/inputs
 aws s3 sync $OUT_PATH s3://novel-vs-repeated/behavior/inputs
 ```
 
-## Download contrasts you want to visualize
+## Download simulated data
 
 ```
 export INPUTS_DIR=/Users/zeynepenkavi/CpuEaters/NovelVsRepeated/behavior/inputs

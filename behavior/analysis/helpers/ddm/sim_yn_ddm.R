@@ -62,7 +62,16 @@ sim_trial = function(trial_vdiff, sampled_sigma, sampled_d, sampled_ndt, sampled
   # brms::rwiener response levels: upper == 1; lower == 0
   # cur_pred = brms::rwiener(1, 2*sampled_sigma, sampled_ndt, sampled_bias, trial_drift)
   # RWiener::rwiener response levels: upper == 1; lower == 2
-  cur_pred = RWiener::rwiener(1, 2*sampled_sigma, sampled_ndt, sampled_bias, trial_drift)
+
+  if(abs(trial_drift) < 10){
+    cur_pred = RWiener::rwiener(1, 2*sampled_sigma, sampled_ndt, sampled_bias, trial_drift)
+  } else {
+    print("d too large. Sampling RT.")
+    pq = sampled_ndt + abs(rnorm(1, mean = 0, sd = 0.01))
+    pr = ifelse(trial_drift>10, factor("upper", levels = c("upper", "lower")), factor("lower", levels = c("upper", "lower")))
+    cur_pred = data.frame(q = pq, resp = pr)
+  }
+
 
   return(cur_pred)
 
