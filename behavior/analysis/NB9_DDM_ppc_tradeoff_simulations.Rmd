@@ -1,5 +1,5 @@
 ---
-title: "Novel vs. repeated choice project: DDM posterior predictive checks and simulations for tradeoffs"
+title: "Novel vs. repeated choice project: Y/N Task DDM posterior predictive checks and simulations for tradeoffs"
 output: 
   html_document:
     toc: true
@@ -37,7 +37,7 @@ data_yn_clean = data_yn_clean %>%
          val_diff_bin_str = factor(val_diff_bin_str, levels = c("-225:-175", "-175:-125", "-125:-75", "-75:-25", "-25:25", "25:75", "75:125", "125:175", "175:225")))
 ```
 
-# YN Task
+# Hierarchy over subjects
 
 Read in parameter estimates. This contains all 30000 samples per parameter for each subject and day. Takes a while to read in.
 
@@ -165,30 +165,6 @@ p = d_sigma_cors %>%
   labs(x = "", fill = "", y = "Correlation between d and sigma estimates")
 
 # ggsave(file=paste0(fig_out_path, 'yn_ddm_d_sigma_cor.jpg'), p, height = 5, width = 5, units="in")
-```
-
-## RT by response
-
-```{r}
-p = data_yn_clean %>%
-  filter(rt < 3) %>%
-  select(subnum, day, type, yesChosen, rt) %>%
-  mutate(rt = ifelse(yesChosen == 0, rt*(-1), rt),
-         day = paste0("Day ", day),
-         day = factor(day, levels = paste0("Day ", seq(1,11, 1)))) %>%
-  ggplot(aes(rt, fill = type))+
-  geom_density(position = "identity", alpha = .5, color = NA)+
-  facet_grid(subnum ~ day)+
-  theme(panel.grid = element_blank(),
-        legend.position = "bottom",
-        axis.text.x = element_text(margin = margin(t = 5)),
-        legend.box.margin=margin(t = -10))+
-  geom_vline(aes(xintercept = 0), color = "gray") +
-  scale_fill_brewer(palette = "Dark2")+
-  labs(y = "", fill = "")
-
-p
-# ggsave(file=paste0(fig_out_path, 'yn_ddm_raw_rt_dists.jpg'), p, height = 10, width = 18, units="in")
 ```
 
 ## Posterior predictive checks
@@ -846,6 +822,7 @@ p = ggplot() +
 
 p
 ```
+
 - Slope of absolute value difference on RT is negative?
 - Slope of absolute value difference on RT smaller for RE than HT?
 
@@ -959,6 +936,84 @@ p = yn_par_summary %>%
 p
 rm(yn_logit_draws, yn_par_summary)
 ```
+
+# Hierarchy over days
+
+```{r}
+stim_types = c("HT", "RE")
+subnums = c(601, 609, 611, 619, 621, 629)
+
+in_path = file.path(here(), "inputs")
+
+yn_ddm_summary = data.frame()
+
+for(i in 1:length(stim_types)){
+  for(j in 1:length(subnums)){
+    
+    cur_stim_type = stim_types[i]
+    cur_sub = subnums[j]
+    # summary_YN_HDDM_FIT_RE_sub-611.csv
+    
+    fn = file.path(in_path, paste0('summary_YN_HDDM_FIT_', cur_stim_type,'_sub-', cur_sub,'.csv'))
+    
+    if(file.exists(fn)){
+      cur_summary = read.csv(fn)
+      cur_summary = cur_summary %>%
+        rename(par = X) %>%
+        mutate(stim_type = cur_stim_type,
+               subnum = cur_sub)
+      
+      yn_ddm_summary = rbind(yn_ddm_summary, cur_summary)
+    } else {
+      next
+    }
+  }
+}
+```
+
+```{r}
+yn_ddm_summary
+```
+
+```{r}
+yn_ddm_summary = yn_ddm_summary %>%
+  select(par, Lower95, Upper95, Mean, subnum, stim_type ) %>%
+  separate(par, c("a", "b"), sep = '\\.', remove = F, fill = "right") %>%
+  separate(a, c("c", "d"), sep = "\\[", remove = F, fill = "right") %>%
+  select(-a) %>%
+  mutate(d = paste0('p[',d)) %>%
+  mutate(b = ifelse(is.na(b), d, b)) %>%
+  select(-d, -par) %>%
+  rename(par_name = c, par_group = b) %>%
+  mutate(par_group = gsub("p\\[", "", par_group),
+         par_group = gsub("\\]", "", par_group)) %>%
+  filter(par_name != "deviance") %>%
+  filter(par_group != "kappa" & par_group != "pr") %>%
+  filter(par_group != "mu") %>% #Not showing group estimates in this plot
+  rename(day = par_group) %>%
+  mutate(par_name = ifelse(par_name == "theta", "ndt", ifelse(par_name == "b", "d", ifelse(par_name == "alpha", "sigma", par_name)))) %>%
+  mutate(par_name = factor(par_name, levels = c("d", "sigma", "bias", "ndt")),
+         day = as.numeric(day))
+```
+
+```{r}
+p = yn_ddm_summary %>%
+  ggplot(aes(day, Mean, color=stim_type))+
+  geom_point(position = position_dodge(width=.75))+
+  geom_errorbar(aes(ymin = Lower95, ymax = Upper95), position = position_dodge(width=.75), width=.5)+
+  facet_grid(par_name ~ subnum, scale = "free_y")+
+  scale_color_brewer(palette = "Dark2")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text.x = element_text(margin = margin(t = 5)),
+        legend.box.margin=margin(t = -10))+
+  labs(x="Day", y = "Parameter Estimate", color="", title = "YN HDDM Estimates (95% HDI) - Hierarchy over days")+
+  scale_x_continuous(breaks = seq(1,11,1),
+                     labels = c("1", "", "3", "", "5", "", "7", "", "9", "", "11"))
+
+# ggsave(file=paste0(fig_out_path, 'yn_subj_hddm_parests_sub-hierarchy.jpg'), p, height = 6, width=9, units="in")
+```
+
 
 -------------------------------------------------------------------------------
 

@@ -1,0 +1,13 @@
+#!/bin/bash
+
+#SBATCH -J yn-fit-hddm-rjags-{TYPE}-sub-{SUB}_%j
+#SBATCH -c 2
+
+# Outputs ----------------------------------
+#SBATCH -o /shared/.out/yn-fit-hddm-rjags-{TYPE}-sub-{SUB}_%j.out
+#SBATCH -e /shared/.err/yn-fit-hddm-rjags-{TYPE}-sub-{SUB}_%j.err
+# ------------------------------------------
+
+export DATA_PATH=/shared/behavior
+
+docker run --rm -v $DATA_PATH:/behavior -w /behavior zenkavi/rjagswiener:0.0.3 Rscript --vanilla /behavior/analysis/helpers/ddm/fit_yn_sub_ddm.R --type {TYPE} --sub {SUB}

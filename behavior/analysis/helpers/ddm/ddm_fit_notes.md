@@ -96,7 +96,7 @@ aws s3 sync $OUT_PATH s3://novel-vs-repeated/behavior/inputs
 ```
 export INPUTS_DIR=/Users/zeynepenkavi/Documents/RangelLab/NovelVsRepeated/behavior/inputs
 
-docker run --rm -it -v ~/.aws:/root/.aws -v $INPUTS_DIR:/inputs amazon/aws-cli s3 sync s3://novel-vs-repeated/behavior/inputs /inputs
+docker run --rm -it -v ~/.aws:/root/.aws -v $INPUTS_DIR:/inputs amazon/aws-cli s3 sync s3://novel-vs-repeated/behavior/inputs /inputs --exclude '*' --include '*.csv'
 ```
 
 ## Delete cluster
