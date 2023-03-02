@@ -1017,4 +1017,4 @@ p = yn_ddm_summary %>%
 
 -------------------------------------------------------------------------------
 
-Tradeoff simulations????
+Tradeoff simulations?
