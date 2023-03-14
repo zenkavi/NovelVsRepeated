@@ -116,3 +116,47 @@ with(data_yn_clean, table(type, day, fmri, subnum))
 ```{r}
 with(data_bc_clean, table(typeLeft, day, fmri, subnum))
 ```
+
+3 features: 
+Shape 6
+Orientation 11
+Filling 11
+
+Does the orientation and filling have the same value for each shape?
+
+```{r}
+dat = data_yn_clean %>%
+  filter(subnum == 601) %>%
+  select(subnum, day, stimNum, type, orientation, filling, shape, valueO, valueF, valueS, possiblePayoff)
+```
+
+Each shape has one value
+
+```{r}
+with(dat, table(shape, valueS))
+```
+Each orientation has one value
+
+```{r}
+with(dat, table(orientation, valueO))
+```
+One filling level has two values!
+
+```{r}
+with(dat, table(filling, valueF))
+```
+```{r}
+with(dat, table(valueO, valueF, shape))
+```
+
+% all(:,4) <- shape value
+% all(:,5) <- orientation value
+% all(:,6) <- filling color value
+
+round(((all(:,4) + all(:,5) + all(:,6))/2)*100)
+
+```{r}
+dat %>%
+  select(valueO, valueF, valueS, possiblePayoff) %>%
+  mutate(guess = round(100 * ((valueS + valueO + valueF)/2) ))
+```
