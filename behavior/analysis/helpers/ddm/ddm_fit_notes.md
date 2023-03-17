@@ -55,6 +55,7 @@ export DATA_PATH=/shared/behavior/inputs
 
 aws s3 sync s3://novel-vs-repeated/behavior/inputs $DATA_PATH --exclude '*' --include 'data_choiceYN.csv' --include 'data_choiceBC.csv'
 ```
+
 ## Copy model fitting code from s3 to cluster
 
 ```

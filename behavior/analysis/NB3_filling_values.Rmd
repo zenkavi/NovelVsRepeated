@@ -9,14 +9,16 @@ output:
 
 ```{r include=FALSE}
 library(tidyverse)
+library(janitor)
 library(here)
+library(magick)
 theme_set(theme_bw())
 helpers_path = paste0(here(),'/analysis/helpers/')
 source(paste0(helpers_path, '01_clean_behavioral_data.R'))
 ```
 
 
-Matlab code from ... that determines the filling value for each stimulus
+Matlab code from `task_YN.m` that determines the filling value for each stimulus
 
 ```
 bothCol = [0.1 0.1 0.4 -99;
@@ -46,9 +48,7 @@ end
 colorStim(4)=abs(mydata.filling(indextrial));
 ```
 
-```{r}
-unique(data_yn_clean$filling)
-```
+Helper functions to create stimuli
 
 ```{r}
 convertFVToHEX = function(fillingVal){
@@ -70,6 +70,23 @@ convertFVToHEX = function(fillingVal){
   
 
   return(hex_code)
+}
+
+make_stim_img = function(shape, orientation, filling){
+  
+  bg_hex = convertFVToHEX(filling)
+  
+  # Read image
+  shape_img = image_read(paste0('/Users/zeynepenkavi/Downloads/alldata/data_task/pilot5_fmri_1/task_scan/shapes/shape', shape, '.png'))
+  
+  tilted_filled_img = shape_img %>% 
+    image_background(bg_hex) %>%
+    image_rotate(orientation)
+  
+  tilted_filled_img = image_read(image_write(tilted_filled_img))
+  
+  return(tilted_filled_img)
+  
 }
 ```
 
@@ -107,10 +124,19 @@ tmp = data_yn_clean %>%
 sum(tmp$possiblePayoff == tmp$payoff) == nrow(tmp)
 ```
 
+*BUT* the payoff for each stimulus is sampled from a distribution
+
+```{r}
+data_yn_clean %>%
+  filter(subnum == "601") %>%
+  filter(stimNum == 85) %>%
+  tabyl(possiblePayoff)
+```
+
 How many HT and RE trials in each session?
 
 ```{r}
-with(data_yn_clean, table(type, day, fmri, subnum))
+with(data_yn_clean, table(type, day, subnum))
 ```
 
 ```{r}
@@ -122,7 +148,7 @@ Shape 6
 Orientation 11
 Filling 11
 
-Does the orientation and filling have the same value for each shape?
+Does the orientation and filling have the same value for each shape? Yes.
 
 ```{r}
 dat = data_yn_clean %>%
@@ -130,24 +156,16 @@ dat = data_yn_clean %>%
   select(subnum, day, stimNum, type, orientation, filling, shape, valueO, valueF, valueS, possiblePayoff)
 ```
 
-Each shape has one value
 
 ```{r}
-with(dat, table(shape, valueS))
+with(dat, table(orientation, valueO, shape))
 ```
-Each orientation has one value
 
 ```{r}
-with(dat, table(orientation, valueO))
+with(dat, table(filling, valueF, shape))
 ```
-One filling level has two values!
 
-```{r}
-with(dat, table(filling, valueF))
-```
-```{r}
-with(dat, table(valueO, valueF, shape))
-```
+How are the payoffs for each stimulus computed?
 
 % all(:,4) <- shape value
 % all(:,5) <- orientation value
@@ -160,3 +178,116 @@ dat %>%
   select(valueO, valueF, valueS, possiblePayoff) %>%
   mutate(guess = round(100 * ((valueS + valueO + valueF)/2) ))
 ```
+
+How many times have a subject seen each stim before the first scan? 80 = 8 runs with 10 times for each HT stim in each run
+
+```{r}
+tmp = data_yn_clean %>%
+  filter(day %in% c(1,2)) %>%
+  mutate(stimNumType = ifelse(type == 0, 0, stimNum)) %>%
+  select(subnum, day, stimNum, stimNumType) 
+
+with(tmp, table(subnum, stimNumType))
+```
+
+Based on your HT stimuli what can you infer/learn about the RE?
+
+```{r}
+tmp = data_yn_clean %>%
+  filter(subnum == "601")
+```
+
+What HT stimuli and payoffs has this subject seen before the first scan?
+
+```{r}
+tmp %>%
+  select(subnum, day, type, possiblePayoff, stimNum, valueO, valueF, valueS, orientation, filling, shape) %>%
+  filter((type == 1) & (day %in% c(1, 2))) %>%
+  mutate(mean_payoff = round(100 * ((valueS + valueO + valueF)/2) ),
+         stimString = paste0("O: ", orientation, ", F: ", filling, ", S: ", shape)) %>%
+  ggplot(aes(possiblePayoff))+
+  geom_density()+
+  geom_vline(aes(xintercept = 0), color="gray")+
+  facet_wrap(~stimString)+
+  theme(panel.grid = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())+
+  labs(y = "")
+
+```
+
+What do these HT stims look like?
+
+```{r}
+ht_features = tmp %>%
+  filter(type == 1) %>%
+  select(filling, orientation, shape) %>%
+  distinct()
+
+imgs = c()
+length(imgs)
+
+for(i in 1:nrow(ht_features)){
+  
+  if(length(imgs) == 0){
+    imgs = make_stim_img(shape = ht_features$shape[i], orientation = ht_features$orientation[i], filling = ht_features$filling[i])
+  } else{
+    imgs = c(imgs, make_stim_img(shape = ht_features$shape[i], orientation = ht_features$orientation[i], filling = ht_features$filling[i])) 
+    }
+  
+}
+
+image_append(imgs)
+```
+
+```{r}
+blank = image_blank(width = 800, height = 800, color = "none")
+
+symbols(400, 400, circles = 100, bg = "lightgreen", inches = FALSE, add = TRUE)
+```
+
+
+```{r}
+tmp = make_stim_img(shape = 3, orientation = 0, filling = -0.6)
+```
+
+```{r}
+tmp %>%
+  tabyl(shape, valueS)
+```
+
+```{r}
+tmp %>%
+  tabyl(filling, valueF)
+```
+
+```{r}
+tmp %>%
+  tabyl(orientation, valueO)
+```
+
+When is the filling value .4 worth .4 versus .6? Is it for some value of shape or orientation? Doesn't seem so.
+
+```{r}
+tmp %>% 
+  filter(filling == .4) %>%
+  tabyl(filling, shape, valueF)
+```
+
+```{r}
+tmp %>% 
+  filter(filling == .4) %>%
+  tabyl(filling, orientation, valueF)
+```
+
+
+```{r}
+img <- image_draw(blank)
+rect(20, 20, 200, 100, border = "red", lty = "dashed", lwd = 5)
+abline(h = 300, col = 'blue', lwd = '10', lty = "dotted")
+text(30, 250, "Hoiven-Glaven", family = "monospace", cex = 4, srt = 90)
+palette(rainbow(11, end = 0.9))
+symbols(rep(200, 11), seq(0, 400, 40), circles = runif(11, 5, 35),
+  bg = 1:11, inches = FALSE, add = TRUE)
+```
+
