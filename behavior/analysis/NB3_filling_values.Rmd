@@ -241,9 +241,49 @@ image_append(imgs)
 ```
 
 ```{r}
+shape = 4
+orientation = 120
+filling = -0.6
+```
+
+```{r}
 blank = image_blank(width = 800, height = 800, color = "none")
 
-symbols(400, 400, circles = 100, bg = "lightgreen", inches = FALSE, add = TRUE)
+# Needs to be run in terminal or all at one in the chunk
+img = image_draw(blank)
+
+bg_hex = convertFVToHEX(filling)
+
+symbols(400, 400, circles = 200, bg = bg_hex, inches = FALSE, add = TRUE, lwd = 6)
+
+bg_circle = image_read(image_write(img))
+
+  
+shape_img = image_read(paste0('/Users/zeynepenkavi/Downloads/alldata/data_task/pilot5_fmri_1/task_scan/shapes/shape', shape, '.png'))
+
+tilted_nofill_img = shape_img %>% 
+  image_background("none") %>%
+  image_scale("200") %>%
+  image_rotate(orientation)
+
+tilted_nofill_img = image_read(image_write(tilted_nofill_img))
+
+offset_x = 200 + (200 - (image_info(tilted_nofill_img)$width/2))
+offset_y = 200 + (200 - (image_info(tilted_nofill_img)$height/2))
+inset_offset = paste0('+', offset_x, '+', offset_y)
+image_composite(bg_circle,  tilted_nofill_img, operator = "Over", offset = inset_offset)
+
+
+```
+
+```{r}
+for(i in c(0, 15, 30, 45, 60, 75, 90, 105, 120, 135, 150)){
+  shape_img = image_read(paste0('/Users/zeynepenkavi/Downloads/alldata/data_task/pilot5_fmri_1/task_scan/shapes/shape', 2, '.png'))
+  
+  shape_img2 = image_rotate(shape_img, i)
+  
+  print(image_info(shape_img2))
+}
 ```
 
 
