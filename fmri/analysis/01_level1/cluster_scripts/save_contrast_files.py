@@ -54,14 +54,14 @@ design_matrix = make_level1_design_matrix(subnum, session, task, runnum, mnum, d
 contrasts = make_basic_contrasts(design_matrix)
 
 ## Add desired contrasts for the task
-contrasts['valHT-valRE'] = contrasts['valHT_par'] - contrasts['valRE_par']
-contrasts['valRE-valHT'] = contrasts['valRE_par'] - contrasts['valHT_par']
+contrasts['stimHT-stimRE'] = contrasts['stimHT_ev'] - contrasts['stimRE_ev']
+contrasts['stimRE-stimHT'] = contrasts['stimRE_ev'] - contrasts['stimHT_ev']
+contrasts['valDiffHT-valDiffRE'] = contrasts['valDiffHT_par'] - contrasts['valDiffRE_par']
+contrasts['valDiffRE-valDiffHT'] = contrasts['valDiffRE_par'] - contrasts['valDiffHT_par']
+contrasts['feedbackHT-feedbackRE'] = contrasts['feedbackHT_ev'] - contrasts['feedbackRE_ev']
+contrasts['feedbackRE-feedbackHT'] = contrasts['feedbackRE_ev'] - contrasts['feedbackHT_ev']
 contrasts['rewardHT-rewardRE'] = contrasts['rewardHT_par'] - contrasts['rewardRE_par']
 contrasts['rewardRE-rewardHT'] = contrasts['rewardRE_par'] - contrasts['rewardHT_par']
-contrasts['correctHT-incorrectHT'] = contrasts['choiceCorrectHT_st'] - contrasts['choiceIncorrectHT_st']
-contrasts['incorrectHT-correctHT'] = contrasts['choiceIncorrectHT_st'] - contrasts['choiceCorrectHT_st']
-contrasts['correctRE-incorrectRE'] = contrasts['choiceCorrectRE_st'] - contrasts['choiceIncorrectRE_st']
-contrasts['incorrectRE-correctRE'] = contrasts['choiceIncorrectRE_st'] - contrasts['choiceCorrectRE_st']
 
 ## Jsonify
 contrasts = {k:v.tolist() for (k,v) in contrasts.items()}
@@ -87,10 +87,16 @@ design_matrix = make_level1_design_matrix(subnum, session, task, runnum, mnum, d
 contrasts = make_basic_contrasts(design_matrix)
 
 ## Add desired contrasts for the task
-contrasts['valHT-valRE'] = contrasts['valHT_par'] - contrasts['valRE_par']
-contrasts['valRE-valHT'] = contrasts['valRE_par'] - contrasts['valHT_par']
+contrasts['stimHT-stimRE'] = contrasts['stimHT_ev'] - contrasts['stimRE_ev']
+contrasts['stimRE-stimHT'] = contrasts['stimRE_ev'] - contrasts['stimHT_ev']
+contrasts['valDiffHT-valDiffRE'] = contrasts['valDiffHT_par'] - contrasts['valDiffRE_par']
+contrasts['valDiffRE-valDiffHT'] = contrasts['valDiffRE_par'] - contrasts['valDiffHT_par']
+contrasts['feedbackHT-feedbackRE'] = contrasts['feedbackHT_ev'] - contrasts['feedbackRE_ev']
+contrasts['feedbackRE-feedbackHT'] = contrasts['feedbackRE_ev'] - contrasts['feedbackHT_ev']
 contrasts['rewardHT-rewardRE'] = contrasts['rewardHT_par'] - contrasts['rewardRE_par']
 contrasts['rewardRE-rewardHT'] = contrasts['rewardRE_par'] - contrasts['rewardHT_par']
+contrasts['valSumHT-valSumRE'] = contrasts['valSumHT_par'] - contrasts['valSumRE_par']
+contrasts['valSumRE-valSumHT'] = contrasts['valSumRE_par'] - contrasts['valSumHT_par']
 
 ## Jsonify
 contrasts = {k:v.tolist() for (k,v) in contrasts.items()}

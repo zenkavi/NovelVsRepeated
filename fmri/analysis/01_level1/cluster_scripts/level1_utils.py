@@ -28,20 +28,20 @@ def get_model_regs(mnum, task):
 
     if task == 'binaryChoice':
         if mnum == 'model1':
-            regs = ['cross_ev', 'stimHT_ev', 'rewardHT_ev', 'rewardHT_par', 'stimRE_ev', 'rewardRE_ev', 'rewardRE_par', 'choiceCorrectHT_st', 'choiceCorrectRE_st', 'choiceIncorrectHT_st', 'choiceIncorrectRE_st', 'choiceLeft_st', 'choiceRight_st', 'valSumHT_par', 'valDiffHT_par', 'valSumRE_par', 'valDiffRE_par']
+            regs = ['cross_ev', 'stimHT_ev', 'feedbackHT_ev', 'rewardHT_par', 'stimRE_ev', 'feedbackRE_ev', 'rewardRE_par', 'choiceCorrectHT_st', 'choiceCorrectRE_st', 'choiceIncorrectHT_st', 'choiceIncorrectRE_st', 'choiceLeft_st', 'choiceRight_st', 'valSumHT_par', 'valDiffHT_par', 'valSumRE_par', 'valDiffRE_par']
 
     if task == 'yesNo':
         if mnum == 'model1':
-            regs = ['cross_ev', 'stimHT_ev', 'rewardHT_ev', 'rewardHT_par', 'stimRE_ev', 'rewardRE_ev', 'rewardRE_par', 'choiceCorrectHT_st', 'choiceCorrectRE_st', 'choiceIncorrectHT_st', 'choiceIncorrectRE_st', 'choiceYes_st', 'choiceNo_st', 'valHT_par', 'valRE_par']
+            regs = ['cross_ev', 'stimHT_ev', 'feedbackHT_ev', 'rewardHT_par', 'stimRE_ev', 'feedbackRE_ev', 'rewardRE_par', 'choice_st', 'valDiffHT_par', 'valDiffRE_par']
 
         if mnum == 'model2':
-            regs = ['cross_ev', 'stimHT_ev', 'rewardHT_ev', 'rewardHT_par', 'stimRE_ev', 'rewardRE_ev', 'rewardRE_par', 'choice_st', 'valHT_par', 'valRE_par']
+            regs = ['cross_ev', 'stimHT_ev', 'feedbackHT_ev', 'rewardHT_par', 'stimRE_ev', 'feedbackRE_ev', 'rewardRE_par', 'choice_st', 'valDiffHT_par', 'valDiffRE_par', 'valSumHT_par', 'valSumRE_par']
 
-        if mnum == 'model3':
-            regs = ['cross_ev', 'stimHT_ev', 'rewardHT_ev', 'rewardHT_par', 'stimRE_ev', 'rewardRE_ev', 'rewardRE_par', 'choiceYesHT_st', 'choiceNoHT_st', 'choiceYesRE_st', 'choiceNoRE_st', 'valHT_par', 'valRE_par']
+        if mnum == 'model3': #model2 + choice yes vs no + pos out and neg out
+            regs = []
 
-        if mnum == 'model4':
-            regs = ['cross_ev', 'stimHT_ev', 'rewardHT_ev', 'rewardHT_par', 'stimRE_ev', 'rewardRE_ev', 'rewardRE_par', 'choiceCorrectHT_st', 'choiceCorrectRE_st', 'choiceIncorrectHT_st', 'choiceIncorrectRE_st', 'valHT_par', 'valRE_par']
+        if mnum == 'model4': #iigaya - instead of value for options, value for attributes?
+            regs = []
 
     return regs
 
@@ -98,19 +98,19 @@ def get_events(subnum, session, task, runnum, mnum, data_path):
             cond_stimRE_ev['stim_type'] = behavior['type'].reset_index(drop=True)
             cond_stimRE_ev = cond_stimRE_ev.query('stim_type == 0').drop('stim_type', axis=1).reset_index(drop=True)
 
-        if reg == 'rewardHT_ev':
-            cond_rewardHT_ev = events.query('trial_type == "feedback"')[['onset', 'duration']].reset_index(drop=True)
-            cond_rewardHT_ev['trial_type'] = 'rewardHT_ev'
-            cond_rewardHT_ev['modulation'] = 1
-            cond_rewardHT_ev['stim_type'] = behavior['type'].reset_index(drop=True)
-            cond_rewardHT_ev = cond_rewardHT_ev.query('stim_type == 1').drop('stim_type', axis=1).reset_index(drop=True)
+        if reg == 'feedbackHT_ev':
+            cond_feedbackHT_ev = events.query('trial_type == "feedback"')[['onset', 'duration']].reset_index(drop=True)
+            cond_feedbackHT_ev['trial_type'] = 'feedbackHT_ev'
+            cond_feedbackHT_ev['modulation'] = 1
+            cond_feedbackHT_ev['stim_type'] = behavior['type'].reset_index(drop=True)
+            cond_feedbackHT_ev = cond_feedbackHT_ev.query('stim_type == 1').drop('stim_type', axis=1).reset_index(drop=True)
 
-        if reg == 'rewardRE_ev':
-            cond_rewardRE_ev = events.query('trial_type == "feedback"')[['onset', 'duration']].reset_index(drop=True)
-            cond_rewardRE_ev['trial_type'] = 'rewardRE_ev'
-            cond_rewardRE_ev['modulation'] = 1
-            cond_rewardRE_ev['stim_type'] = behavior['type'].reset_index(drop=True)
-            cond_rewardRE_ev = cond_rewardRE_ev.query('stim_type == 0').drop('stim_type', axis=1).reset_index(drop=True)
+        if reg == 'feedbackRE_ev':
+            cond_feedbackRE_ev = events.query('trial_type == "feedback"')[['onset', 'duration']].reset_index(drop=True)
+            cond_feedbackRE_ev['trial_type'] = 'feedbackRE_ev'
+            cond_feedbackRE_ev['modulation'] = 1
+            cond_feedbackRE_ev['stim_type'] = behavior['type'].reset_index(drop=True)
+            cond_feedbackRE_ev = cond_feedbackRE_ev.query('stim_type == 0').drop('stim_type', axis=1).reset_index(drop=True)
 
         if reg == 'rewardHT_par':
             cond_rewardHT_par = events.query('trial_type == "feedback"')[['onset', 'duration']].reset_index(drop=True)
@@ -219,20 +219,6 @@ def get_events(subnum, session, task, runnum, mnum, data_path):
             cond_choiceNoRE_st['modulation'] = 1 - behavior['choiceYes'].reset_index(drop=True)
             cond_choiceNoRE_st['stim_type'] = behavior['type'].reset_index(drop=True)
             cond_choiceNoRE_st = cond_choiceNoRE_st.query('stim_type == 0').drop('stim_type', axis=1).reset_index(drop=True)
-
-        if reg == 'valHT_par':
-            cond_valHT_par = events.query('trial_type == "stim"')[['onset', 'duration']].reset_index(drop=True)
-            cond_valHT_par['trial_type'] = 'valHT_par'
-            cond_valHT_par['modulation'] = behavior['value_dmn'].reset_index(drop=True)
-            cond_valHT_par['stim_type'] = behavior['type'].reset_index(drop=True)
-            cond_valHT_par = cond_valHT_par.query('stim_type == 1').drop('stim_type', axis=1).reset_index(drop=True)
-
-        if reg == 'valRE_par':
-            cond_valRE_par = events.query('trial_type == "stim"')[['onset', 'duration']].reset_index(drop=True)
-            cond_valRE_par['trial_type'] = 'valRE_par'
-            cond_valRE_par['modulation'] = behavior['value_dmn'].reset_index(drop=True)
-            cond_valRE_par['stim_type'] = behavior['type'].reset_index(drop=True)
-            cond_valRE_par = cond_valRE_par.query('stim_type == 0').drop('stim_type', axis=1).reset_index(drop=True)
 
         if reg == 'valDiffHT_par':
             cond_valDiffHT_par = events.query('trial_type == "stim"')[['onset', 'duration']].reset_index(drop=True)
