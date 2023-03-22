@@ -409,12 +409,39 @@ p = yn_par_summary %>%
   scale_x_continuous(breaks = c(0), limits = c(-plim, plim))+
   scale_color_manual(values = c("red", "blue"))+
   scale_alpha_manual(values = c(1, 1))+
-  guides(alpha=F)
+  guides(alpha = "none")
 
 p
 # ggsave(file=paste0(fig_out_path, 'ynbc_logit_interactionParEsts.jpg'), p, height = 3, width = 9, units="in")
 
 
+```
+
+```{r}
+as.data.frame(yn_logit_draws) %>%
+  select("b_val_diff_std", "b_val_diff_std.day_std", "b_val_diff_std.typeRE", "b_val_diff_std.day_std.typeRE", subnum,) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key = ifelse(key == "b_val_diff_std.day_std", "Value Diff * Day", ifelse(key == "b_val_diff_std.typeRE", "Value Diff * Type (RE)", ifelse(key == "b_val_diff_std.day_std.typeRE", "Value Diff * Day * Type (RE)", ifelse(key == "b_val_diff_std", "Value Diff", NA)))),
+         key = factor(key, levels = c("Value Diff","Value Diff * Type (RE)", "Value Diff * Day", "Value Diff * Day * Type (RE)"))) %>%
+  group_by(key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) 
+```
+
+```{r}
+as.data.frame(yn_logit_draws) %>%
+  select("b_val_diff_std", "b_val_diff_std.day_std", "b_val_diff_std.typeRE", "b_val_diff_std.day_std.typeRE", subnum,) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key = ifelse(key == "b_val_diff_std.day_std", "Value Diff * Day", ifelse(key == "b_val_diff_std.typeRE", "Value Diff * Type (RE)", ifelse(key == "b_val_diff_std.day_std.typeRE", "Value Diff * Day * Type (RE)", ifelse(key == "b_val_diff_std", "Value Diff", NA)))),
+         key = factor(key, levels = c("Value Diff","Value Diff * Type (RE)", "Value Diff * Day", "Value Diff * Day * Type (RE)"))) %>%
+  group_by(key) %>%
+  filter(!subnum %in% c(619, 629)) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) 
 ```
 
 ## Change in Val Diff Slope
@@ -557,6 +584,40 @@ yn_par_summary = as_tibble(yn_logit_draws) %>%
             h95 = HDInterval::hdi(value)[2]) %>%
   mutate(task = "Y/N")
 ```
+
+```{r}
+as_tibble(yn_logit_draws) %>%
+  select(subnum, day, b_val_diff_std, b_typeRE, b_val_diff_std.typeRE) %>%
+  mutate(day = factor(day, levels = c("day 1", "day 2", "day 3", "week 2", "week 3"))) %>%
+  gather(key, value, -subnum, -day) %>%
+  mutate(key = ifelse(key == "b_typeRE", "Type (RE)", ifelse(key == "b_val_diff_std", "Value Diff", ifelse(key == "b_val_diff_std.typeRE", "Value Diff * Type (RE)", NA))),
+         key = factor(key, levels = c("Type (RE)", "Value Diff", "Value Diff * Type (RE)"))) %>%
+  # group_by(subnum, day, key) %>%
+  filter(day == "day 1") %>%
+group_by(day, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(task = "Y/N")
+```
+
+```{r}
+ as_tibble(yn_logit_draws) %>%
+  select(subnum, day, b_val_diff_std, b_typeRE, b_val_diff_std.typeRE) %>%
+  mutate(day = factor(day, levels = c("day 1", "day 2", "day 3", "week 2", "week 3"))) %>%
+  gather(key, value, -subnum, -day) %>%
+  mutate(key = ifelse(key == "b_typeRE", "Type (RE)", ifelse(key == "b_val_diff_std", "Value Diff", ifelse(key == "b_val_diff_std.typeRE", "Value Diff * Type (RE)", NA))),
+         key = factor(key, levels = c("Type (RE)", "Value Diff", "Value Diff * Type (RE)"))) %>%
+  filter(day != "day1") %>%
+  group_by(key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(task = "Y/N")
+```
+
 
 ```{r}
 bc_par_summary = as_tibble(bc_logit_draws) %>%
@@ -1002,6 +1063,19 @@ yn_par_summary = as.data.frame(yn_rt_draws) %>%
             h95 = HDInterval::hdi(value)[2]) %>%
   mutate(subnum = as.factor(subnum),
          task = "Y/N") 
+```
+
+```{r}
+as.data.frame(yn_rt_draws) %>%
+  select("b_abs_val_diff_std" ,"b_abs_val_diff_std.day_std", "b_abs_val_diff_std.typeRE", "b_abs_val_diff_std.day_std.typeRE", subnum, .chain, .iteration) %>%
+  gather(key, value, -subnum, -.chain, -.iteration) %>%
+  mutate(key = ifelse(key == "b_abs_val_diff_std.day_std", "|Value Diff| * Day", ifelse(key == "b_abs_val_diff_std.typeRE", "|Value Diff| * Type (RE)", ifelse(key == "b_abs_val_diff_std.day_std.typeRE", "|Value Diff| * Day * Type (RE)", ifelse(key == "b_abs_val_diff_std", "|Value Diff|", NA)))),
+         key = factor(key, levels = c("|Value Diff|","|Value Diff| * Type (RE)", "|Value Diff| * Day", "|Value Diff| * Day * Type (RE)"))) %>%
+  group_by(key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) 
 ```
 
 ```{r}

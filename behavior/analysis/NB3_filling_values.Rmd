@@ -15,6 +15,7 @@ library(magick)
 theme_set(theme_bw())
 helpers_path = paste0(here(),'/analysis/helpers/')
 source(paste0(helpers_path, '01_clean_behavioral_data.R'))
+fig_out_path = paste0(here(), '/outputs/fig/')
 ```
 
 
@@ -74,21 +75,50 @@ convertFVToHEX = function(fillingVal){
 
 make_stim_img = function(shape, orientation, filling){
   
+  blank = image_blank(width = 800, height = 800, color = "none")
+  
+  # Needs to be run in terminal or all at one in the chunk
+  img = image_draw(blank)
+  
   bg_hex = convertFVToHEX(filling)
   
-  # Read image
+  symbols(400, 400, circles = 200, bg = bg_hex, inches = FALSE, add = TRUE, lwd = 6)
+  
+  bg_circle = image_read(image_write(img))
+  
+  
   shape_img = image_read(paste0('/Users/zeynepenkavi/Downloads/alldata/data_task/pilot5_fmri_1/task_scan/shapes/shape', shape, '.png'))
   
-  tilted_filled_img = shape_img %>% 
-    image_background(bg_hex) %>%
+  tilted_nofill_img = shape_img %>% 
+    image_background("none") %>%
+    image_scale("200") %>%
     image_rotate(orientation)
   
-  tilted_filled_img = image_read(image_write(tilted_filled_img))
+  tilted_nofill_img = image_read(image_write(tilted_nofill_img))
   
-  return(tilted_filled_img)
+  offset_x = 200 + (200 - (image_info(tilted_nofill_img)$width/2))
+  offset_y = 200 + (200 - (image_info(tilted_nofill_img)$height/2))
+  inset_offset = paste0('+', offset_x, '+', offset_y)
+  stim_img = image_composite(bg_circle,  tilted_nofill_img, operator = "Over", offset = inset_offset)
+  
+  return(stim_img)
   
 }
 ```
+
+Save some images of sample stimuli
+
+```{r}
+tmp = make_stim_img(shape = 3, orientation = 0, filling = -0.6)
+
+image_write(tmp, path = paste0(fig_out_path, 'sample_stim1.png'), format = 'png')
+
+tmp = make_stim_img(shape = 2, orientation = 120, filling = 0.4)
+
+image_write(tmp, path = paste0(fig_out_path, 'sample_stim2.png'), format = 'png')
+```
+
+What are the HEX codes for the filling values in the data?
 
 ```{r}
 dat = data.frame(filling = unique(data_yn_clean$filling))
@@ -102,6 +132,7 @@ dat = dat %>%
 
 dat
 ```
+View the filling colors for the stimuli
 
 ```{r}
 ggplot()+
@@ -139,6 +170,8 @@ How many HT and RE trials in each session?
 with(data_yn_clean, table(type, day, subnum))
 ```
 
+How many HT and RE trials in each imaging session?
+
 ```{r}
 with(data_bc_clean, table(typeLeft, day, fmri, subnum))
 ```
@@ -156,7 +189,6 @@ dat = data_yn_clean %>%
   select(subnum, day, stimNum, type, orientation, filling, shape, valueO, valueF, valueS, possiblePayoff)
 ```
 
-
 ```{r}
 with(dat, table(orientation, valueO, shape))
 ```
@@ -165,13 +197,15 @@ with(dat, table(orientation, valueO, shape))
 with(dat, table(filling, valueF, shape))
 ```
 
-How are the payoffs for each stimulus computed?
+How are the payoffs for each stimulus computed? From matlab code:
 
+```
 % all(:,4) <- shape value
 % all(:,5) <- orientation value
 % all(:,6) <- filling color value
 
 round(((all(:,4) + all(:,5) + all(:,6))/2)*100)
+```
 
 ```{r}
 dat %>%
@@ -240,56 +274,6 @@ for(i in 1:nrow(ht_features)){
 image_append(imgs)
 ```
 
-```{r}
-shape = 4
-orientation = 120
-filling = -0.6
-```
-
-```{r}
-blank = image_blank(width = 800, height = 800, color = "none")
-
-# Needs to be run in terminal or all at one in the chunk
-img = image_draw(blank)
-
-bg_hex = convertFVToHEX(filling)
-
-symbols(400, 400, circles = 200, bg = bg_hex, inches = FALSE, add = TRUE, lwd = 6)
-
-bg_circle = image_read(image_write(img))
-
-  
-shape_img = image_read(paste0('/Users/zeynepenkavi/Downloads/alldata/data_task/pilot5_fmri_1/task_scan/shapes/shape', shape, '.png'))
-
-tilted_nofill_img = shape_img %>% 
-  image_background("none") %>%
-  image_scale("200") %>%
-  image_rotate(orientation)
-
-tilted_nofill_img = image_read(image_write(tilted_nofill_img))
-
-offset_x = 200 + (200 - (image_info(tilted_nofill_img)$width/2))
-offset_y = 200 + (200 - (image_info(tilted_nofill_img)$height/2))
-inset_offset = paste0('+', offset_x, '+', offset_y)
-image_composite(bg_circle,  tilted_nofill_img, operator = "Over", offset = inset_offset)
-
-
-```
-
-```{r}
-for(i in c(0, 15, 30, 45, 60, 75, 90, 105, 120, 135, 150)){
-  shape_img = image_read(paste0('/Users/zeynepenkavi/Downloads/alldata/data_task/pilot5_fmri_1/task_scan/shapes/shape', 2, '.png'))
-  
-  shape_img2 = image_rotate(shape_img, i)
-  
-  print(image_info(shape_img2))
-}
-```
-
-
-```{r}
-tmp = make_stim_img(shape = 3, orientation = 0, filling = -0.6)
-```
 
 ```{r}
 tmp %>%
@@ -320,14 +304,13 @@ tmp %>%
   tabyl(filling, orientation, valueF)
 ```
 
+When the value different is large RE and HT Rts don't look very different.
+Is this because of generalizing a particularly eggregious attribute value?
 
-```{r}
-img <- image_draw(blank)
-rect(20, 20, 200, 100, border = "red", lty = "dashed", lwd = 5)
-abline(h = 300, col = 'blue', lwd = '10', lty = "dotted")
-text(30, 250, "Hoiven-Glaven", family = "monospace", cex = 4, srt = 90)
-palette(rainbow(11, end = 0.9))
-symbols(rep(200, 11), seq(0, 400, 40), circles = runif(11, 5, 35),
-  bg = 1:11, inches = FALSE, add = TRUE)
-```
+What does a high value difference RE and HT stimuli look like? What attribute drives their value to the extreme?
 
+Are the RE trials particularly slow for low value difference because ...
+
+When deciding for an HT stim is it more habit-like? Less conscious? More a quick memory retrieval?
+
+hipp-value correlation?
