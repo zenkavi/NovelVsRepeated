@@ -10,6 +10,8 @@ docker run --rm -it -v ~/.aws:/root/.aws -v $(pwd)/fmri/analysis/02_level2/clust
 
 ## Push session contrasts and saved uncorrected tmaps
 
+(For session difference contrasts)
+
 ```
 export BIDS_DIR=/Users/zeynepenkavi/CpuEaters/overtrained_decisions_bidsfmri
 
@@ -85,17 +87,27 @@ aws s3 sync s3://novel-vs-repeated/fmri/analysis/02_level2/cluster_scripts $CODE
 ```
 cd $CODE_PATH
 
+export DATA_PATH=/shared/fmri/bids/derivatives/nilearn/glm/level1/yesNo/model1
+export OUT_PATH=/shared/fmri/bids/derivatives/nilearn/glm/level2/yesNo/model1/overall-mean
+export CODE_PATH=/shared/fmri/analysis/02_level2/cluster_scripts
+
+docker run --rm -it -e DATA_PATH=/data -e OUT_PATH=/out \
+-v $DATA_PATH:/data -v $OUT_PATH:/out -v $CODE_PATH:/code \
+zenkavi/fsl:6.0.3 python ./code/level2.py --mnum model1 --reg valDiffHT-valDiffRE --sign pos --session ses-01 --num_perm 50
+
 export DATA_PATH=/shared/fmri/bids/derivatives/nilearn/glm/level1/yesNo/model2
 export OUT_PATH=/shared/fmri/bids/derivatives/nilearn/glm/level2/yesNo/model2/overall-mean
 export CODE_PATH=/shared/fmri/analysis/02_level2/cluster_scripts
 
-docker run --rm -e DATA_PATH=/data -e OUT_PATH=/out \
+docker run --rm -it -e DATA_PATH=/data -e OUT_PATH=/out \
 -v $DATA_PATH:/data -v $OUT_PATH:/out -v $CODE_PATH:/code \
-zenkavi/fsl:6.0.3 python ./code/level2.py --mnum model2 --reg valHT_par --sign pos --session ses-01 --num_perm 50
+zenkavi/fsl:6.0.3 python ./code/level2.py --mnum model2 --reg valSumHT_par --sign neg --session ses-03 --num_perm 50
 ```
 
 
 ## Submit jobs for levels 2s
+
+Note: this script needs more nuance. As is, some jobs for models without some regressors will fail.
 
 ```
 cd /shared/fmri/analysis/02_level2/cluster_scripts
@@ -111,6 +123,16 @@ aws s3 sync $OUT_PATH s3://novel-vs-repeated/fmri/bids/derivatives/nilearn/glm/l
 ```
 
 ## Download contrasts you want to visualize
+
+Uncorrected maps
+
+```
+export BIDS_DIR=/Users/zeynepenkavi/CpuEaters/overtrained_decisions_bidsfmri
+
+docker run --rm -it -v ~/.aws:/root/.aws -v $BIDS_DIR:/bids amazon/aws-cli s3 sync s3://novel-vs-repeated/fmri/bids/derivatives/nilearn/glm/level2 /bids/derivatives/nilearn/glm/level2 --exclude '*' --include '*unc_tmap*'
+```
+
+Corrected maps
 
 ```
 export BIDS_DIR=/Users/zeynepenkavi/CpuEaters/overtrained_decisions_bidsfmri
