@@ -1,11 +1,11 @@
 set -e
-for modelnum in model2
+for modelnum in model1 model2
 do
   for sign in pos neg
   do
-    for regname in valHT_par valRE_par stimHT_ev stimRE_ev
+    for regname in valDiffHT_par valDiffRE_par stimHT_ev stimRE_ev feedbackHT_ev feedbackRE_ev rewardHT_par rewardRE_par valSumHT_par valSumRE_par stimHT-stimRE stimRE-stimHT valDiffHT-valDiffRE valDiffRE-valDiffHT valSumHT-valSumRE valSumRE-valSumHT feedbackHT-feedbackRE feedbackRE-feedbackHT rewardHT-rewardRE rewardRE-rewardHT
     do
-      for session in ses-01 ses-02 ses-03 ses-02_min_ses-01 ses-03_min_ses-01 ses-03_min_ses-02
+      for session in ses-01 ses-02 ses-03
       do
         for task in yesNo
         do
