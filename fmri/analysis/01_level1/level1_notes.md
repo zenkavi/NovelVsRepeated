@@ -69,24 +69,24 @@ aws s3 sync s3://novel-vs-repeated/fmri/analysis/01_level1/cluster_scripts $CODE
 
 ```
 export DATA_PATH=/shared/fmri/bids
-export OUT_PATH=/shared/fmri/bids/derivatives/nilearn/glm/level1/binaryChoice/model1
+export OUT_PATH=/shared/fmri/bids/derivatives/nilearn/glm/level1/yesNo/model1
 export CODE_PATH=/shared/fmri/analysis/01_level1/cluster_scripts
 
 docker run --rm -it -e DATA_PATH=/data -e OUT_PATH=/out \
 -v $DATA_PATH:/data -v $OUT_PATH:/out -v $CODE_PATH:/code \
-zenkavi/fsl:6.0.3 python ./code/level1.py --subnum 601 --session 01 --task binaryChoice --mnum model1 --space 'MNI152NLin2009cAsym_res-2'
+zenkavi/fsl:6.0.3 python ./code/level1.py --subnum 601 --session 01 --task yesNo --mnum model1 --space 'MNI152NLin2009cAsym_res-2'
 ```
 
 ## Test contrast computation on single subject on head node
 
 ```
 export DATA_PATH=/shared/fmri/bids
-export OUT_PATH=/shared/fmri/bids/derivatives/nilearn/glm/level1/binaryChoice/model1
+export OUT_PATH=/shared/fmri/bids/derivatives/nilearn/glm/level1/yesNo/model1
 export CODE_PATH=/shared/fmri/analysis/01_level1/cluster_scripts
 
 docker run --rm -e DATA_PATH=/data -e OUT_PATH=/out \
 -v $DATA_PATH:/data -v $OUT_PATH:/out -v $CODE_PATH:/code \
-zenkavi/fsl:6.0.3 python ./code/compute_contrasts.py --subnum 601 --session 01 --task binaryChoice --mnum model1 --output_space 'MNI152NLin2009cAsym_res-2' --contrasts_fn binaryChoice_model1_contrasts.json
+zenkavi/fsl:6.0.3 python ./code/compute_contrasts.py --subnum 601 --session 01 --task yesNo --mnum model1 --output_space 'MNI152NLin2009cAsym_res-2' --contrasts_fn yesNo_model1_contrasts.json
 ```
 
 ## Submit jobs for levels 1s of all subjects and sessions for both tasks
@@ -97,9 +97,14 @@ cd /shared/fmri/analysis/01_level1/cluster_scripts
 sh run_level1.sh -m model1 -t binaryChoice -s 01 -o MNI152NLin2009cAsym_res-2
 sh run_level1.sh -m model1 -t binaryChoice -s 02 -o MNI152NLin2009cAsym_res-2
 sh run_level1.sh -m model1 -t binaryChoice -s 03 -o MNI152NLin2009cAsym_res-2
+
 sh run_level1.sh -m model1 -t yesNo -s 01 -o MNI152NLin2009cAsym_res-2
 sh run_level1.sh -m model1 -t yesNo -s 02 -o MNI152NLin2009cAsym_res-2
 sh run_level1.sh -m model1 -t yesNo -s 03 -o MNI152NLin2009cAsym_res-2
+
+sh run_level1.sh -m model2 -t yesNo -s 01 -o MNI152NLin2009cAsym_res-2
+sh run_level1.sh -m model2 -t yesNo -s 02 -o MNI152NLin2009cAsym_res-2
+sh run_level1.sh -m model2 -t yesNo -s 03 -o MNI152NLin2009cAsym_res-2
 ```
 
 ## Submit jobs to compute contrasts
@@ -114,9 +119,14 @@ cd /shared/fmri/analysis/01_level1/cluster_scripts
 sh run_compute_contrasts.sh -m model1 -t binaryChoice -s 01 -o MNI152NLin2009cAsym_res-2 -c binaryChoice_model1_contrasts.json
 sh run_compute_contrasts.sh -m model1 -t binaryChoice -s 02 -o MNI152NLin2009cAsym_res-2 -c binaryChoice_model1_contrasts.json
 sh run_compute_contrasts.sh -m model1 -t binaryChoice -s 03 -o MNI152NLin2009cAsym_res-2 -c binaryChoice_model1_contrasts.json
+
 sh run_compute_contrasts.sh -m model1 -t yesNo -s 01 -o MNI152NLin2009cAsym_res-2 -c yesNo_model1_contrasts.json
 sh run_compute_contrasts.sh -m model1 -t yesNo -s 02 -o MNI152NLin2009cAsym_res-2 -c yesNo_model1_contrasts.json
 sh run_compute_contrasts.sh -m model1 -t yesNo -s 03 -o MNI152NLin2009cAsym_res-2 -c yesNo_model1_contrasts.json
+
+sh run_compute_contrasts.sh -m model2 -t yesNo -s 01 -o MNI152NLin2009cAsym_res-2 -c yesNo_model2_contrasts.json
+sh run_compute_contrasts.sh -m model2 -t yesNo -s 02 -o MNI152NLin2009cAsym_res-2 -c yesNo_model2_contrasts.json
+sh run_compute_contrasts.sh -m model2 -t yesNo -s 03 -o MNI152NLin2009cAsym_res-2 -c yesNo_model2_contrasts.json
 ```
 
 ## Push level 1 outputs back to s3
