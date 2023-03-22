@@ -264,10 +264,3 @@ def bidsify_func_events(raw_path_ = '/raw', bids_path_ = '/bids', ses_dict_ = {'
 
         print("Saving: %s"%(cur_bids_fn))
         run_events.to_csv(os.path.join(bids_path_, cur_bids_fn), sep="\t", index=False)
-
-
-# Will do this in R instead in 
-# def bidsify_beh_trialinfo():
-
-# The sent example looks like it just copies the log file and removes the header
-# def bidsify_physio():
