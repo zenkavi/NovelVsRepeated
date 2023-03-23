@@ -27,7 +27,7 @@ def plot_stat_map_matrix(reg, task, mnum, contrasts_path, map_type,
                          black_bg = False, vmax = 6, fig_w = 12, fig_h = 24,
                          space = 'MNI152NLin2009cAsym_res-2',
                          subnums = ['601', '609', '611', '619', '621', '629'], sessions = ['01', '02', '03']):
-    
+
     # Example Usage:
 
     # fig_path = '/Users/zeynepenkavi/Documents/RangelLab/NovelVsRepeated/fmri/analysis/01_level1/figs'
@@ -102,9 +102,9 @@ def plot_diff_stat_map_matrix(reg, task, mnum, contrasts_path,
                          black_bg = False, vmax = 6, fig_w = 16, fig_h = 18,
                          space = 'MNI152NLin2009cAsym_res-2',
                          subnums = ['601', '609', '611', '619', '621', '629']):
-    
+
     fig, a = plt.subplots(len(subnums), 4, figsize=(fig_w, fig_h))
-    
+
     cols = ['ses-01', 'ses-02_min_ses-01', 'ses-03_min_ses-01', 'ses-03_min_ses-02']
 
     for ax, col in zip(a[0], cols):
@@ -114,14 +114,14 @@ def plot_diff_stat_map_matrix(reg, task, mnum, contrasts_path,
     fig.subplots_adjust(top=0.95)
 
     for i, cur_sub in enumerate(subnums):
-        
+
         anat_path = os.path.join(base_path, 'derivatives/sub-' + cur_sub + '/anat')
         bg_img_fn = 'sub-'+ cur_sub + '_space-' + space + '_desc-preproc_T1w.nii.gz'
         bg_img = os.path.join(anat_path, bg_img_fn)
-        
+
         col1_img_fn = 'sub-%s_%s_task-%s_space-%s_%s_%s_tmap.nii.gz' %(cur_sub, 'ses-01', task, space, mnum, reg)
         col1_img = os.path.join(contrasts_path, task, mnum, 'sub-'+cur_sub, 'ses-01/contrasts', col1_img_fn)
-        
+
         plot_stat_map(col1_img,
                       bg_img = bg_img,
                       cut_coords = cut_coords,
@@ -131,12 +131,12 @@ def plot_diff_stat_map_matrix(reg, task, mnum, contrasts_path,
                       black_bg = black_bg,
                       axes = a[i, 0],
                       vmax = vmax)
-        
+
         for j, cur_col in enumerate(cols[1:]):
-                        
+
             fn = 'sub-%s_%s_task-%s_space-%s_%s_%s_tmap.nii.gz' %(cur_sub, cur_col, task, space, mnum, reg)
             tmap = os.path.join(contrasts_path, task, mnum, 'sub-'+cur_sub, cur_col+'/contrasts', fn)
-            
+
             plot_stat_map(tmap,
                           bg_img = bg_img,
                           cut_coords = cut_coords,
@@ -148,6 +148,20 @@ def plot_diff_stat_map_matrix(reg, task, mnum, contrasts_path,
                           vmax = vmax)
 
 def get_mean_desmat_cor(task, mnum, l1_path, save_ = True, float_format_ = '%.4f'):
+
+    # Example usage:
+
+    # task = "yesNo"
+    # mnum = "model1"
+    # l1_path = "/Users/zeynepenkavi/CpuEaters/overtrained_decisions_bidsfmri/derivatives/nilearn/glm/level1"
+    #
+    # dm1 = get_mean_desmat_cor(task, mnum, l1_path)
+    #
+    # import seaborn as sns
+    # import matplotlib.pyplot as plt
+    #
+    # plt.figure(figsize=(10, 6))
+    # heatmap = sns.heatmap(dm1, vmin=-1, vmax=1, annot=True)
 
     des_mats = glob.glob(os.path.join(l1_path, task, mnum, '**/**/*design_matrix*'))
 
@@ -163,7 +177,7 @@ def get_mean_desmat_cor(task, mnum, l1_path, save_ = True, float_format_ = '%.4f
     df_concat = pd.concat(cor_mats)
     by_row_index = df_concat.groupby(df_concat.index)
     df_means = by_row_index.mean()
-    
+
     if save_:
         out_path = os.path.join(l1_path, task, mnum)
         df_means.to_csv(os.path.join(out_path, 'task-%s_%s_mean_desmat_cor.csv'%(task, mnum)), float_format = float_format_)

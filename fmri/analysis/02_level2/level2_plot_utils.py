@@ -6,13 +6,13 @@ import numpy as np
 
 
 def filter_tmap_tfce(unc_tmap_fn, logp_threshold = 1):
-        
+
     img_path = os.path.dirname(unc_tmap_fn)
-    
+
     imgs = os.listdir(img_path)
-    
+
     tfce_imgs = [i for i in imgs if 'logp_max_tfce' in i]
-    
+
     if len(tfce_imgs) != 2:
         print("***********************************************")
         print("Did not find 2 tfce log_p images")
@@ -23,9 +23,9 @@ def filter_tmap_tfce(unc_tmap_fn, logp_threshold = 1):
         pos_pval_data = get_data(os.path.join(img_path, tfce_imgs[1]))
 
         filt_tval_data = np.where((pos_pval_data > logp_threshold) | (neg_pval_data > logp_threshold), tval_data, 0)
-        
+
         cor_tmap = new_img_like(unc_tmap_fn, filt_tval_data)
-        
+
         return cor_tmap
 
 
@@ -33,43 +33,47 @@ def plot_level2_stat_maps(reg, task, mnum, sessions, data_path, bg_img,
                          cut_coords = [8], threshold = 1.96, display_mode = 'y',
                          black_bg = False, vmax = 6, fig_w = 12, fig_h = 3,
                          space = 'MNI152NLin2009cAsym_res-2', filter_tfce = False):
-    
+
     # Example usage:
-    
-    
+
+    # from level2_plot_utils import plot_level2_stat_maps
+    # import matplotlib.pyplot as plt
+    #
     # base_path = '/Users/zeynepenkavi/CpuEaters/overtrained_decisions_bidsfmri'
-
-    # data_path = os.path.join(base_path, 'derivatives/nilearn/glm/level2/yesNo/model2/overall-mean')
-
-    # task = 'yesNo'
-    # mnum = 'model2'
-    # reg = 'valHT_par'
-
-    # sessions_dict = {'session-ind': ['ses-01', 'ses-02', 'ses-03'],
-    #                  'session-diff': ['ses-02_min_ses-01', 'ses-03_min_ses-01', 'ses-03_min_ses-02']}
-
-    # cuts_list = {'disp_mode': 'y', 'cut': 8}, {'disp_mode': 'x', 'cut': -6}, {'disp_mode': 'x', 'cut': 4}
-
-
+    #
+    # sessions_dict = {'session-ind': ['ses-01', 'ses-02', 'ses-03']}
+    #
+    # cuts_list = [{'disp_mode': 'y', 'cut': 4}, {'disp_mode': 'y', 'cut': 6}, {'disp_mode': 'y', 'cut': 11}, {'disp_mode': 'y', 'cut': 42},
+    #              {'disp_mode': 'x', 'cut': -6}, {'disp_mode': 'x', 'cut': 4}, {'disp_mode': 'x', 'cut': -10}, {'disp_mode': 'x', 'cut': 10}]
+    #
+    #
     # anat_path = os.path.join(base_path, 'derivatives/sub-601/anat')
     # bg_img_fn = 'sub-601_space-MNI152NLin2009cAsym_res-2_desc-preproc_T1w.nii.gz'
     # bg_img = os.path.join(anat_path, bg_img_fn)
-
+    #
+    # task = 'yesNo'
+    # mnum = 'model1'
+    #
     # fig_path = '/Users/zeynepenkavi/Documents/RangelLab/NovelVsRepeated/fmri/analysis/02_level2/figs'
     # out_path = os.path.join(fig_path, task, mnum)
+    #
     # if not os.path.exists(out_path):
     #     os.makedirs(out_path)
-
-    #     reg = 'stimRE_ev'
-
+    #
+    # reg = 'valDiffHT-valDiffRE'
+    #
+    # data_path = os.path.join(base_path, 'derivatives/nilearn/glm/level2/yesNo/%s/overall-mean'%(mnum))
+    #
     # for session_type, sessions in sessions_dict.items():
-
+    #
     #     for cut_coords in cuts_list:
-
+    #
     #         plot_level2_stat_maps(reg, task, mnum, sessions, data_path, bg_img, display_mode = cut_coords['disp_mode'], cut_coords = [cut_coords['cut']])
-
+    #
     #         fig_fn = task + '_' + mnum + '_' + reg + '_group-mean_' + cut_coords['disp_mode'] + '_'+ session_type + '_' + str(cut_coords['cut']) + '.jpeg'
     #         plt.savefig(os.path.join(out_path, fig_fn), transparent=False, pad_inches = 0.05, bbox_inches = 'tight')
+
+    #############
 
     fig, a = plt.subplots(1, len(sessions), figsize=(fig_w, fig_h))
 
@@ -101,4 +105,3 @@ def plot_level2_stat_maps(reg, task, mnum, sessions, data_path, bg_img,
                       black_bg = black_bg,
                       axes = a[i],
                       vmax = vmax)
-
