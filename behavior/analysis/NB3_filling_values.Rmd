@@ -132,6 +132,7 @@ dat = dat %>%
 
 dat
 ```
+
 View the filling colors for the stimuli
 
 ```{r}
@@ -258,8 +259,13 @@ ht_features = tmp %>%
   select(filling, orientation, shape) %>%
   distinct()
 
+ht_features
+```
+
+
+```{r}
 imgs = c()
-length(imgs)
+# length(imgs)
 
 for(i in 1:nrow(ht_features)){
   
@@ -273,7 +279,18 @@ for(i in 1:nrow(ht_features)){
 
 image_append(imgs)
 ```
+`
+```{r}
+# imgs # rolling preview
+i = 10
+imgs[i]
+```
 
+```{r}
+# tmp = make_stim_img(shape = ht_features$shape[i], orientation = ht_features$orientation[i]+15, filling = ht_features$filling[i])
+tmp_img = make_stim_img(shape = ht_features$shape[i], orientation = ht_features$orientation[i], filling = ht_features$filling[i]-0.2)
+tmp_img
+```
 
 ```{r}
 tmp %>%
