@@ -182,7 +182,7 @@ data_yn_clean_fmri_preproc
 data_yn_clean_fmri_preproc %>%
   filter(subnum == 621 & day == 11 & run == "01" & type == 0) %>%
   ungroup() %>%
-  select(reward_dmn, valueRef_dmn, valueStim_dmn, valueChosen_dmn, valueUnchosen_dmn, valueChosenPlusUnchosen_dmn, valueChosenMinusUnchosen_dmn, valueO_dmn, valueS_dmn, valueF_dmn) %>%
+  select(reward_dmn, valRef_dmn, valStim_dmn, valChosen_dmn, valUnchosen_dmn, valChosenPlusUnchosen_dmn, valChosenMinusUnchosen_dmn, valO_dmn, valS_dmn, valF_dmn) %>%
   gather(key, value) %>%
   group_by(key) %>%
   summarise(mean_value = round(mean(value), 5))
