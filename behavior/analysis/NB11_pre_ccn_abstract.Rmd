@@ -1,0 +1,158 @@
+---
+title: "Novel vs. repeated choice project: Pre CCN abstract analyses"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: 'hide'
+---
+
+# Set up environment and load in data
+
+```{r include=FALSE, message=FALSE}
+library(tidyverse)
+library(here)
+theme_set(theme_bw())
+helpers_path = paste0(here(),'/analysis/helpers/')
+source(paste0(helpers_path, '01_clean_behavioral_data.R'))
+fig_out_path = paste0(here(), '/outputs/fig/')
+```
+
+Add columns that will be used for plots below.
+
+```{r}
+data_yn_clean = data_yn_clean %>%
+  mutate(correct = ifelse(possiblePayoff>reference & yesChosen == 1, 1, ifelse(possiblePayoff < reference & yesChosen == 0, 1, 0))) %>%
+  mutate(type = ifelse(type == 1, "HT", "RE"),
+         week = ifelse(week == 1, "Week 1", ifelse(week == 2, "Week 2", ifelse(week == 3, "Week 3", NA))),
+         week = factor(week, levels = c("Week 1", "Week 2", "Week 3"))) %>%
+  mutate(val_diff = possiblePayoff - reference,
+         val_diff_bin = round(val_diff/50),
+         val_diff_bin_str = paste0(val_diff_bin*50-25,":",val_diff_bin*50+25),
+         val_diff_bin_str = factor(val_diff_bin_str, levels = c("-225:-175", "-175:-125", "-125:-75", "-75:-25", "-25:25", "25:75", "75:125", "125:175", "175:225")))
+
+data_bc_clean = data_bc_clean %>%
+  mutate(correct = ifelse(possiblePayoffleft>possiblePayoffright & leftChosen == 1, 1, ifelse(possiblePayoffleft<possiblePayoffright & leftChosen == 0, 1, 0))) %>%
+  mutate(type = ifelse(typeLeft == 1, "HT", "RE"),
+         week = ifelse(week == 1, "Week 1", ifelse(week == 2, "Week 2", ifelse(week == 3, "Week 3", NA))),
+         week = factor(week, levels = c("Week 1", "Week 2", "Week 3"))) %>%
+  mutate(val_diff = possiblePayoffleft - possiblePayoffright,
+         val_diff_bin = round(val_diff/50),
+         val_diff_bin_str = paste0(val_diff_bin*50-25,":",val_diff_bin*50+25),
+         val_diff_bin_str = factor(val_diff_bin_str, levels = c("-275:-225","-225:-175", "-175:-125", "-125:-75", "-75:-25", "-25:25", "25:75", "75:125", "125:175", "175:225", "225:275"))) %>%
+  filter(!is.na(val_diff_bin_str))
+```
+
+Center variables!
+
+```{r}
+data_yn_clean = data_yn_clean %>%
+  mutate(day_std = (day - mean(day))/sd(day)) %>%
+  group_by(subnum) %>%
+  mutate(val_diff_std = (val_diff - mean(val_diff))/sd(val_diff),
+         abs_val_diff = abs(val_diff),
+         abs_val_diff_std = (abs_val_diff - mean(abs_val_diff))/sd(abs_val_diff))
+```
+
+```{r}
+data_bc_clean = data_bc_clean %>%
+  mutate(day_std = (day - mean(day))/sd(day)) %>%
+  group_by(subnum) %>%
+  mutate(val_diff_std = (val_diff - mean(val_diff))/sd(val_diff),
+         abs_val_diff = abs(val_diff),
+         abs_val_diff_std = (abs_val_diff - mean(abs_val_diff))/sd(abs_val_diff))
+```
+
+
+Accuracy plot for each HT stim
+(preferably with each HT stim in the plot as well)
+
+```{r}
+subs = unique(data_yn_clean$subnum)
+
+
+plt_data = data_yn_clean %>%
+  mutate(ht_stim_num = ifelse(type == "HT", stimNum, 0)) %>%
+  filter(ht_stim_num != 0) %>%
+  group_by(day, subnum, ht_stim_num) %>%
+  summarise(mean_accuracy = mean(correct),
+            sem_accuracy = sd(correct)/sqrt(n()),
+            .groups = 'keep') %>%
+  ungroup()  %>%
+  group_by(subnum, day) %>%
+  mutate(stim_count = 1:n(),
+         stim_count = as.factor(stim_count))
+
+for(i in 1:length(subs)){
+  cur_sub = subs[i]
+  
+  p = plt_data %>%
+    filter(subnum == cur_sub) %>%
+    ggplot(aes(day, mean_accuracy, shape = stim_count))+
+    geom_point()+
+    geom_errorbar(aes(ymin = mean_accuracy - sem_accuracy, ymax = mean_accuracy + sem_accuracy), width = 0)+
+    facet_wrap(~ht_stim_num) + 
+    guides(shape = "none") + 
+    scale_shape_manual(values = c(1:12))+
+    labs(x = "Day", y = "Accuracy", title = paste0("Y/N Task sub-", cur_sub," HT stim accuracy"))+
+    theme(panel.grid = element_blank())+
+    scale_x_continuous(breaks=seq(1,11,1))
+  
+  ggsave(file=paste0(fig_out_path, 'yn_sub-',cur_sub,'_HTaccuracyOverDays.jpg'), p, height = 8, width=12, units="in")  
+}
+
+rm(plt_data, p)
+```
+
+```{r}
+plt_data = data_yn_clean %>%
+  mutate(ht_stim_num = ifelse(type == "HT", stimNum, 0)) %>%
+  filter(ht_stim_num != 0) %>%
+  group_by(day, subnum, ht_stim_num) %>%
+  summarise(mean_y = mean(log(rt)),
+            sem_y = sd(log(rt))/sqrt(n()),
+            .groups = 'keep') %>%
+  ungroup()  %>%
+  group_by(subnum, day) %>%
+  mutate(stim_count = 1:n(),
+         stim_count = as.factor(stim_count))
+
+p = ggplot()+
+  geom_point(data = group_summary, aes(day, mean_y, color = type), size = 2)+
+  geom_line(data = group_summary, aes(day, mean_y, color = type))+
+  geom_point(data = sub_summary, aes(day, mean_y, color= type, shape = as.factor(subnum)), alpha = .3, position=position_dodge(width=0.75))+
+  geom_errorbar(data = sub_summary, aes(x = day, color = type, ymin = mean_y - sem_y, ymax = mean_y + sem_y, linetype = as.factor(subnum)), width=0, alpha = .3, position=position_dodge(width=0.75))+
+  # geom_line(data = sub_summary, aes(day, mean_accuracy, color = type, linetype = as.factor(subnum)), alpha = .3)+
+  facet_wrap(~task)+
+  guides(linetype = "none")+
+  labs(x = "Day", y = "Mean Log RT", color="", shape = "")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        legend.box.margin=margin(t = -10),
+        legend.spacing.y = unit(-0.25, "cm"),
+        legend.box="vertical")+
+  scale_x_continuous(breaks=seq(1,11,1))+
+  scale_color_brewer(palette = "Dark2")
+
+for(i in 1:length(subs)){
+  cur_sub = subs[i]
+  
+  p = plt_data %>%
+    filter(subnum == cur_sub) %>%
+    ggplot(aes(day, mean_y, shape = stim_count))+
+    geom_point()+
+    geom_errorbar(aes(ymin = mean_y - sem_y, ymax = mean_y + sem_y), width = 0)+
+    facet_wrap(~ht_stim_num) + 
+    guides(shape = "none") + 
+    scale_shape_manual(values = c(1:12))+
+    labs(x = "Day", y = "Mean Log RT", title = paste0("Y/N Task sub-", cur_sub," HT stim mean log RT"))+
+    theme(panel.grid = element_blank())+
+    scale_x_continuous(breaks=seq(1,11,1))
+  
+  ggsave(file=paste0(fig_out_path, 'yn_sub-',cur_sub,'_meanLogRTOverDays.jpg'), p, height = 8, width=12, units="in")  
+}
+
+
+# ggsave(file=paste0(fig_out_path, 'ynbc_groupAndSub_meanLogRTOverDays.jpg'), p, height = 5, width=12, units="in")
+p
+```
