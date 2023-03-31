@@ -12,3 +12,4 @@ mcmc_chains/
 figure-html/
 test*
 *.asc
+behavior/outputs/fig/stims/

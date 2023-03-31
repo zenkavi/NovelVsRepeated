@@ -1,5 +1,5 @@
 ---
-title: "Novel vs. repeated choice project: Understanding how fillings are created for experimental stimuli"
+title: "Novel vs. repeated choice project: Understanding experimental stimul are created"
 output: 
   html_document:
     toc: true
@@ -12,6 +12,7 @@ library(tidyverse)
 library(janitor)
 library(here)
 library(magick)
+library(gridExtra)
 theme_set(theme_bw())
 helpers_path = paste0(here(),'/analysis/helpers/')
 source(paste0(helpers_path, '01_clean_behavioral_data.R'))
@@ -19,37 +20,7 @@ fig_out_path = paste0(here(), '/outputs/fig/')
 ```
 
 
-Matlab code from `task_YN.m` that determines the filling value for each stimulus
-
-```
-bothCol = [0.1 0.1 0.4 -99;
-            0.4 0.1 0.1 -99]; 
-
-if  mydata.filling(indextrial)>=0
-    colorStim = bothCol(1,:);
-    switch  abs(mydata.filling(indextrial))
-        case 0.4
-            colorStim(3)= 0.6;
-        case 0.6
-            colorStim(3)= 0.5;
-        case 0.85
-            colorStim(3)= 0.3;
-    end   
-else
-    colorStim = bothCol(2,:);
-    switch  abs(mydata.filling(indextrial))
-        case 0.4
-            colorStim(1)= 0.6;
-        case 0.6
-            colorStim(1)= 0.5;
-        case 0.85
-            colorStim(1)= 0.3;
-    end
-end
-colorStim(4)=abs(mydata.filling(indextrial));
-```
-
-Helper functions to create stimuli
+# Helper functions
 
 ```{r}
 convertFVToHEX = function(fillingVal){
@@ -104,6 +75,41 @@ make_stim_img = function(shape, orientation, filling){
   return(stim_img)
   
 }
+
+img_read_border_annotate = function(img_fn, annot_img=TRUE){
+  img = image_read(img_fn)
+  
+  if(grepl('ht', img_fn)){
+    img = image_border(img,"black","1x1")
+    
+    # Remove HT from image file name for annotation
+    img_fn = paste0(strsplit(img_fn, "_")[[1]][1], '.png')
+  }
+  
+  if(annot_img){
+    
+    cur_sub = as.numeric(strsplit(strsplit(img_fn, "/")[[1]][11], "-")[[1]][2])
+    cur_stimNum = as.numeric(strsplit(strsplit(img_fn, "/")[[1]][12], '\\.')[[1]][1])
+    
+    cur_stimDat = data_yn_clean %>%
+      filter((subnum == cur_sub) & (stimNum == cur_stimNum)) %>%
+      select(orientation, filling, shape, valueO, valueF, valueS) %>%
+      distinct() %>%
+      mutate(meanPayoff = round(100 * ((valueS + valueO + valueF)/2) ))
+      
+    cur_shape = cur_stimDat$shape
+    cur_orient = cur_stimDat$orientation
+    cur_filling = cur_stimDat$filling
+    cur_val = cur_stimDat$meanPayoff
+    
+    annot = paste0("s: ", cur_shape, ", o: ", cur_orient, ", f: ", cur_filling, " \nvalue: ", cur_val)
+  
+    img = image_annotate(img, annot, size=80, gravity = "north")
+  }
+  
+  
+  return(grid::rasterGrob(img))
+}
 ```
 
 Save some images of sample stimuli
@@ -116,6 +122,38 @@ image_write(tmp, path = paste0(fig_out_path, 'sample_stim1.png'), format = 'png'
 tmp = make_stim_img(shape = 2, orientation = 120, filling = 0.4)
 
 image_write(tmp, path = paste0(fig_out_path, 'sample_stim2.png'), format = 'png')
+```
+
+# Filling values
+
+Matlab code from `task_YN.m` that determines the filling value for each stimulus
+
+```
+bothCol = [0.1 0.1 0.4 -99;
+            0.4 0.1 0.1 -99]; 
+
+if  mydata.filling(indextrial)>=0
+    colorStim = bothCol(1,:);
+    switch  abs(mydata.filling(indextrial))
+        case 0.4
+            colorStim(3)= 0.6;
+        case 0.6
+            colorStim(3)= 0.5;
+        case 0.85
+            colorStim(3)= 0.3;
+    end   
+else
+    colorStim = bothCol(2,:);
+    switch  abs(mydata.filling(indextrial))
+        case 0.4
+            colorStim(1)= 0.6;
+        case 0.6
+            colorStim(1)= 0.5;
+        case 0.85
+            colorStim(1)= 0.3;
+    end
+end
+colorStim(4)=abs(mydata.filling(indextrial));
 ```
 
 What are the HEX codes for the filling values in the data?
@@ -146,6 +184,27 @@ ggplot()+
         panel.border = element_blank())
 ```
 
+BUT THIS WOULD MEAN THERE ARE ONLY 9 INSTEAD OF 11 VALUES WHICH WOULD REPEAT FILLING VALUES!
+
+In `createStimuli.m` there is also this conversion of the third column of `all` which contains the filling values.
+
+It converts the 
+
+```
+all(all(:,3)==0.2,3)= 0.05;
+all(all(:,3)==0.4,3)= 0.17;
+all(all(:,3)==0.6,3)= 0.4;
+all(all(:,3)==0.8,3)= 0.6;
+all(all(:,3)==1,3)= 0.85;
+all(all(:,3)==-0.2,3)= -0.05;
+all(all(:,3)==-0.4,3)= -0.17;
+all(all(:,3)==-0.6,3)= -0.4;
+all(all(:,3)==-0.8,3)= -0.6;
+all(all(:,3)==-1,3)= -0.85;
+```
+
+# Stim outcomes
+
 The stimuli are not gambles. If they are chosen to be played they always yield the same reward. If they are not chosen then they yield the reference amount.
 
 ```{r}
@@ -165,6 +224,8 @@ data_yn_clean %>%
   tabyl(possiblePayoff)
 ```
 
+# Number of stims/session
+
 How many HT and RE trials in each session?
 
 ```{r}
@@ -176,6 +237,8 @@ How many HT and RE trials in each imaging session?
 ```{r}
 with(data_bc_clean, table(typeLeft, day, fmri, subnum))
 ```
+
+# Attribute values
 
 3 features: 
 Shape 6
@@ -210,115 +273,138 @@ round(((all(:,4) + all(:,5) + all(:,6))/2)*100)
 
 ```{r}
 dat %>%
-  select(valueO, valueF, valueS, possiblePayoff) %>%
+  select(orientation, filling, shape, valueO, valueF, valueS, possiblePayoff) %>%
   mutate(guess = round(100 * ((valueS + valueO + valueF)/2) ))
 ```
 
-How many times have a subject seen each stim before the first scan? 80 = 8 runs with 10 times for each HT stim in each run
 
-```{r}
-tmp = data_yn_clean %>%
-  filter(day %in% c(1,2)) %>%
-  mutate(stimNumType = ifelse(type == 0, 0, stimNum)) %>%
-  select(subnum, day, stimNum, stimNumType) 
+# Save stims for all subjects
 
-with(tmp, table(subnum, stimNumType))
-```
+Makes and save all stim images for all subjects
 
-Based on your HT stimuli what can you infer/learn about the RE?
+```{r eval=FALSE}
 
-```{r}
-tmp = data_yn_clean %>%
-  filter(subnum == "601")
-```
+# 726*6 = 4356 rows
 
-What HT stimuli and payoffs has this subject seen before the first scan?
-
-```{r}
-tmp %>%
-  select(subnum, day, type, possiblePayoff, stimNum, valueO, valueF, valueS, orientation, filling, shape) %>%
-  filter((type == 1) & (day %in% c(1, 2))) %>%
-  mutate(mean_payoff = round(100 * ((valueS + valueO + valueF)/2) ),
-         stimString = paste0("O: ", orientation, ", F: ", filling, ", S: ", shape)) %>%
-  ggplot(aes(possiblePayoff))+
-  geom_density()+
-  geom_vline(aes(xintercept = 0), color="gray")+
-  facet_wrap(~stimString)+
-  theme(panel.grid = element_blank(),
-        axis.text.y = element_blank(),
-        axis.ticks.y = element_blank())+
-  labs(y = "")
-
-```
-
-What do these HT stims look like?
-
-```{r}
-ht_features = tmp %>%
-  filter(type == 1) %>%
-  select(filling, orientation, shape) %>%
+stim_info = data_yn_clean %>%
+  select(subnum, stimNum, orientation, filling, shape, type) %>%
+  group_by(subnum, stimNum) %>%
   distinct()
 
-ht_features
-```
-
-
-```{r}
-imgs = c()
-# length(imgs)
-
-for(i in 1:nrow(ht_features)){
+# for(i in 1:10){ #test before running it for all stims
+for(i in 1:nrow(stim_info)){
+  cur_sub = stim_info$subnum[i]
+  cur_type = stim_info$type[i]
+  cur_stimNum = stim_info$stimNum[i]
   
-  if(length(imgs) == 0){
-    imgs = make_stim_img(shape = ht_features$shape[i], orientation = ht_features$orientation[i], filling = ht_features$filling[i])
-  } else{
-    imgs = c(imgs, make_stim_img(shape = ht_features$shape[i], orientation = ht_features$orientation[i], filling = ht_features$filling[i])) 
-    }
+  cur_shape = stim_info$shape[i]
+  cur_orient = stim_info$orientation[i]
+  cur_filling = stim_info$filling[i]
+  
+  if(cur_type == 1 | cur_type == "HT"){
+    cur_stimNum = paste0(cur_stimNum, '_ht')
+  }
+  
+  img_fn = paste0(fig_out_path, 'stims/sub-', cur_sub, '/', cur_stimNum, '.png')
+  
+  if(!file.exists(img_fn)){
+    tmp = make_stim_img(shape = cur_shape, orientation = cur_orient, filling = cur_filling)
+  
+    image_write(tmp, path = img_fn, format = 'png')
+    
+    dev.off()
+  }
   
 }
 
-image_append(imgs)
-```
-`
-```{r}
-# imgs # rolling preview
-i = 10
-imgs[i]
+
+
+
 ```
 
+# Stim and payoff report for each subject
+
+
 ```{r}
-# tmp = make_stim_img(shape = ht_features$shape[i], orientation = ht_features$orientation[i]+15, filling = ht_features$filling[i])
-tmp_img = make_stim_img(shape = ht_features$shape[i], orientation = ht_features$orientation[i], filling = ht_features$filling[i]-0.2)
-tmp_img
+cur_sub = 601
+
+img_path = paste0(fig_out_path, 'stims/sub-', cur_sub, '/')
+
+img_fns = list.files(img_path)
+img_fns = gtools::mixedsort(img_fns)
+
+img_fns = img_fns[1:20]
+
+rl = lapply(paste0(img_path, img_fns), img_read_border_annotate)
+
+ml <- marrangeGrob(rl, nrow=11, ncol=11)
+
+# ml
+
+ggsave(paste0(fig_out_path, "tmp.pdf"), ml)
+# ggsave(paste0(fig_out_path, "sub-",cur_sub, "_stims.pdf"), ml)
 ```
 
+Order stims by 
+shape in pages
+filling in columns
+orientation in rows
+
 ```{r}
-tmp %>%
-  tabyl(shape, valueS)
+cur_sub = 601
+
+img_path = paste0(fig_out_path, 'stims/sub-', cur_sub, '/')
+
+shape_vals = sort(unique(data_yn_clean$shape))
+orient_vals = sort(unique(data_yn_clean$orient))
+
+sl = list()
+pl = list()
+
+for(i in 1:length(shape_vals)){
+  cur_shape = shape_vals[i]
+  
+  for(j in 1:length(orient_vals)){
+    cur_orient = orient_vals[j]
+    
+    stimsOrder = data_yn_clean %>%
+      filter((subnum == cur_sub) & (shape == cur_shape) & (orientation == cur_orient)) %>%
+      select(subnum, stimNum, orientation, filling, shape, type, valueO, valueF, valueS) %>%
+      distinct() %>%
+      arrange(filling) %>%
+      mutate(stimNum = ifelse(type == 1, paste0(stimNum, "_ht.png"), paste0(stimNum, ".png")))
+    
+    stimsOrder = stimsOrder$stimNum
+    
+    rl = lapply(paste0(img_path, stimsOrder), img_read_border_annotate)
+    
+    sl[[j]] = arrangeGrob(grobs = rl, nrow=11, ncol=1)
+  }
+  
+  pl[[i]] = arrangeGrob(grobs = sl, nrow = 1, ncol = 11)
+}
+
+ml <- marrangeGrob(grobs = pl, nrow=1, ncol=1)
+
+ggsave(paste0(fig_out_path, "tmp3.pdf"), ml)
+# ggsave(paste0(fig_out_path, "sub-",cur_sub, "_stims.pdf"), ml)
 ```
 
+Because one filling value has two values there are two stimuli with different mean values 
+
 ```{r}
-tmp %>%
-  tabyl(filling, valueF)
+data_yn_clean %>%
+  filter(subnum == cur_sub) %>%
+  select(subnum, stimNum, orientation, filling, shape, type, valueO, valueF, valueS) %>%
+  distinct() %>%
+  arrange(shape, filling, orientation) %>%
+  filter((shape == 1) & (orientation == 15) & (filling == .4))
 ```
 
-```{r}
-tmp %>%
-  tabyl(orientation, valueO)
-```
-
-When is the filling value .4 worth .4 versus .6? Is it for some value of shape or orientation? Doesn't seem so.
+# Annotate plot with stim images
 
 ```{r}
-tmp %>% 
-  filter(filling == .4) %>%
-  tabyl(filling, shape, valueF)
-```
 
-```{r}
-tmp %>% 
-  filter(filling == .4) %>%
-  tabyl(filling, orientation, valueF)
 ```
 
 When the value different is large RE and HT Rts don't look very different.
