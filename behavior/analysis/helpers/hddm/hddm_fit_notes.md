@@ -2,12 +2,10 @@
 
 ## Push behavior files to S3
 
-Make sure parameter posteriors are pushed
-
 ```
 export INPUTS_DIR=/Users/zeynepenkavi/Documents/RangelLab/NovelVsRepeated/behavior/inputs
 
-docker run --rm -it -v ~/.aws:/root/.aws -v $INPUTS_DIR:/inputs amazon/aws-cli s3 sync /inputs s3://novel-vs-repeated/behavior/inputs  --exclude "*.DS_Store"
+docker run --rm -it -v ~/.aws:/root/.aws -v $INPUTS_DIR:/inputs amazon/aws-cli s3 sync /inputs s3://novel-vs-repeated/behavior/inputs
 ```
 
 ## Push cluster setup and model fitting scripts to s3
@@ -50,13 +48,14 @@ export KEYS_PATH=/Users/zeynepenkavi/aws_keys
 pcluster ssh --cluster-name rjagswiener-cluster -i $KEYS_PATH/rjagswiener-cluster.pem
 ```
 
-## Copy the behavioral data and parameter posteriors from s3 to cluster
+## Copy the behavioral data from s3 to cluster
 
 ```
 export DATA_PATH=/shared/behavior/inputs
 
-aws s3 sync s3://novel-vs-repeated/behavior/inputs $DATA_PATH --exclude '*' --include 'data_choiceYN.csv' --include 'data_choiceBC.csv' --include 'yn_hddm_mcmc_draws.csv'
+aws s3 sync s3://novel-vs-repeated/behavior/inputs $DATA_PATH --exclude '*' --include 'data_choiceYN.csv' --include 'data_choiceBC.csv'
 ```
+
 ## Copy model fitting code from s3 to cluster
 
 ```
@@ -65,12 +64,12 @@ export CODE_PATH=/shared/behavior/analysis/helpers
 aws s3 sync s3://novel-vs-repeated/behavior/analysis/helpers $CODE_PATH
 ```
 
-## Test simulating on single subject on head node
+## Test fitting on single subject on head node
 
 ```
 export DATA_PATH=/shared/behavior
 
-docker run --rm -it -v $DATA_PATH:/behavior -w /behavior zenkavi/rjagswiener:0.0.3 Rscript --vanilla /behavior/analysis/helpers/ddm/sim_yn_ddm.R --subnum 611 --cond HT --day 2 --n_samples 10
+docker run --rm -it -v $DATA_PATH:/behavior -w /behavior zenkavi/rjagswiener:0.0.3 Rscript --vanilla /behavior/analysis/helpers/hddm/fit_yn_hddm.R --type HT --day 2
 ```
 
 ## Submit jobs for levels 1s of all subjects and sessions for both tasks
@@ -80,8 +79,10 @@ Only a few examples listed below
 ```
 cd /shared/behavior/analysis/helpers/cluster_scripts
 
-sh run_sim_yn_hddm.sh -s 611 -c HT -d 4
-sh run_sim_yn_hddm.sh -s 629 -c RE -d 8
+sh run_fit_yn_hddm_rjags.sh -s HT -d 4
+sh run_fit_yn_hddm_rjags.sh -s RE -d 4
+
+sh run_fit_bc_hddm_rjags.sh -s HT -d 6
 ```
 
 ## Push outputs back to s3
@@ -91,12 +92,12 @@ export OUT_PATH=/shared/behavior/inputs
 aws s3 sync $OUT_PATH s3://novel-vs-repeated/behavior/inputs
 ```
 
-## Download simulated data
+## Download contrasts you want to visualize
 
 ```
-export INPUTS_DIR=/Users/zeynepenkavi/CpuEaters/NovelVsRepeated/behavior/inputs
+export INPUTS_DIR=/Users/zeynepenkavi/Documents/RangelLab/NovelVsRepeated/behavior/inputs
 
-docker run --rm -it -v ~/.aws:/root/.aws -v $INPUTS_DIR:/inputs amazon/aws-cli s3 sync s3://novel-vs-repeated/behavior/inputs /inputs --exclude "*" --include "yn_sim_ddm_*.csv"
+docker run --rm -it -v ~/.aws:/root/.aws -v $INPUTS_DIR:/inputs amazon/aws-cli s3 sync s3://novel-vs-repeated/behavior/inputs /inputs --exclude '*' --include '*YN_HDDM_FIT*'
 ```
 
 ## Delete cluster

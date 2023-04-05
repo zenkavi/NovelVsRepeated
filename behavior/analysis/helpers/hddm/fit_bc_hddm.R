@@ -10,15 +10,16 @@ set.seed(38992)
 # Usage
 #######################
 
-# Rscript --vanilla fit_yn_ddm.R --type HT --sub 601
-# Rscript --vanilla fit_yn_ddm.R --type RE --sub 619
+# Rscript --vanilla fit_bc_hddm.R --type HT --day 2
+# Rscript --vanilla fit_bc_hddm.R --type HT --day 5
+# Rscript --vanilla fit_bc_hddm.R --type RE --day 6
 
 #######################
 # Parse input arguments
 #######################
 option_list = list(
   make_option("--type", type="character"),
-  make_option("--sub", type="character")
+  make_option("--day", type="character")
 )
 
 opt_parser = OptionParser(option_list=option_list)
@@ -30,71 +31,58 @@ if(opt$type == "HT"){
   stim_type = 0
 }
 
-# day_num = as.numeric(opt$day)
-sub_num = as.numeric(opt$sub)
+day_num = as.numeric(opt$day)
+
+if(day_num %in% c(3, 7, 11)){
+  print("This is a scan day. Fit aDDM instead.")
+}
 
 stim_type_str = opt$type
-# day_num_str = paste0("day_", day_num)
-subnum_str = paste0("sub-", sub_num)
-fn = paste0('YN_HDDM_FIT_', stim_type_str, '_', subnum_str)
+day_num_str = paste0("day_", day_num)
+fn = paste0('BC_HDDM_FIT_', stim_type_str, '_', day_num_str)
 
-data <- read.csv(paste0(here(), '/inputs/data_choiceYN.csv'))
-model_fn <- file.path(here(), "analysis/helpers/ddm/yn_ddm_jags.txt")
+data <- read.csv(paste0(here(), '/inputs/data_choiceBC.csv'))
+model_fn <- file.path(here(), "analysis/helpers/hddm/bc_hddm_jags.txt")
 out_path <- file.path(here(), "inputs")
 
-#
-# # # some data variables: # # #
-#
-# yesChosen -> 1 for yes, 0 for no
-# possiblePayoff -> value of seem option
-# rt -> reaction time in seconds
-# trialNum -> trial number
-# subnum -> subject number
 
 ### prepare data
-## Hierarchy
 # subject numbers
-# subjs <- unique(data$subnum)
-
-# day numbers
-days <- unique(data$day)
+subjs <- unique(data$subnum)
 
 # RT is positive if yes/stim chosen, negative if no/reference chosen
 data = data %>%
-  filter(reference != -99) %>%
-  filter(rt > .3 & rt < 5) %>% # discard very long and short RT trials
+  filter(rt < 5) %>% # discard very long RT trials
+  filter(fmri == 0) %>% #fit this only to non scan sessions
   group_by(subnum) %>%
-  mutate(possiblePayoff_std = possiblePayoff - mean(possiblePayoff)) %>%
-  # filter((type %in% stim_type) & (day %in% day_num)) %>%
-  filter((type == stim_type) & (subnum == sub_num)) %>%
-  mutate(rtPN = ifelse(yesChosen == 1, rt, (-1)*rt))
+  mutate(possiblePayoffleft_std = possiblePayoffleft - mean(possiblePayoffleft),
+         possiblePayoffright_std = possiblePayoffright - mean(possiblePayoffright)) %>%
+  filter((typeLeft %in% stim_type) & (day %in% day_num)) %>%
+  mutate(rtPN = ifelse(leftChosen == 1, rt, (-1)*rt),
+         leftval = possiblePayoffleft_std,
+         rightval = possiblePayoffright_std)
 
-print(paste0("N Rows in data that will be modeled: ", nrow(data), " stim_type = ", stim_type, " subnum = ", sub_num))
-
-#non decision time = rt - total fixation time
-#data$ndt<- data$rt - data$totfix
-# you can decide whether to fit the ndt or give it as input to the model
+print(paste0("N Rows in data that will be modeled: ", nrow(data), " stim_type = ", stim_type, " day = ", day_num))
 
 # NB BEFORE FITTING THE MODEL MAKE SURE YOU HAVE NO NAN or NA IN YOUR DATA
 
 #--------------------------------#--------------------------------
 
-# idxP = as.numeric(ordered(data$subnum)) #makes a sequentially numbered subj index
-idxP = as.numeric(ordered(data$day)) #makes a sequentially numbered day index
+idxP = as.numeric(ordered(data$subnum)) #makes a sequentially numbered subj index
 
-v_stim = data$possiblePayoff_std
-v_ref = data$reference
+v_left = data$leftval
+v_right = data$rightval
 
 # proportion of fixations to the left option (nb. fixright = 1-gazeL)
 # gazeL = data$fixleft/data$totfix
 
 # rt to fit
-y = data$rtPN
+y= data$rtPN
 
 # number of trials
 N = length(y)
 
-# number of subjects/days
+# number of subjects
 ns = length(unique(idxP))
 
 
@@ -103,7 +91,7 @@ ns = length(unique(idxP))
 
 # data
 # dat <- dump.format(list(N=N, y=y, idxP=idxP, v_left=v_left,v_right=v_right, gazeL=gazeL, ns=ns))
-dat <- dump.format(list(N=N, y=y, idxP=idxP, v_stim=v_stim, v_ref=v_ref, ns=ns))
+dat <- dump.format(list(N=N, y=y, idxP=idxP, v_left=v_left, v_right=v_right, ns=ns))
 
 # create random values for the inital values of noise mean and variance
 alpha.mu1 = as.vector(matrix(1.3 + rnorm(1)*0.2,1,1))
@@ -138,4 +126,3 @@ suuum<-summary(results)
 
 save(results, file=file.path(out_path, paste0("results_", fn,".RData")) )
 write.csv(suuum, file=file.path(out_path, paste0("summary_", fn ,".csv")) )
-

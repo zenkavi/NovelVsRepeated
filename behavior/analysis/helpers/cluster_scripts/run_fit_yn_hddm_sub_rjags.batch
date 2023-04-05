@@ -10,4 +10,4 @@
 
 export DATA_PATH=/shared/behavior
 
-docker run --rm -v $DATA_PATH:/behavior -w /behavior zenkavi/rjagswiener:0.0.3 Rscript --vanilla /behavior/analysis/helpers/ddm/fit_yn_sub_ddm.R --type {TYPE} --sub {SUB}
+docker run --rm -v $DATA_PATH:/behavior -w /behavior zenkavi/rjagswiener:0.0.3 Rscript --vanilla /behavior/analysis/helpers/hddm/fit_yn_sub_hddm.R --type {TYPE} --sub {SUB}

@@ -10,8 +10,8 @@ set.seed(38992)
 # Usage
 #######################
 
-# Rscript --vanilla sim_yn_ddm.R --cond HT --day 2 --subnum 601 --n_samples 10
-# Rscript --vanilla sim_yn_ddm.R --cond RE --day 6 --subnum 619
+# Rscript --vanilla sim_yn_hddm.R --cond HT --day 2 --subnum 601 --n_samples 10
+# Rscript --vanilla sim_yn_hddm.R --cond RE --day 6 --subnum 619
 
 #######################
 # Parse input arguments
@@ -160,5 +160,5 @@ pred_data = sim_subj_cond_day_nsamples(n_samples, cur_sub, cur_cond, cur_day)
 # Save output
 #########################
 
-fn = file.path(here(), "inputs", paste0('yn_sim_ddm_sub-', cur_sub,'_', cur_cond, '_day-', cur_day, '.csv'))
+fn = file.path(here(), "inputs", paste0('yn_sim_hddm_sub-', cur_sub,'_', cur_cond, '_day-', cur_day, '.csv'))
 write.csv(pred_data, fn, row.names = F)

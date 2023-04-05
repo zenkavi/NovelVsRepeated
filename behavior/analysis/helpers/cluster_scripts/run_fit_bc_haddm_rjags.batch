@@ -10,4 +10,4 @@
 
 export DATA_PATH=/shared/behavior
 
-docker run --rm -v $DATA_PATH:/behavior -w /behavior zenkavi/rjagswiener:0.0.3 Rscript --vanilla /behavior/analysis/helpers/addm/fit_bc_addm.R --type {STIM} --day {DAY}
+docker run --rm -v $DATA_PATH:/behavior -w /behavior zenkavi/rjagswiener:0.0.3 Rscript --vanilla /behavior/analysis/helpers/haddm/fit_bc_haddm.R --type {STIM} --day {DAY}
