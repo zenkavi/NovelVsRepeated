@@ -17,102 +17,8 @@ library(gridExtra)
 theme_set(theme_bw())
 helpers_path = paste0(here(),'/analysis/helpers/')
 source(paste0(helpers_path, '01_clean_behavioral_data.R'))
+source(paste0(helpers_path, '03_stim_img_helpers.R'))
 fig_out_path = paste0(here(), '/outputs/fig/')
-```
-
-# Helper functions
-
-```{r}
-convertFVToHEX = function(fillingVal){
-  
-  if (is.na(fillingVal)){
-    hex_code = NA
-  } else {
-    bothCol = matrix(data = c(.1 , .1, .4, -99, .4, .1, .1, -99), byrow=T, nrow=2, ncol=4)
-  
-  if(fillingVal>=0){
-    colorStim = bothCol[1,]
-    colorStim[3] = ifelse(abs(fillingVal)==.4, .6, ifelse(abs(fillingVal)==.6,.5, ifelse(abs(fillingVal)==.85, .3, colorStim[3])))
-    
-  } else{
-    colorStim = bothCol[2,]
-    colorStim[1] = ifelse(abs(fillingVal)==.4, .6, ifelse(abs(fillingVal)==.6,.5, ifelse(abs(fillingVal)==.85, .3, colorStim[1])))
-  }
-  
-  colorStim[4] = abs(fillingVal)
-  
-  hex_code = rgb(colorStim[1], colorStim[2], colorStim[3], colorStim[4])
-  }
-  
-  return(hex_code)
-}
-
-make_stim_img = function(shape, orientation, filling){
-  
-  blank = image_blank(width = 800, height = 800, color = "none")
-  
-  # Needs to be run in terminal or all at one in the chunk
-  img = image_draw(blank)
-  
-  bg_hex = convertFVToHEX(filling)
-  
-  symbols(400, 400, circles = 200, bg = bg_hex, inches = FALSE, add = TRUE, lwd = 6)
-  
-  bg_circle = image_read(image_write(img))
-  
-  
-  shape_img = image_read(paste0('/Users/zeynepenkavi/Downloads/alldata/data_task/pilot5_fmri_1/task_scan/shapes/shape', shape, '.png'))
-  
-  tilted_nofill_img = shape_img %>% 
-    image_background("none") %>%
-    image_scale("200") %>%
-    image_rotate(orientation)
-  
-  tilted_nofill_img = image_read(image_write(tilted_nofill_img))
-  
-  offset_x = 200 + (200 - (image_info(tilted_nofill_img)$width/2))
-  offset_y = 200 + (200 - (image_info(tilted_nofill_img)$height/2))
-  inset_offset = paste0('+', offset_x, '+', offset_y)
-  stim_img = image_composite(bg_circle,  tilted_nofill_img, operator = "Over", offset = inset_offset)
-  
-  return(stim_img)
-  
-}
-
-img_read_border_annotate = function(img_fn, annot_img=TRUE){
-  img = image_read(img_fn)
-  
-  if(grepl('ht', img_fn)){
-    img = image_border(img,"black","1x1")
-    
-    # Remove HT from image file name for annotation
-    img_fn = paste0(strsplit(img_fn, "_")[[1]][1], '.png')
-  }
-  
-  if(annot_img){
-    
-    cur_sub = as.numeric(strsplit(strsplit(img_fn, "/")[[1]][11], "-")[[1]][2])
-    cur_stimNum = as.numeric(strsplit(strsplit(img_fn, "/")[[1]][12], '\\.')[[1]][1])
-    
-    cur_stimDat = data_yn_clean %>%
-      filter((subnum == cur_sub) & (stimNum == cur_stimNum)) %>%
-      select(orientation, filling, shape, valueO, valueF, valueS) %>%
-      distinct() %>%
-      mutate(meanPayoff = round(100 * ((valueS + valueO + valueF)/2) ))
-      
-    cur_shape = cur_stimDat$shape
-    cur_orient = cur_stimDat$orientation
-    cur_filling = cur_stimDat$filling
-    cur_val = cur_stimDat$meanPayoff
-    
-    annot = paste0("s: ", cur_shape, ", o: ", cur_orient, ", f: ", cur_filling, " \nvalue: ", cur_val)
-  
-    img = image_annotate(img, annot, size=80, gravity = "north")
-  }
-  
-  
-  return(grid::rasterGrob(img))
-}
 ```
 
 Save some images of sample stimuli
@@ -133,28 +39,28 @@ Matlab code from `task_YN.m` that determines the filling value for each stimulus
 
 ```
 bothCol = [0.1 0.1 0.4 -99;
-            0.4 0.1 0.1 -99]; 
+0.4 0.1 0.1 -99]; 
 
 if  mydata.filling(indextrial)>=0
-    colorStim = bothCol(1,:);
-    switch  abs(mydata.filling(indextrial))
-        case 0.4
-            colorStim(3)= 0.6;
-        case 0.6
-            colorStim(3)= 0.5;
-        case 0.85
-            colorStim(3)= 0.3;
-    end   
+colorStim = bothCol(1,:);
+switch  abs(mydata.filling(indextrial))
+case 0.4
+colorStim(3)= 0.6;
+case 0.6
+colorStim(3)= 0.5;
+case 0.85
+colorStim(3)= 0.3;
+end   
 else
-    colorStim = bothCol(2,:);
-    switch  abs(mydata.filling(indextrial))
-        case 0.4
-            colorStim(1)= 0.6;
-        case 0.6
-            colorStim(1)= 0.5;
-        case 0.85
-            colorStim(1)= 0.3;
-    end
+colorStim = bothCol(2,:);
+switch  abs(mydata.filling(indextrial))
+case 0.4
+colorStim(1)= 0.6;
+case 0.6
+colorStim(1)= 0.5;
+case 0.85
+colorStim(1)= 0.3;
+end
 end
 colorStim(4)=abs(mydata.filling(indextrial));
 ```
@@ -353,7 +259,7 @@ for(i in 1:nrow(stim_info)){
   
   if(!file.exists(img_fn)){
     tmp = make_stim_img(shape = cur_shape, orientation = cur_orient, filling = cur_filling)
-  
+    
     image_write(tmp, path = img_fn, format = 'png')
     
     dev.off()
@@ -394,11 +300,8 @@ shape in pages
 filling in columns
 orientation in rows
 
-```{r}
-# cur_sub = 601
-
+```{r eval=FALSE}
 subnums = sort(unique(data_yn_clean$subnum))
-subnums = subnums[-1]
 
 shape_vals = sort(unique(data_yn_clean$shape))
 orient_vals = sort(unique(data_yn_clean$orient))
@@ -408,79 +311,86 @@ repList = list("-0.85" = 1, "-0.6" = 2, "-0.4" = 4, "-0.2" = 5, "0" = 6, "0.2" =
 
 
 for(cur_sub in subnums){
-  print(paste0("Starting sub-", cur_sub))
   
-  img_path = paste0(fig_out_path, 'stims/sub-', cur_sub, '/')
+  fn = paste0(fig_out_path, "sub-",cur_sub, "_stims.pdf")
   
-  sl = list()
-  pl = list()
-  
-  # Make first info page with payoff info
-  tmp = data_yn_clean %>%
-    filter(subnum == cur_sub)
-  
-  t1 = tableGrob(with(tmp, table(valueO, orientation)))
-  t2 = tableGrob(with(tmp, table(valueF, filling)))
-  t3 = tableGrob(with(tmp, table(valueS, shape)))
-  
-  stimsOrder = data_yn_clean %>%
-    filter((subnum == cur_sub) & (type == 1)) %>%
-    select(subnum, stimNum, orientation, filling, shape, type, valueO, valueF, valueS) %>%
-    distinct() %>%
-    mutate(stimNum = ifelse(type == 1, paste0(stimNum, "_ht.png"), paste0(stimNum, ".png")))
-  
-  stimsOrder = stimsOrder$stimNum
-  
-  rl = lapply(paste0(img_path, stimsOrder), img_read_border_annotate)
-  
-  ht_stims = arrangeGrob(grobs = rl, nrow=3, ncol=4)
-  
-  info_page = arrangeGrob(grobs = list(t1, t2, ht_stims, t3), nrow = 2, ncols = 2, widths = c(5, 5), heights = c(3.5, 3.5))
-  
-  # Add first page of reward info and HT stims
-  pl[[1]] = info_page
-  
-  for(i in 1:length(shape_vals)){
-    cur_shape = shape_vals[i]
+  if(!file.exists(fn)){
+    print(paste0("Starting sub-", cur_sub))
     
-    for(j in 1:length(orient_vals)){
-      cur_orient = orient_vals[j]
+    img_path = paste0(fig_out_path, 'stims/sub-', cur_sub, '/')
+    
+    sl = list()
+    pl = list()
+    
+    # Make first info page with payoff info
+    tmp = data_yn_clean %>%
+      filter(subnum == cur_sub)
+    
+    t1 = tableGrob(with(tmp, table(valueO, orientation)))
+    t2 = tableGrob(with(tmp, table(valueF, filling)))
+    t3 = tableGrob(with(tmp, table(valueS, shape)))
+    
+    stimsOrder = data_yn_clean %>%
+      filter((subnum == cur_sub) & (type == 1)) %>%
+      select(subnum, stimNum, orientation, filling, shape, type, valueO, valueF, valueS) %>%
+      distinct() %>%
+      mutate(stimNum = ifelse(type == 1, paste0(stimNum, "_ht.png"), paste0(stimNum, ".png")))
+    
+    stimsOrder = stimsOrder$stimNum
+    
+    rl = lapply(paste0(img_path, stimsOrder), img_read_border_annotate)
+    
+    ht_stims = arrangeGrob(grobs = rl, nrow=3, ncol=4)
+    
+    info_page = arrangeGrob(grobs = list(t1, t2, ht_stims, t3), nrow = 2, ncols = 2, widths = c(5, 5), heights = c(3.5, 3.5))
+    
+    # Add first page of reward info and HT stims
+    pl[[1]] = info_page
+    
+    for(i in 1:length(shape_vals)){
+      cur_shape = shape_vals[i]
       
-      stimsOrder = data_yn_clean %>%
-        filter((subnum == cur_sub) & (shape == cur_shape) & (orientation == cur_orient)) %>%
-        select(subnum, stimNum, orientation, filling, shape, type, valueO, valueF, valueS) %>%
-        distinct() %>%
-        arrange(filling) %>%
-        mutate(stimNum = ifelse(type == 1, paste0(stimNum, "_ht.png"), paste0(stimNum, ".png")))
-      
-      fillTable = table(stimsOrder$filling)
-      
-      stimsOrder = stimsOrder$stimNum
-      
-      rl = lapply(paste0(img_path, stimsOrder), img_read_border_annotate)
-      
-      if (length(rl) != 11){
-        if(length(names(fillTable)) == 8){ #if there is no stim for a filling level
-          repSlot = repList[!names(repList) %in% names(fillTable)][[1]] - 1
-        } else{ #if there is one fewer stims for .4 or -0.4 filling levels
-          repSlot = repList[names(which(fillTable != c(1,1,2,1,1,1,2,1,1)))][[1]] - 1
+      for(j in 1:length(orient_vals)){
+        cur_orient = orient_vals[j]
+        
+        stimsOrder = data_yn_clean %>%
+          filter((subnum == cur_sub) & (shape == cur_shape) & (orientation == cur_orient)) %>%
+          select(subnum, stimNum, orientation, filling, shape, type, valueO, valueF, valueS) %>%
+          distinct() %>%
+          arrange(filling) %>%
+          mutate(stimNum = ifelse(type == 1, paste0(stimNum, "_ht.png"), paste0(stimNum, ".png")))
+        
+        fillTable = table(stimsOrder$filling)
+        
+        stimsOrder = stimsOrder$stimNum
+        
+        rl = lapply(paste0(img_path, stimsOrder), img_read_border_annotate)
+        
+        if (length(rl) != 11){
+          if(length(names(fillTable)) == 8){ #if there is no stim for a filling level
+            repSlot = repList[!names(repList) %in% names(fillTable)][[1]] - 1
+          } else{ #if there is one fewer stims for .4 or -0.4 filling levels
+            repSlot = repList[names(which(fillTable != c(1,1,2,1,1,1,2,1,1)))][[1]] - 1
+          }
+          rl = append(rl, list(blank), repSlot)
         }
-        rl = append(rl, list(blank), repSlot)
+        
+        #One column of shape and orientation for 11 filling levels
+        sl[[j]] = arrangeGrob(grobs = rl, nrow=11, ncol=1)
       }
       
-      #One column of shape and orientation for 11 filling levels
-      sl[[j]] = arrangeGrob(grobs = rl, nrow=11, ncol=1)
+      # 11 columns for one shape and all levels of orientation and filling
+      pl[[i+1]] = arrangeGrob(grobs = sl, nrow = 1, ncol = 11)
     }
     
-    # 11 columns for one shape and all levels of orientation and filling
-    pl[[i+1]] = arrangeGrob(grobs = sl, nrow = 1, ncol = 11)
+    # Arrange each shape on separate page
+    ml <- marrangeGrob(grobs = pl, nrow=1, ncol=1)
+    
+    ggsave(paste0(fig_out_path, "sub-",cur_sub, "_stims.pdf"), ml, width = 11, height = 8)
+    print(paste0("Done saving sub-", cur_sub))
   }
   
-  # Arrange each shape on separate page
-  ml <- marrangeGrob(grobs = pl, nrow=1, ncol=1)
   
-  ggsave(paste0(fig_out_path, "sub-",cur_sub, "_stims.pdf"), ml, width = 11, height = 8)
-  print(paste0("Done saving sub-", cur_sub))
 }
 
 rm(img_path, sl, pl, tmp, t1, t2, t3, stimsOrder, rl, ht_stims, info_page, cur_shape, cur_orient, cur_sub, fillTable, repSlot, ml, subnums, shape_vals, orient_vals, blank, repList)
@@ -490,7 +400,7 @@ Because one filling value has two values there are two stimuli with different me
 
 ```{r}
 tmp = data_yn_clean %>%
-      filter(subnum == cur_sub)
+  filter(subnum == cur_sub)
 
 t1 = tableGrob(with(tmp, table(valueO, orientation)))
 t2 = tableGrob(with(tmp, table(valueF, filling)))
@@ -499,11 +409,11 @@ t3 = tableGrob(with(tmp, table(valueS, shape)))
 stimsOrder = data_yn_clean %>%
   filter((subnum == cur_sub) & (type == 1)) %>%
   select(subnum, stimNum, orientation, filling, shape, type, valueO, valueF, valueS) %>%
-      distinct() %>%
+  distinct() %>%
   mutate(stimNum = ifelse(type == 1, paste0(stimNum, "_ht.png"), paste0(stimNum, ".png")))
 
 stimsOrder = stimsOrder$stimNum
-    
+
 rl = lapply(paste0(img_path, stimsOrder), img_read_border_annotate)
 
 ht_stims = arrangeGrob(grobs = rl, nrow=3, ncol=4)
@@ -513,13 +423,8 @@ info_page = arrangeGrob(grobs = list(t1, t2, ht_stims, t3), nrow = 2, ncols = 2,
 ggsave(paste0(fig_out_path, "tmp5.pdf"), info_page, width = 11, height = 8)
 ```
 
-# Annotate plot with stim images
 
-```{r}
-
-```
-
-When the value different is large RE and HT Rts don't look very different.
+When the value difference is large RE and HT Rts don't look very different.
 Is this because of generalizing a particularly eggregious attribute value?
 
 What does a high value difference RE and HT stimuli look like? What attribute drives their value to the extreme?
@@ -528,4 +433,3 @@ Are the RE trials particularly slow for low value difference because ...
 
 When deciding for an HT stim is it more habit-like? Less conscious? More a quick memory retrieval?
 
-hipp-value correlation?
