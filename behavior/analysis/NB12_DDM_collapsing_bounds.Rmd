@@ -19,6 +19,16 @@ rm(data_bc_clean)
 fig_out_path = paste0(here(), '/outputs/fig/')
 ```
 
+**Make sure to demean value and exclude too fast trials before fitting**
+
+```{r}
+data_yn_clean = data_yn_clean %>%
+  # filter(reference != -99) %>% 
+  # filter(rt > .3 & rt < 5) %>% # discard very long and short RT trials
+  group_by(subnum, day, type) %>%
+  mutate(possiblePayoff_dmn = possiblePayoff - mean(possiblePayoff)) 
+```
+
 # Exploring priors and parameter space
 
 What does a subject prior for drift rates look like in the HDDM
@@ -51,6 +61,7 @@ dat %>%
   theme(legend.position = "bottom")+
   labs(fill="", x="")
 ```
+
 If these are the priors you use what is the prior probability of any given d from a uniform prior?
 
 (So you can use it to multiply with the likelihood to get an unnormalized posterior?)
@@ -152,10 +163,256 @@ dat %>%
   theme_bw()+
   theme(legend.position = "bottom")
 ```
-# Test simulation function
+
+# Test trial simulation function
 
 Simulate a few trials
 
 ```{r}
+source(paste0(helpers_path, '/ddm/yn_ddm.R'))
+```
 
+```{r}
+cur_d = .03
+cur_sigma = .02
+cur_nonDecisionTime = 300 #ms
+cur_bias = 0
+cur_barrierDecay = .002
+
+cur_valStim = .25
+cur_valRef = 0
+
+# cur_valStim = data_yn_clean$possiblePayoff_dmn[100]
+# cur_valRef = data_yn_clean$reference[100] #mean is 0 so not mutated
+
+tmp = sim_trial(d = cur_d, sigma = cur_sigma, nonDecisionTime = cur_nonDecisionTime, bias = cur_bias, barrierDecay = cur_barrierDecay, ValStim = cur_valStim, ValRef = cur_valRef, debug = T)
+
+tmp
+```
+
+```{r}
+tmp$debug_df %>%
+  mutate(RDV = ifelse(time<31, NA, RDV)) %>%
+  ggplot()+
+  geom_line(aes(time, RDV), color = "#F8766D", size = 2)+
+  geom_line(aes(time, barrier))+
+  geom_line(aes(time, -barrier))+
+  theme(panel.grid = element_blank())+
+  geom_hline(aes(yintercept = 0), linetype = "dashed")+
+  geom_hline(aes(yintercept = 1), linetype = "dashed")+
+  geom_hline(aes(yintercept = -1), linetype = "dashed")+
+  geom_vline(aes(xintercept = 30), color = "gray")+
+  labs(x = "Timestep (in 10 ms)")
+```
+
+# Test task simulation function
+
+```{r}
+source(paste0(helpers_path, '/ddm/sim_yn_ddm.R'))
+```
+
+```{r}
+cur_d = .003
+cur_sigma = .002
+cur_nonDecisionTime = 300 #ms
+cur_bias = 0
+cur_barrierDecay = .002
+
+sub_stims = data_yn_clean %>%
+  filter((subnum == 611) & (day == 4) & (type == 1))
+
+# names(sub_stims)
+
+sim_trial_list = list("model1" = sim_trial)
+
+tmp = sim_task(stimuli = sub_stims, model_name = "model1", sim_trial_list_ = sim_trial_list, d = cur_d, sigma = cur_sigma, nonDecisionTime = cur_nonDecisionTime, bias = cur_bias, barrierDecay = cur_barrierDecay, debug = T)
+
+tmp %>%
+  mutate(absValDiff = abs(ValStim - ValRef)) %>%
+  arrange(absValDiff)
+
+
+```
+
+# Test trial likelihood function
+
+```{r}
+source(paste0(helpers_path, '/ddm/yn_ddm.R'))
+```
+
+```{r}
+i = 1
+
+tmp[i,]
+```
+
+```{r}
+fit_trial(d = cur_d, sigma = cur_sigma, nonDecisionTime = cur_nonDecisionTime, bias = cur_bias, barrierDecay = cur_barrierDecay, choice = tmp$choice[i], reactionTime = tmp$reactionTime[i], ValStim = tmp$ValStim[i], ValRef = tmp$ValRef[i], approxStateStep = 0.01)
+```
+```{r}
+fit_trial(d = cur_d*10, sigma = cur_sigma*10, nonDecisionTime = cur_nonDecisionTime, bias = cur_bias, barrierDecay = cur_barrierDecay, choice = tmp$choice[i], reactionTime = tmp$reactionTime[i], ValStim = tmp$ValStim[i], ValRef = tmp$ValRef[i])
+```
+
+Debug:
+- why is likelihood is 0 for true parameters: state space too coarse! Reducing `approxStateSpace` from .1 to .01 gave a non-zero likelihood in the correct direction.
+
+- and fails to compute for false combination of parameters
+
+```{r}
+d = cur_d*10
+sigma = cur_sigma *10
+nonDecisionTime = cur_nonDecisionTime
+bias = cur_bias
+barrierDecay = cur_barrierDecay
+
+i = 1
+choice = tmp$choice[i]
+reactionTime = tmp$reactionTime[i]
+ValStim = tmp$ValStim[i]
+ValRef = tmp$ValRef[i]
+
+barrier = 1
+timeStep = 10
+approxStateStep = 0.1
+
+if(choice == "yes" | choice == 1){
+    choice = 1
+  } else if (choice == "no" | choice == 0){
+    choice = -1
+  }
+
+if(reactionTime < 100){
+    reactionTime = reactionTime *1000
+  }
+```
+
+
+```{r}
+nonDecIters = nonDecisionTime / timeStep
+
+numTimeSteps = floor(reactionTime / timeStep)
+
+initialBarrier = barrier
+barrier = rep(initialBarrier, numTimeSteps)
+
+# The values of the barriers can change over time
+for(t in seq(2, numTimeSteps, 1)){
+  barrier[t] = initialBarrier / (1 + (barrierDecay * (t-1)) )
+}
+```
+
+```{r}
+# Obtain correct state step.
+
+# Make state space finer if the average drift rate is too small
+mu_mean = d * (ValStim - ValRef)
+
+i = 1
+while(i < 4){
+  if(approxStateStep < mu_mean){
+      print("Reducing approxStateStep...")
+      approxStateStep = approxStateStep/10
+      print(paste0("New approxStateStep = ", approxStateStep))
+  }
+  i = i+1
+}
+
+# If attempt to reduce the state step has failed notify
+if(approxStateStep < mu_mean){
+  print("State space reduction failed.")
+}
+
+halfNumStateBins = round(initialBarrier / approxStateStep)
+stateStep = initialBarrier / (halfNumStateBins + 0.5)
+
+# The vertical axis is divided into states.
+states = seq(-1*(initialBarrier) + (stateStep / 2), initialBarrier - (stateStep / 2), stateStep)
+```
+
+```{r}
+# Find the state corresponding to the bias parameter.
+biasState = which.min(abs(states - bias))
+
+# Initial probability for all states is zero, except the bias state,
+# for which the initial probability is one.
+# p(bottom boundary) is the first value! Don't get confused by seeing it at the top
+prStates = matrix(data = 0, nrow = length(states), ncol = numTimeSteps)
+prStates[biasState,1] = 1
+
+# The probability of crossing each barrier over the time of the trial.
+probUpCrossing = rep(0, numTimeSteps)
+probDownCrossing = rep(0, numTimeSteps)
+
+# Rows of these matrices correspond to array elements in python
+
+# How much change is required from each state to move onto every other state. From the smallest state (bottom boundary) to the largest state (top boundary)
+changeMatrix = matrix(data = states, ncol=length(states), nrow=length(states), byrow=FALSE) - matrix(data = states, ncol=length(states), nrow=length(states), byrow=TRUE)
+
+# How much change is required from each state to cross the up or down barrier at each time point
+changeUp = matrix(data = barrier, ncol=numTimeSteps, nrow=length(states), byrow=TRUE) - matrix(data = states, ncol=numTimeSteps, nrow=length(states), byrow=FALSE)
+changeDown = matrix(data = -barrier, ncol=numTimeSteps, nrow=length(states), byrow=TRUE) - matrix(data = states, ncol=numTimeSteps, nrow=length(states), byrow=FALSE)
+
+elapsedNDT = 0
+
+# LOOP of state probability updating up to reaction time
+
+# Start at 2 to match python indexing that starts at 0
+for(nextTime in 2:numTimeSteps){
+# for(nextTime in 2:35){  
+  curTime = nextTime - 1
+  if (elapsedNDT < nonDecIters){
+    mu = 0
+    elapsedNDT = elapsedNDT + 1
+  } else{
+    mu = mu_mean
+  }
+  
+  # Update the probability of the states that remain inside the
+  # barriers. The probability of being in state B is the sum, over
+  # all states A, of the probability of being in A at the previous
+  # time step times the probability of changing from A to B. We
+  # multiply the probability by the stateStep to ensure that the area
+  # under the curves for the probability distributions probUpCrossing
+  # and probDownCrossing add up to 1.
+  # If there is barrier decay and there are next states that are cross
+  # the decayed barrier set their probabilities to 0.
+  prStatesNew = (stateStep * (dnorm(changeMatrix, mu, sigma) %*% prStates[,curTime]) )
+  prStatesNew[states >= barrier[nextTime] | states <= -barrier[nextTime]] = 0
+  prStatesNew = round(prStatesNew, 10)
+  
+  # Calculate the probabilities of crossing the up barrier and the
+  # down barrier. This is given by the sum, over all states A, of the
+  # probability of being in A at the previous timestep times the
+  # probability of crossing the barrier if A is the previous state.
+  tempUpCross = (prStates[,curTime] %*% (1 - pnorm(changeUp[,nextTime], mu, sigma)))[1]
+  tempUpCross = round(tempUpCross, 10)
+  tempDownCross = (prStates[,curTime] %*% (pnorm(changeDown[,nextTime], mu, sigma)))[1]
+  tempDownCross = round(tempDownCross, 10)
+  
+  # Renormalize to cope with numerical approximations.
+  sumIn = sum(prStates[,curTime])
+  sumCurrent = sum(prStatesNew) + tempUpCross + tempDownCross
+  prStatesNew = prStatesNew * sumIn / sumCurrent
+  tempUpCross = tempUpCross * sumIn / sumCurrent
+  tempDownCross = tempDownCross * sumIn / sumCurrent
+  
+  # Update the probabilities of each state and the probabilities of
+  # crossing each barrier at this timestep.
+  prStates[, nextTime] = prStatesNew
+  probUpCrossing[nextTime] = tempUpCross
+  probDownCrossing[nextTime] = tempDownCross
+}
+```
+
+```{r}
+likelihood = 0
+if (choice == 1){ # Choice was yes/top boundary
+  if (probUpCrossing[numTimeSteps] > 0){
+    likelihood = probUpCrossing[numTimeSteps]
+  }
+} else if (choice == -1){
+  if(probDownCrossing[numTimeSteps] > 0){
+    likelihood = probDownCrossing[numTimeSteps]
+  }
+}
 ```

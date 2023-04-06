@@ -76,7 +76,7 @@ print(paste0("N Rows in data that will be modeled: ", nrow(data), " stim_type = 
 idxP = as.numeric(ordered(data$subnum)) #makes a sequentially numbered subj index
 
 v_stim = data$possiblePayoff_std
-v_ref = data$reference
+v_ref = data$reference # Did not mutate because mean per subject, per day, per type is 0  
 
 # proportion of fixations to the left option (nb. fixright = 1-gazeL)
 # gazeL = data$fixleft/data$totfix

@@ -17,5 +17,6 @@ To build (in reverse order):
 `run_optim_yn_ddm.sh`
 `run_optim_yn_ddm.batch`
 `optim_yn_ddm.R` ~ `ddm_Roptim.R` [don't need to use visualMLE `optim_save`]
+`sim_yn_ddm.R` ~ `sim_task.R`
 `fit_yn_ddm.R` ~ `fit_task.R`
 `yn_ddm.R` ~ `ddm_model.R`
