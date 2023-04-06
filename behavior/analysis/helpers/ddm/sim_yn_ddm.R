@@ -54,13 +54,13 @@ sim_task = function(stimuli, model_name, sim_trial_list_ = sim_trial_list, ...){
   # Print arguments that will be used for simulation if in debug mode
   if(kwargs$debug){
     print(paste0("Simulating task with parameters: d = ", kwargs$d,
-             ", sigma = ", kwargs$sigma,
-             ", non-decision time = ", kwargs$nonDecisionTime,
-             ", bias = ", kwargs$bias,
-             ", barrierDecay = ", kwargs$barrierDecay,
-             ", maxIter = ", kwargs$maxIter,
-             ", timeStep = ", kwargs$timeStep))
-  }
+                 ", sigma = ", kwargs$sigma,
+                 ", non-decision time = ", kwargs$nonDecisionTime,
+                 ", bias = ", kwargs$bias,
+                 ", barrierDecay = ", kwargs$barrierDecay,
+                 ", maxIter = ", kwargs$maxIter,
+                 ", timeStep = ", kwargs$timeStep))
+    }
 
   #register it to be used by %dopar%
   # doParallel::registerDoParallel(cl = my.sim.cluster)
@@ -72,12 +72,12 @@ sim_task = function(stimuli, model_name, sim_trial_list_ = sim_trial_list, ...){
     .combine = 'rbind'
   ) %dopar% {
     # Simulate RT and choice for a single trial with given DDM parameters and trial stimulus values
-      sim_trial(d = kwargs$d, sigma = kwargs$sigma,
-                barrier = kwargs$barrier, nonDecisionTime = kwargs$nonDecisionTime, barrierDecay = kwargs$barrierDecay,
-                bias = kwargs$bias, timeStep = kwargs$timeStep, maxIter = kwargs$maxIter,
-                ValStim = ValStim, ValRef = ValRef)
+    sim_trial(d = kwargs$d, sigma = kwargs$sigma,
+              barrier = kwargs$barrier, nonDecisionTime = kwargs$nonDecisionTime, barrierDecay = kwargs$barrierDecay,
+              bias = kwargs$bias, timeStep = kwargs$timeStep, maxIter = kwargs$maxIter,
+              ValStim = ValStim, ValRef = ValRef)
 
-    }
+  }
 
   # parallel::stopCluster(cl = my.sim.cluster)
 

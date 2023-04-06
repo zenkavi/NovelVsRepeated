@@ -240,24 +240,28 @@ fit_trial = function(d, sigma, nonDecisionTime, bias, barrierDecay, barrier=1, t
     probUpCrossing[nextTime] = tempUpCross
     probDownCrossing[nextTime] = tempDownCross
 
-    if(probUpCrossing[nextTime] < probUpCrossing[curTime]){
-      print("Numerical approximations will break. Drift rate might be too high.")
-      break
-    }
+    checksFailed = 0
+    checks = c(sumIn == 0,
+               is.nan(tempDownCross),
+               is.na(tempDownCross),
+               is.nan(tempUpCross),
+               is.na(tempUpCross),
+               (!is.nan(probUpCrossing[nextTime]) & probUpCrossing[nextTime] < probUpCrossing[curTime]),
+               (!is.nan(probDownCrossing[nextTime]) & probDownCrossing[nextTime] < probDownCrossing[curTime]))
 
-    if(probDownCrossing[nextTime] < probDownCrossing[curTime]){
-      print("Numerical approximations will break. Drift rate might be too high.")
+    if(sum(checks)>0){
+      print("Numerical approximations will break. Drift rate might be too high. Or RT too fast.")
       break
     }
   }
 
   likelihood = 0
   if (choice == 1){ # Choice was yes/top boundary
-    if (probUpCrossing[numTimeSteps] > 0){
+    if (!is.nan(probUpCrossing[numTimeSteps]) & !is.na(probUpCrossing[numTimeSteps]) & probUpCrossing[numTimeSteps] > 0){
       likelihood = probUpCrossing[numTimeSteps]
     }
   } else if (choice == -1){
-    if(probDownCrossing[numTimeSteps] > 0){
+    if(!is.nan(probDownCrossing[numTimeSteps]) & !is.na(probDownCrossing[numTimeSteps]) & probDownCrossing[numTimeSteps] > 0){
       likelihood = probDownCrossing[numTimeSteps]
     }
   }

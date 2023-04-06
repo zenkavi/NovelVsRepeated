@@ -252,6 +252,25 @@ fit_trial(d = cur_d, sigma = cur_sigma, nonDecisionTime = cur_nonDecisionTime, b
 ```{r}
 fit_trial(d = cur_d*10, sigma = cur_sigma*10, nonDecisionTime = cur_nonDecisionTime, bias = cur_bias, barrierDecay = cur_barrierDecay, choice = tmp$choice[i], reactionTime = tmp$reactionTime[i], ValStim = tmp$ValStim[i], ValRef = tmp$ValRef[i])
 ```
+
 ```{r}
 fit_trial(d = cur_d/2, sigma = cur_sigma, nonDecisionTime = cur_nonDecisionTime, bias = cur_bias, barrierDecay = cur_barrierDecay, choice = tmp$choice[i], reactionTime = tmp$reactionTime[i], ValStim = tmp$ValStim[i], ValRef = tmp$ValRef[i])
+```
+
+# Test task fitting functions
+
+```{r}
+source(paste0(helpers_path, '/ddm/fit_yn_ddm.R'))
+```
+
+```{r}
+cur_d = .003
+cur_sigma = .002
+cur_nonDecisionTime = 300 #ms
+cur_bias = 0
+cur_barrierDecay = .002
+
+fit_trial_list = list("model1" = fit_trial)
+
+fit_task(data_ = tmp[1:100,], model_name_ = "model1", pars_ = list(d = cur_d, sigma = cur_sigma, nonDecisionTime = cur_nonDecisionTime, bias = cur_bias, barrierDecay = cur_barrierDecay) , fix_pars_ = list(), fit_trial_list_ = fit_trial_list, debug=FALSE)
 ```
