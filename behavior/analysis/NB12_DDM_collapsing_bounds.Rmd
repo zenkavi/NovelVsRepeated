@@ -1,0 +1,161 @@
+---
+title: "Novel vs. repeated choice project: DDM with collapsing bounds"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: 'hide'
+---
+
+Set up environment and load in data
+
+```{r include=FALSE, message=FALSE}
+library(tidyverse)
+library(here)
+theme_set(theme_bw())
+helpers_path = paste0(here(),'/analysis/helpers/')
+source(paste0(helpers_path, '01_clean_behavioral_data.R'))
+rm(data_bc_clean)
+fig_out_path = paste0(here(), '/outputs/fig/')
+```
+
+# Exploring priors and parameter space
+
+What does a subject prior for drift rates look like in the HDDM
+
+```
+d.mu ~ dunif(.00001, 50)
+d.pr ~ dgamma(1, .1)
+d[subject] ~ dnorm(d.mu, d.pr) [trimmed at 10e-5, 50]
+
+```
+
+```{r}
+n = 10000
+
+dat = data.frame(d.mu = runif(n, .00001, 50), d.pr = rgamma(n, 1, .1))
+
+for(i in 1:nrow(dat)){
+  dat$d[i] = rnorm(1, dat$d.mu[i], dat$d.pr[i])
+}
+
+dat$d = ifelse(dat$d > 50, 50, ifelse(dat$d<.000001, .000001, dat$d))
+
+dat %>%
+  # select(d) %>%
+  gather(key, value) %>%
+  # mutate(key = factor(key, levels = c("d.pr", "d.mu", "d"))) %>%
+  ggplot(aes(value, fill=key))+
+  geom_histogram(position = "identity", alpha = .5, bins = 30)+
+  facet_wrap(~key, scales = "free")+
+  theme(legend.position = "bottom")+
+  labs(fill="", x="")
+```
+If these are the priors you use what is the prior probability of any given d from a uniform prior?
+
+(So you can use it to multiply with the likelihood to get an unnormalized posterior?)
+
+If it's a uniform prior then it doesn't really matter since the prior will be the same for all values.
+
+In the HDDMs d and sigma have uniform priors (yay!)
+
+What about the bias and ndt? Uniform-ish too.
+
+```
+bias[p] ~ dbeta(bias.alpha, bias.beta)T(0.01,0.99)
+
+bias.alpha <- bias.mu * bias.kappa
+bias.beta <- (1 - bias.mu) * bias.kappa
+bias.mu ~ dbeta(2, 2)T(0.01,0.99)
+bias.kappa ~ dgamma(1, 0.5)
+```
+
+**NOTE: This is operationalized in the HDDM, ranging from 0 to 1 and no bias is .5**
+
+```{r}
+n = 10000
+
+dat = data.frame(bias.kappa = rgamma(n, 1, .5), bias.mu = rbeta(n, 2, 2))
+
+dat$bias.mu = ifelse(dat$bias.mu < .01, .01, ifelse(dat$bias.mu > .99, .99, dat$bias.mu))
+
+dat = dat %>%
+  mutate(bias.beta = (1 - bias.mu) * bias.kappa,
+         bias.alpha = bias.mu * bias.kappa)
+
+for(i in 1:nrow(dat)){
+  dat$bias[i] = rbeta(1, dat$bias.alpha[i], dat$bias.beta[i])
+}
+
+dat$bias = ifelse(dat$bias < .01, .01, ifelse(dat$bias > .99, .99, dat$bias))
+
+dat %>%
+  gather(key, value) %>%
+  ggplot(aes(value, fill=key))+
+  geom_histogram(position = "identity", alpha = .5, bins = 30)+
+  facet_wrap(~key, scales = "free")+
+  theme(legend.position = "bottom")+
+  labs(fill="", x="")
+
+```
+
+```
+theta.p[p] ~ dnorm(ndt.mu, ndt.pr)T(0.01, 1)
+ndt.pr ~ dgamma(1, 0.1)
+ndt.mu ~ dunif(0, 1)
+```
+
+```{r}
+n = 10000
+
+dat = data.frame(ndt.mu = runif(n, 0, 1), ndt.pr = rgamma(n, 1, .1))
+
+for(i in 1:nrow(dat)){
+  dat$ndt[i] = rnorm(1, dat$ndt.mu[i], dat$ndt.pr[i])
+}
+
+dat$ndt = ifelse(dat$ndt < .01, .01, ifelse(dat$ndt > 1, 1, dat$ndt))
+
+dat %>%
+  gather(key, value) %>%
+  ggplot(aes(value, fill=key))+
+  geom_histogram(position = "identity", alpha = .5, bins = 30)+
+  facet_wrap(~key, scales = "free")+
+  theme(legend.position = "bottom")+
+  labs(fill="", x="")
+
+```
+Ok, so if we assume uniform (uninformative) priors for every parameter (d, sigma, bias, ndt, barrierDecay) then the posteriors will be proportional to the likelihood. 
+
+What are reasonable values for barrierDecay? Prior: Uniform[0, .01]; min = 0, max = 0.02
+
+```{r}
+decay_vals = c(0, .001, .01, .02, .1, 1)
+
+dat = data.frame()
+
+for(cur_dv in decay_vals){
+  cur_dat = data.frame(t = c(0:maxIter),
+                 initialBarrier = 1, 
+                 barrierDecay = cur_dv)
+  
+  cur_dat = cur_dat %>%
+    mutate(barrier = initialBarrier / (1 + (barrierDecay * t)))
+  
+  dat = rbind(dat, cur_dat)
+}
+
+dat %>%
+  mutate(barrierDecay = factor(barrierDecay, levels = decay_vals)) %>%
+  ggplot(aes(t, barrier, color = barrierDecay))+
+  geom_point()+
+  theme_bw()+
+  theme(legend.position = "bottom")
+```
+# Test simulation function
+
+Simulate a few trials
+
+```{r}
+
+```
