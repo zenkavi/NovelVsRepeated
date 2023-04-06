@@ -77,9 +77,9 @@ sim_trial = function(d, sigma, nonDecisionTime, bias, barrierDecay, barrier=1, t
   if(is.na(RT)){
     # Choose whatever you have most evidence for
     if (RDV >= 0){
-      choice = "left"
+      choice = "yes"
     } else if (RDV <= 0){
-      choice = "right"
+      choice = "no"
     }
     if(debug){
       print("Max iterations reached.")
@@ -143,18 +143,18 @@ fit_trial = function(d, sigma, nonDecisionTime, bias, barrierDecay, barrier=1, t
 
   i = 1
   while(i < 4){
-    if(approxStateStep < mu_mean){
-        print("Reducing approxStateStep...")
-        approxStateStep = approxStateStep/10
-        print(paste0("New approxStateStep = ", approxStateStep))
-        }
-    i = i+1
+    if(approxStateStep > abs(mu_mean)){
+      print("Reducing approxStateStep...")
+      approxStateStep = approxStateStep/10
+      print(paste0("New approxStateStep = ", approxStateStep))
     }
+    i = i+1
+  }
 
   # If attempt to reduce the state step has failed notify
-  if(approxStateStep < mu_mean){
+  if(approxStateStep > abs(mu_mean)){
     print("State space reduction failed.")
-    }
+  }
 
   halfNumStateBins = round(initialBarrier / approxStateStep)
   stateStep = initialBarrier / (halfNumStateBins + 0.5)
@@ -168,29 +168,35 @@ fit_trial = function(d, sigma, nonDecisionTime, bias, barrierDecay, barrier=1, t
   # Initial probability for all states is zero, except the bias state,
   # for which the initial probability is one.
   # p(bottom boundary) is the first value! Don't get confused by seeing it at the top
+
   prStates = matrix(data = 0, nrow = length(states), ncol = numTimeSteps)
   prStates[biasState,1] = 1
 
   # The probability of crossing each barrier over the time of the trial.
+
   probUpCrossing = rep(0, numTimeSteps)
   probDownCrossing = rep(0, numTimeSteps)
 
   # Rows of these matrices correspond to array elements in python
 
   # How much change is required from each state to move onto every other state. From the smallest state (bottom boundary) to the largest state (top boundary)
+
   changeMatrix = matrix(data = states, ncol=length(states), nrow=length(states), byrow=FALSE) - matrix(data = states, ncol=length(states), nrow=length(states), byrow=TRUE)
 
   # How much change is required from each state to cross the up or down barrier at each time point
+
   changeUp = matrix(data = barrier, ncol=numTimeSteps, nrow=length(states), byrow=TRUE) - matrix(data = states, ncol=numTimeSteps, nrow=length(states), byrow=FALSE)
   changeDown = matrix(data = -barrier, ncol=numTimeSteps, nrow=length(states), byrow=TRUE) - matrix(data = states, ncol=numTimeSteps, nrow=length(states), byrow=FALSE)
 
   elapsedNDT = 0
-  
+
   # LOOP of state probability updating up to reaction time
 
   # Start at 2 to match python indexing that starts at 0
   for(nextTime in 2:numTimeSteps){
+
     curTime = nextTime - 1
+
     if (elapsedNDT < nonDecIters){
       mu = 0
       elapsedNDT = elapsedNDT + 1
@@ -207,6 +213,7 @@ fit_trial = function(d, sigma, nonDecisionTime, bias, barrierDecay, barrier=1, t
     # and probDownCrossing add up to 1.
     # If there is barrier decay and there are next states that are cross
     # the decayed barrier set their probabilities to 0.
+
     prStatesNew = (stateStep * (dnorm(changeMatrix, mu, sigma) %*% prStates[,curTime]) )
     prStatesNew[states >= barrier[nextTime] | states <= -barrier[nextTime]] = 0
 
@@ -214,10 +221,12 @@ fit_trial = function(d, sigma, nonDecisionTime, bias, barrierDecay, barrier=1, t
     # down barrier. This is given by the sum, over all states A, of the
     # probability of being in A at the previous timestep times the
     # probability of crossing the barrier if A is the previous state.
+
     tempUpCross = (prStates[,curTime] %*% (1 - pnorm(changeUp[,nextTime], mu, sigma)))[1]
     tempDownCross = (prStates[,curTime] %*% (pnorm(changeDown[,nextTime], mu, sigma)))[1]
 
     # Renormalize to cope with numerical approximations.
+
     sumIn = sum(prStates[,curTime])
     sumCurrent = sum(prStatesNew) + tempUpCross + tempDownCross
     prStatesNew = prStatesNew * sumIn / sumCurrent
@@ -226,9 +235,20 @@ fit_trial = function(d, sigma, nonDecisionTime, bias, barrierDecay, barrier=1, t
 
     # Update the probabilities of each state and the probabilities of
     # crossing each barrier at this timestep.
+
     prStates[, nextTime] = prStatesNew
     probUpCrossing[nextTime] = tempUpCross
     probDownCrossing[nextTime] = tempDownCross
+
+    if(probUpCrossing[nextTime] < probUpCrossing[curTime]){
+      print("Numerical approximations will break. Drift rate might be too high.")
+      break
+    }
+
+    if(probDownCrossing[nextTime] < probDownCrossing[curTime]){
+      print("Numerical approximations will break. Drift rate might be too high.")
+      break
+    }
   }
 
   likelihood = 0
