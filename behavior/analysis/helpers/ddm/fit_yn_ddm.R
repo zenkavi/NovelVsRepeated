@@ -118,7 +118,7 @@ fit_task = function(data_, model_name_, pars_, fix_pars_ = list(), fit_trial_lis
 
 # Usage in optim
 # optim(par, get_task_nll, data_, par_names, model_name)
-get_task_nll = function(data_, par_, par_names_, model_name_, fix_pars_){
+get_task_nll = function(data_, par_, par_names_, model_name_, fix_pars_ = list()){
 
   # Initialize parameters
   # Different models will have different sets of parameters. Optim will optimize over all the parameters it is passed in
