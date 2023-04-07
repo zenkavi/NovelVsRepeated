@@ -12,6 +12,8 @@ Set up environment and load in data
 ```{r include=FALSE, message=FALSE}
 library(tidyverse)
 library(here)
+library(grid)
+library(gridExtra)
 theme_set(theme_bw())
 helpers_path = paste0(here(),'/analysis/helpers/')
 source(paste0(helpers_path, '01_clean_behavioral_data.R'))
@@ -148,8 +150,8 @@ dat = data.frame()
 
 for(cur_dv in decay_vals){
   cur_dat = data.frame(t = c(0:maxIter),
-                 initialBarrier = 1, 
-                 barrierDecay = cur_dv)
+                       initialBarrier = 1, 
+                       barrierDecay = cur_dv)
   
   cur_dat = cur_dat %>%
     mutate(barrier = initialBarrier / (1 + (barrierDecay * t)))
@@ -307,7 +309,7 @@ for(cur_sub in subnums){
       
       start_num = 1
       while(start_num < 100){
-      # while(start_num < 10){
+        # while(start_num < 10){
         start_d = runif(1, .00001, 1)
         start_sigma = runif(1, 0.000001, 2)
         start_nonDecisionTime = runif(1, 10, 500)
@@ -349,4 +351,165 @@ out
 
 ```{r}
 get_task_nll(data_ = tmp, par_ = c(cur_d, cur_sigma, cur_nonDecisionTime, cur_bias, cur_barrierDecay), par_names_ = c("d", "sigma", "nonDecisionTime", "bias", "barrierDecay"), model_name_ = "model1")
+```
+
+## Single subject estimates
+
+Read in the estimates for a single subject:
+
+```{r}
+cur_sub = 601
+
+all_files = list.files(path = paste0(here(), '/inputs/'), pattern= paste0("optim_YN_DDM_FIT_sub-",cur_sub))
+
+optim_out= data.frame()
+
+for (cur_file in all_files){
+  cur_in = read.csv(paste0(here(), '/inputs/', cur_file))
+  optim_out = rbind(optim_out, cur_in)
+}
+
+optim_out
+```
+
+Distribution of estimates
+
+```{r}
+optim_out %>%
+  select(d, sigma, nonDecisionTime, bias, barrierDecay) %>%
+  gather(key, value) %>%
+  ggplot(aes(value, fill = key))+
+  geom_histogram(bins = 30, alpha = .5)+
+  facet_wrap(~key, scales = "free")+
+  theme(legend.position = "none",
+        panel.grid = element_blank())
+```
+
+```{r}
+p = optim_out %>%
+  select(d, sigma, nonDecisionTime, bias, barrierDecay, day, type) %>%
+  gather(key, value, -day, -type) %>%
+  group_by(key, day, type) %>%
+  summarise(mean_par = mean(value), 
+            sem_par = sd(value)/sqrt(n()), .groups = "keep") %>%
+  mutate(type = ifelse(type == 1, "HT", "RE"),
+         key = factor(key, levels = c("d", "sigma", "nonDecisionTime", "bias", "barrierDecay"))) %>%
+  ggplot(aes(day, mean_par, color = type))+
+  geom_point(position = position_dodge(width=.5))+
+  geom_errorbar(aes(ymin = mean_par - sem_par, ymax = mean_par + sem_par), width = .1, position = position_dodge(width=.5)) +
+  facet_wrap(~key, scales = "free", ncol = 5) +
+  theme(legend.position = "bottom",
+        panel.grid.minor = element_blank())+
+  scale_color_brewer(palette = "Dark2")+
+  labs(y = "", color = "")+
+  scale_x_continuous(breaks = seq(1:11))
+
+ggsave(file=paste0(fig_out_path, 'yn_sub-',cur_sub,'_optimDDMparsOverDays.jpg'), p, height = 4, width=12, units="in")
+
+```
+
+Correlation between estimates
+
+```{r}
+# Average correlation across days of HT
+
+cor_mats = list()
+for(cur_day in c(1:11)){
+  cor_dt = optim_out %>%
+    filter((type == 1) & (day == cur_day)) %>%
+    select(d, sigma, nonDecisionTime, bias, barrierDecay)
+  
+  cor_mats[[cur_day]] = cor(cor_dt)
+  
+  
+}
+
+mean_cor_mat = Reduce("+", cor_mats) / length(cor_mats)
+tg = tableGrob(round(mean_cor_mat, 3) )
+ggsave(paste0(fig_out_path, "sub-",cur_sub, "_ddmOptimHTparCors.jpg"), tg, width = 12, height = 4)
+```
+
+```{r}
+# Average correlation across days of HT
+
+cor_mats = list()
+for(cur_day in c(1:11)){
+  cor_dt = optim_out %>%
+    filter((type == 0) & (day == cur_day)) %>%
+    select(d, sigma, nonDecisionTime, bias, barrierDecay)
+  
+  cor_mats[[cur_day]] = cor(cor_dt)
+  
+  
+}
+
+mean_cor_mat = Reduce("+", cor_mats) / length(cor_mats)
+tg = tableGrob(round(mean_cor_mat, 3) )
+ggsave(paste0(fig_out_path, "sub-",cur_sub, "_ddmOptimREparCors.jpg"), tg, width = 12, height = 4)
+```
+
+Correlation between each parameter and its starting point
+
+```{r}
+optim_out %>%
+  ggplot(aes(start_d, d))+
+  geom_point(size = 1)
+
+optim_out %>%
+  ggplot(aes(start_sigma, sigma))+
+  geom_point(size = 1)
+
+optim_out %>%
+  ggplot(aes(start_nonDecisionTime, nonDecisionTime))+
+  geom_point(size = 1)
+
+optim_out %>%
+  ggplot(aes(start_bias, bias))+
+  geom_point(size = 1)
+
+optim_out %>%
+  ggplot(aes(start_barrierDecay, barrierDecay))+
+  geom_point(size = 1)
+```
+
+```{r}
+optim_out %>%
+  select(d, start_d)
+
+optim_out %>%
+  select(sigma, start_sigma)
+
+optim_out %>%
+  select(nonDecisionTime, start_nonDecisionTime)
+
+optim_out %>%
+  select(bias, start_bias)
+
+optim_out %>%
+  select(barrierDecay, start_barrierDecay)
+```
+
+```{r}
+optim_out %>%
+  mutate(diff_d = abs(d - start_d),
+         diff_sigma = abs(sigma - start_sigma),
+         diff_bias = abs(bias - start_bias),
+         diff_nonDecisionTime = abs(nonDecisionTime - start_nonDecisionTime),
+         diff_barrierDecay = abs(barrierDecay - start_barrierDecay)) %>%
+  select(diff_d, diff_sigma, diff_bias, diff_nonDecisionTime, diff_barrierDecay) %>%
+  gather(key, value) %>%
+  select(value) %>%
+  distinct()
+```
+
+Posterior predictive data
+
+```{r}
+source(paste0(helpers_path, '/ddm/yn_ddm.R'))
+```
+
+Checks of stylized behavioral effects
+
+```{r}
+
 ```

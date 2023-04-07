@@ -73,7 +73,7 @@ out_path = paste0(helpers_path, 'cluster_scripts/optim_out/',opt$out_path)
 # Run optim
 #######################
 
-optim_out = optim_save(par = start_vals, get_task_nll, data_= data, par_names_ = par_names, model_name_ = model, fix_pars_ = fix_pars, control = list(maxit=max_iter))
+optim_out = optim(par = start_vals, get_task_nll, data_= data, par_names_ = par_names, model_name_ = model, control = list(maxit=max_iter))
 
 optim_out$par = data.frame(vals = optim_out$par)
 optim_out$par$par_names = par_names
