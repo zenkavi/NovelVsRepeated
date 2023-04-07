@@ -15,7 +15,7 @@ my.fit.cluster <- parallel::makeCluster(
 doParallel::registerDoParallel(cl = my.fit.cluster)
 
 # Function to fit ddm model to data using a model provided as a string in the model_name argument
-fit_task = function(data_, model_name_, pars_, fix_pars_ = list(), fit_trial_list_ = fit_trial_list, debug=FALSE){
+fit_task = function(data_, model_name_, pars_, fit_trial_list_ = fit_trial_list, debug=FALSE){
 
   # Initialize any missing arguments. Some are useless defaults to make sure different fit_trial functions from different models can run without errors even if they don't make use of that argument
   if (!("d" %in% names(pars_))){
@@ -46,14 +46,6 @@ fit_task = function(data_, model_name_, pars_, fix_pars_ = list(), fit_trial_lis
   # Extract the correct trial simulator for the model_name
   fit_trial = fit_trial_list_[[model_name_]]
 
-  # Check if there are any pars to be fixed in the fix_pars_ list and replace them in pars_ if there are
-  if(length(fix_pars_) > 0){
-    for(i in 1:length(names(fix_pars_))){
-      cur_fix_par = names(fix_pars_)[i]
-      pars_[[cur_fix_par]] = fix_pars_[[cur_fix_par]]
-    }
-  }
-
   # Print arguments that will be used for simulation if in debug mode
   if(debug){
     print(paste0("Simulating task with parameters: d = ", kwargs$d,
@@ -67,28 +59,28 @@ fit_task = function(data_, model_name_, pars_, fix_pars_ = list(), fit_trial_lis
 
   # If fitting on simulated data col names might be different
   if("possiblePayoff_dmn" %in% names(data_) == FALSE){
-    print("possiblePayoff_dmn not in data")
+    # print("possiblePayoff_dmn not in data")
     if("ValStim" %in% names(data_)){
       data_$possiblePayoff_dmn = data_$ValStim
     }
   }
 
   if("reference" %in% names(data_) == FALSE){
-    print("reference not in data")
+    # print("reference not in data")
     if("ValRef" %in% names(data_)){
       data_$reference =  data_$ValRef
     }
   }
 
   if("yesChosen" %in% names(data_) == FALSE){
-    print("yesChosen not in data")
+    # print("yesChosen not in data")
     if("choice" %in% names(data_)){
       data_$yesChosen =  data_$choice
     }
   }
 
   if("rt" %in% names(data_) == FALSE){
-    print("rt not in data")
+    # print("rt not in data")
     if("reactionTime" %in% names(data_)){
       data_$rt =  data_$reactionTime
     }
@@ -118,7 +110,7 @@ fit_task = function(data_, model_name_, pars_, fix_pars_ = list(), fit_trial_lis
 
 # Usage in optim
 # optim(par, get_task_nll, data_, par_names, model_name)
-get_task_nll = function(data_, par_, par_names_, model_name_, fix_pars_ = list()){
+get_task_nll = function(data_, par_, par_names_, model_name_){
 
   # Initialize parameters
   # Different models will have different sets of parameters. Optim will optimize over all the parameters it is passed in
@@ -126,7 +118,7 @@ get_task_nll = function(data_, par_, par_names_, model_name_, fix_pars_ = list()
   pars = setNames(as.list(par_), par_names_)
 
   # Get trial likelihoods for the stimuli using the initialized parameters
-  out = fit_task(data_ = data_, model_name_ = model_name_, pars_ = pars, fix_pars_ = fix_pars_)
+  out = fit_task(data_ = data_, model_name_ = model_name_, pars_ = pars)
 
   nll = -sum(log(out$likelihood+1e-200))
 

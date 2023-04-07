@@ -136,6 +136,7 @@ dat %>%
   labs(fill="", x="")
 
 ```
+
 Ok, so if we assume uniform (uninformative) priors for every parameter (d, sigma, bias, ndt, barrierDecay) then the posteriors will be proportional to the likelihood. 
 
 What are reasonable values for barrierDecay? Prior: Uniform[0, .01]; min = 0, max = 0.02
@@ -275,8 +276,77 @@ fit_trial_list = list("model1" = fit_trial)
 fit_task(data_ = tmp[1:100,], model_name_ = "model1", pars_ = list(d = cur_d, sigma = cur_sigma, nonDecisionTime = cur_nonDecisionTime, bias = cur_bias, barrierDecay = cur_barrierDecay) , fix_pars_ = list(), fit_trial_list_ = fit_trial_list, debug=FALSE)
 ```
 ```{r}
-get_task_nll(data_ = tmp[1:100,], par_ = c(cur_d, cur_sigma, cur_nonDecisionTime, cur_bias, cur_barrierDecay), par_names_ = c("d", "sigma", "nonDecisionTime", "bias", "barrierDecay"), model_name_ = "model1", fix_pars_ = list())
+get_task_nll(data_ = tmp[1:100,], par_ = c(cur_d, cur_sigma, cur_nonDecisionTime, cur_bias, cur_barrierDecay), par_names_ = c("d", "sigma", "nonDecisionTime", "bias", "barrierDecay"), model_name_ = "model1")
 ```
 ```{r}
-get_task_nll(data_ = tmp[1:100,], par_ = c(cur_d/2, cur_sigma, cur_nonDecisionTime, cur_bias, cur_barrierDecay), par_names_ = c("d", "sigma", "nonDecisionTime", "bias", "barrierDecay"), model_name_ = "model1", fix_pars_ = list())
+get_task_nll(data_ = tmp[1:100,], par_ = c(cur_d/2, cur_sigma, cur_nonDecisionTime, cur_bias, cur_barrierDecay), par_names_ = c("d", "sigma", "nonDecisionTime", "bias", "barrierDecay"), model_name_ = "model1")
+```
+```{r}
+get_task_nll(data_ = tmp[1:100,], par_ = c(cur_d, cur_sigma/2, cur_nonDecisionTime, cur_bias, cur_barrierDecay), par_names_ = c("d", "sigma", "nonDecisionTime", "bias", "barrierDecay"), model_name_ = "model1")
+```
+# Test optim
+
+```{r}
+
+max_iter = 100
+
+par_names = c("d", "sigma", "nonDecisionTime", "bias", "barrierDecay")
+
+subnums = sort(unique(data_yn_clean$subnum))
+days = sort(unique(data_yn_clean$day))
+types = sort(unique(data_yn_clean$type))
+
+for(cur_sub in subnums){
+  for(cur_day in days){
+    for(cur_type in types){
+      
+      cur_dat = data_yn_clean %>%
+        filter((subnum == cur_sub) & (day == cur_day) & (type == cur_type)) %>%
+        filter(reference != -99) %>%
+        filter(rt > .3 & rt < 5)
+      
+      start_num = 1
+      while(start_num < 100){
+      # while(start_num < 10){
+        start_d = runif(1, .00001, 1)
+        start_sigma = runif(1, 0.000001, 2)
+        start_nonDecisionTime = runif(1, 10, 500)
+        start_bias = runif(1, -1, 1)
+        start_barrierDecay = runif(1, 0, .01)
+        
+        start_vals = c(start_d, start_sigma, start_nonDecisionTime, start_bias, start_barrierDecay)
+        
+        optim_out = optim(par = start_vals, get_task_nll, data_= cur_dat, par_names_ = par_names, model_name_ = "model1", control = list(maxit=max_iter))
+        
+        cur_out = data_frame(key = par_names, value = optim_out$par)
+        cur_out = cur_out %>% spread(key, value)
+        cur_out$nll = optim_out$value
+        cur_out$optim_iters = as.numeric(optim_out$counts[1])
+        cur_out$subnum = cur_sub
+        cur_out$day = cur_day
+        cur_out$type = cur_type
+        cur_out = cbind(cur_out, data_frame(key = paste0("start_", par_names), value = start_vals) %>% spread(key, value))
+        cur_out$start_num = start_num
+        
+        if(start_num == 1){
+          out = cur_out
+        } else{
+          out = rbind(out, cur_out)
+        }
+        
+        start_num = start_num + 1 
+      }
+      
+      fn_type = ifelse(cur_type == 1, "HT", "RE")
+      fn = paste0("optim_YN_DDM_FIT_sub-",cur_sub, "_",fn_type,"_day_",cur_day,".csv")
+      write.csv(out, paste0(here(), '/inputs/',fn), row.names = F)
+    }
+  }
+}
+
+out
+```
+
+```{r}
+get_task_nll(data_ = tmp, par_ = c(cur_d, cur_sigma, cur_nonDecisionTime, cur_bias, cur_barrierDecay), par_names_ = c("d", "sigma", "nonDecisionTime", "bias", "barrierDecay"), model_name_ = "model1")
 ```
