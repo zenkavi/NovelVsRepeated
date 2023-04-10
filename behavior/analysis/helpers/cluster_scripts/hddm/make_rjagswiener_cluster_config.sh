@@ -27,7 +27,7 @@ HeadNode:
     KeyName: rjagswiener-cluster
   CustomActions:
     OnNodeConfigured:
-      Script: s3://novel-vs-repeated/behavior/analysis/helpers/cluster_scripts/head-node-setup-env.sh
+      Script: s3://novel-vs-repeated/behavior/analysis/helpers/cluster_scripts/hddm/head-node-setup-env.sh
   Iam:
     S3Access:
       - BucketName: novel-vs-repeated
@@ -56,7 +56,7 @@ Scheduling:
           Enabled: true
       CustomActions:
         OnNodeConfigured:
-          Script: s3://novel-vs-repeated/behavior/analysis/helpers/cluster_scripts/compute-node-setup-env.sh
+          Script: s3://novel-vs-repeated/behavior/analysis/helpers/cluster_scripts/hddm/compute-node-setup-env.sh
       Iam:
         S3Access:
           - BucketName: novel-vs-repeated

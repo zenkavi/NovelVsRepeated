@@ -29,14 +29,14 @@ aws ec2 describe-key-pairs
 
 ```
 export STUDY_DIR=/Users/zeynepenkavi/Documents/RangelLab/NovelVsRepeated
-cd $STUDY_DIR/behavior/analysis/helpers/cluster_scripts
+cd $STUDY_DIR/behavior/analysis/helpers/cluster_scripts/hddm/
 sh make_rjagswiener_cluster_config.sh
 ```
 
 ## Create cluster using the config
 
 ```
-cd $STUDY_DIR/behavior/analysis/helpers/cluster_scripts
+cd $STUDY_DIR/behavior/analysis/helpers/cluster_scripts/hddm/
 pcluster create-cluster --cluster-name rjagswiener-cluster --cluster-configuration tmp.yaml
 pcluster list-clusters
 ```
@@ -77,7 +77,7 @@ docker run --rm -it -v $DATA_PATH:/behavior -w /behavior zenkavi/rjagswiener:0.0
 Only a few examples listed below
 
 ```
-cd /shared/behavior/analysis/helpers/cluster_scripts
+cd /shared/behavior/analysis/helpers/cluster_scripts/hddm/
 
 sh run_fit_yn_hddm_rjags.sh -s HT -d 4
 sh run_fit_yn_hddm_rjags.sh -s RE -d 4
