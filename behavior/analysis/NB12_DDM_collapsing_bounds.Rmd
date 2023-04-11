@@ -252,6 +252,7 @@ tmp[i,]
 ```{r}
 fit_trial(d = cur_d, sigma = cur_sigma, nonDecisionTime = cur_nonDecisionTime, bias = cur_bias, barrierDecay = cur_barrierDecay, choice = tmp$choice[i], reactionTime = tmp$reactionTime[i], ValStim = tmp$ValStim[i], ValRef = tmp$ValRef[i])
 ```
+
 ```{r}
 fit_trial(d = cur_d*10, sigma = cur_sigma*10, nonDecisionTime = cur_nonDecisionTime, bias = cur_bias, barrierDecay = cur_barrierDecay, choice = tmp$choice[i], reactionTime = tmp$reactionTime[i], ValStim = tmp$ValStim[i], ValRef = tmp$ValRef[i])
 ```
@@ -275,27 +276,35 @@ cur_barrierDecay = .002
 
 fit_trial_list = list("model1" = fit_trial)
 
-fit_task(data_ = tmp[1:100,], model_name_ = "model1", pars_ = list(d = cur_d, sigma = cur_sigma, nonDecisionTime = cur_nonDecisionTime, bias = cur_bias, barrierDecay = cur_barrierDecay) , fix_pars_ = list(), fit_trial_list_ = fit_trial_list, debug=FALSE)
+fit_task(data_ = tmp[1:100,], model_name_ = "model1", pars_ = list(d = cur_d, sigma = cur_sigma, nonDecisionTime = cur_nonDecisionTime, bias = cur_bias, barrierDecay = cur_barrierDecay) , fit_trial_list_ = fit_trial_list, debug=FALSE)
 ```
+
+Is negative log likelihood lower for the true parameter combination compared to other combinations?
+
 ```{r}
 get_task_nll(data_ = tmp[1:100,], par_ = c(cur_d, cur_sigma, cur_nonDecisionTime, cur_bias, cur_barrierDecay), par_names_ = c("d", "sigma", "nonDecisionTime", "bias", "barrierDecay"), model_name_ = "model1")
 ```
+
 ```{r}
 get_task_nll(data_ = tmp[1:100,], par_ = c(cur_d/2, cur_sigma, cur_nonDecisionTime, cur_bias, cur_barrierDecay), par_names_ = c("d", "sigma", "nonDecisionTime", "bias", "barrierDecay"), model_name_ = "model1")
 ```
+
 ```{r}
 get_task_nll(data_ = tmp[1:100,], par_ = c(cur_d, cur_sigma/2, cur_nonDecisionTime, cur_bias, cur_barrierDecay), par_names_ = c("d", "sigma", "nonDecisionTime", "bias", "barrierDecay"), model_name_ = "model1")
 ```
+
 # Test optim
 
-```{r}
+```{r eval = FALSE}
 
 max_iter = 100
 
 par_names = c("d", "sigma", "nonDecisionTime", "bias", "barrierDecay")
 
 subnums = sort(unique(data_yn_clean$subnum))
+subnums = subnums[1]
 days = sort(unique(data_yn_clean$day))
+days = days[1]
 types = sort(unique(data_yn_clean$type))
 
 for(cur_sub in subnums){

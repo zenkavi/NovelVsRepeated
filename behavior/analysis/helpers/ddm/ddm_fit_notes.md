@@ -60,10 +60,14 @@ docker push zenkavi/rddmstatespace:0.0.1
 
 ## Push behavior files to S3
 
+MAKE THIS MORE SPECIFIC TO THE DATA FILES NEEDED FOR THIS STEP
+
 ```
 export INPUTS_DIR=/Users/zeynepenkavi/Documents/RangelLab/NovelVsRepeated/behavior/inputs
 
-docker run --rm -it -v ~/.aws:/root/.aws -v $INPUTS_DIR:/inputs amazon/aws-cli s3 sync /inputs s3://novel-vs-repeated/behavior/inputs
+docker run --rm -it -v ~/.aws:/root/.aws -v $INPUTS_DIR:/inputs amazon/aws-cli s3 cp /inputs/.... s3://novel-vs-repeated/behavior/inputs/....
+docker run --rm -it -v ~/.aws:/root/.aws -v $INPUTS_DIR:/inputs amazon/aws-cli s3 cp /inputs/.... s3://novel-vs-repeated/behavior/inputs/....
+docker run --rm -it -v ~/.aws:/root/.aws -v $INPUTS_DIR:/inputs amazon/aws-cli s3 cp /inputs/.... s3://novel-vs-repeated/behavior/inputs/....
 ```
 
 ## Push cluster setup and model fitting scripts to s3
