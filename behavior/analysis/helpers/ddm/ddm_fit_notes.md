@@ -58,6 +58,19 @@ docker images
 docker push zenkavi/rddmstatespace:0.0.1
 ```
 
+## Test scripts in container locally
+
+```
+export STUDY_DIR=/Users/zeynepenkavi/Documents/RangelLab/NovelVsRepeated
+export INPUT_PATH=$STUDY_DIR/behavior/inputs
+export CODE_PATH=$STUDY_DIR/behavior/analysis/helpers/ddm
+export OUT_PATH=$STUDY_DIR/behavior/analysis/helpers/cluter_scripts/ddm/optim_out
+
+docker run --rm -it -v $INPUT_PATH:/inputs -v $CODE_PATH:/ddm -v $OUT_PATH:/optim_out\
+-e INPUT_PATH=$INPUT_PATH -e CODE_PATH=$CODE_PATH -e OUT_PATH=$OUT_PATH\
+zenkavi/rddmstatespace:0.0.1 Rscript --vanilla /ddm/optim_yn_ddm.R --model yn_ddm --subnum 611 --day 9 --type RE --num_starts 2 --max_iter 20
+```
+
 ## Push behavior files to S3
 
 MAKE THIS MORE SPECIFIC TO THE DATA FILES NEEDED FOR THIS STEP
