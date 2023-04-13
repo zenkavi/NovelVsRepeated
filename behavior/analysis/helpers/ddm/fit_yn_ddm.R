@@ -2,8 +2,8 @@ library(foreach)
 
 # Parallelization setup based on this post
 # https://www.blasbenito.com/post/02_parallelizing_loops_with_r/
-# n.cores <- parallel::detectCores() - 1
-n.cores <- 4
+n.cores <- parallel::detectCores() - 1
+# n.cores <- 4
 
 #create the cluster
 my.fit.cluster <- parallel::makeCluster(
@@ -39,9 +39,6 @@ fit_task = function(data_, model_name_, pars_, fit_trial_list_ = fit_trial_list,
   if (!("timeStep" %in% names(pars_))){
     pars_$timeStep = 10
   }
-  if (!("maxIter" %in% names(pars_))){
-    pars_$maxIter = 400
-  }
 
   # Extract the correct trial simulator for the model_name
   fit_trial = fit_trial_list_[[model_name_]]
@@ -53,9 +50,8 @@ fit_task = function(data_, model_name_, pars_, fit_trial_list_ = fit_trial_list,
                  ", non-decision time = ", kwargs$nonDecisionTime,
                  ", bias = ", kwargs$bias,
                  ", barrierDecay = ", kwargs$barrierDecay,
-                 ", maxIter = ", kwargs$maxIter,
                  ", timeStep = ", kwargs$timeStep))
-    }
+  }
 
   # If fitting on simulated data col names might be different
   if("possiblePayoff_dmn" %in% names(data_) == FALSE){
@@ -86,21 +82,53 @@ fit_task = function(data_, model_name_, pars_, fit_trial_list_ = fit_trial_list,
     }
   }
 
-  # Parallel loop
-  out <- foreach(
-    ValStim = data_$possiblePayoff_dmn,
-    ValRef = data_$reference,
-    choice = data_$yesChosen,
-    reactionTime = data_$rt,
-    .combine = 'rbind'
-  ) %dopar% {
-    # Simulate RT and choice for a single trial with given DDM parameters and trial stimulus values
-    fit_trial(d=pars_$d, sigma = pars_$sigma,
-              barrier = pars_$barrier, nonDecisionTime = pars_$nonDecisionTime, barrierDecay = pars_$barrierDecay,
-              bias = pars_$bias, timeStep = pars_$timeStep,
-              ValStim = ValStim, ValRef = ValRef, choice = choice, reactionTime = reactionTime)
+  # Try Parallel loop and fall back to serial if it fails for some reason
+  out = tryCatch(
 
-  }
+    # Specifying expression
+    expr = {
+      out <- foreach(
+        ValStim = data_$possiblePayoff_dmn,
+        ValRef = data_$reference,
+        choice = data_$yesChosen,
+        reactionTime = data_$rt,
+        .combine = 'rbind'
+      ) %dopar% {
+        # Simulate RT and choice for a single trial with given DDM parameters and trial stimulus values
+        fit_trial(d=pars_$d, sigma = pars_$sigma,
+                  barrier = pars_$barrier, nonDecisionTime = pars_$nonDecisionTime, barrierDecay = pars_$barrierDecay,
+                  bias = pars_$bias, timeStep = pars_$timeStep,
+                  ValStim = ValStim, ValRef = ValRef, choice = choice, reactionTime = reactionTime)
+
+      }
+
+      return(out)     
+      print("Completed parallel.")
+    },
+
+    # Specifying error case
+    error = function(e){
+      print("Trying serial")
+
+      out <- foreach(
+        ValStim = data_$possiblePayoff_dmn,
+        ValRef = data_$reference,
+        choice = data_$yesChosen,
+        reactionTime = data_$rt,
+        .combine = 'rbind'
+      ) %do% {
+        # Simulate RT and choice for a single trial with given DDM parameters and trial stimulus values
+        fit_trial(d=pars_$d, sigma = pars_$sigma,
+                  barrier = pars_$barrier, nonDecisionTime = pars_$nonDecisionTime, barrierDecay = pars_$barrierDecay,
+                  bias = pars_$bias, timeStep = pars_$timeStep,
+                  ValStim = ValStim, ValRef = ValRef, choice = choice, reactionTime = reactionTime)
+
+      }
+      
+      return(out)
+
+    }
+  )
 
   # Add details of the parameters used for the simulation
   out$model = model_name_
@@ -120,6 +148,7 @@ get_task_nll = function(data_, par_, par_names_, model_name_){
   # Get trial likelihoods for the stimuli using the initialized parameters
   out = fit_task(data_ = data_, model_name_ = model_name_, pars_ = pars)
 
+  # Adding a small number to likelihood to avoid log(0) 
   nll = -sum(log(out$likelihood+1e-200))
 
   return(nll)

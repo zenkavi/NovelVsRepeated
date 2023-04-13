@@ -35,8 +35,8 @@ opt = parse_args(opt_parser)
 #  WHERE SHOULD DATA BE PULLED FROM?
 data = read.csv(file.path(input_path , opt$data))
 
-cur_sub = opt$subnum
-cur_day = opt$day
+cur_sub = as.numeric(opt$subnum)
+cur_day = as.numeric(opt$day)
 cur_type = opt$type
 
 data = data %>%
@@ -61,33 +61,9 @@ par_names = opt$par_names
 # SHOULD I PROVIDE START VALS AS INPUT OR GENERATE THEM PRE FITTING?
 # Previously provided them as inputs, I think, to make sure that there were the correct number of values for various models
 # It was messy though bc I had to store starting values separately before beginning any fitting
-# I should be able to make this more robust by using the par_names 
+# I should be able to make this more robust by using the par_names
 # Convert to numeric so optim can work with it
 # start_vals = as.numeric(strsplit(opt$start_vals, ",")[[1]])
-
-start_vals = c()
-for(cur_par in par_names){
-  if(cur_par == "d"){
-    start_d = runif(1, .001, .01)
-    start_vals = c(start_vals, start_d)
-  }
-  if(cur_par == "sigma"){
-    start_sigma = runif(1, 0.001, .01)
-    start_vals = c(start_vals, start_sigma)
-  }
-  if(cur_par == "nonDecisionTime"){
-    start_nonDecisionTime = runif(1, 10, 500)
-    start_vals = c(start_vals, start_nonDecisionTime)
-  }
-  if(cur_par == "bias"){
-    start_bias = runif(1, -.2, 2)
-    start_vals = c(start_vals, start_bias)
-  }
-  if(cur_par == "barrierDecay"){
-    start_barrierDecay = runif(1, 0, .01)
-    start_vals = c(start_vals, start_barrierDecay)
-  }
-}
 
 # Must end with /
 out_path = opt$out_path
@@ -101,18 +77,42 @@ dir.create(out_path, showWarnings = FALSE)
 print(paste0("Starting optim for sub-", cur_sub, ", day ", cur_day, ", type ", cur_type))
 for(start_num in 1:num_starts){
 
+  start_vals = c()
+  for(cur_par in par_names){
+    if(cur_par == "d"){
+      start_d = runif(1, .001, .01)
+      start_vals = c(start_vals, start_d)
+    }
+    if(cur_par == "sigma"){
+      start_sigma = runif(1, 0.001, .01)
+      start_vals = c(start_vals, start_sigma)
+    }
+    if(cur_par == "nonDecisionTime"){
+      start_nonDecisionTime = runif(1, 10, 500)
+      start_vals = c(start_vals, start_nonDecisionTime)
+    }
+    if(cur_par == "bias"){
+      start_bias = runif(1, -.2, 2)
+      start_vals = c(start_vals, start_bias)
+    }
+    if(cur_par == "barrierDecay"){
+      start_barrierDecay = runif(1, 0, .01)
+      start_vals = c(start_vals, start_barrierDecay)
+    }
+  }
+
   print(paste0("Num start = ", start_num))
 
   optim_out = optim(par = start_vals, get_task_nll, data_= data, par_names_ = par_names, model_name_ = model, control = list(maxit=max_iter))
 
-  cur_out = data_frame(key = par_names, value = optim_out$par)
+  cur_out = tibble(key = par_names, value = optim_out$par)
   cur_out = cur_out %>% spread(key, value)
   cur_out$nll = optim_out$value
   cur_out$optim_iters = as.numeric(optim_out$counts[1])
   cur_out$subnum = cur_sub
   cur_out$day = cur_day
   cur_out$type = cur_type
-  cur_out = cbind(cur_out, data_frame(key = paste0("start_", par_names), value = start_vals) %>% spread(key, value))
+  cur_out = cbind(cur_out, tibble(key = paste0("start_", par_names), value = start_vals) %>% spread(key, value))
   cur_out$start_num = start_num
 
   if(start_num == 1){
@@ -121,9 +121,9 @@ for(start_num in 1:num_starts){
     out = rbind(out, cur_out)
   }
 
-#######################
-# Save output
-#######################
+  #######################
+  # Save output (save for each start)
+  #######################
 
   fn = paste0("optim_YN_DDM_FIT_sub-", cur_sub, "_", cur_type, "_day_", cur_day, ".csv")
   write.csv(out, file.path(out_path, fn), row.names = F)

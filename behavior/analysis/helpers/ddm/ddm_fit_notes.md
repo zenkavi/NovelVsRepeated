@@ -20,15 +20,16 @@ Job submission:
 `run_optim_yn_ddm.batch`
 
 Cluster creation:
-docker file
-docker image
+docker file  `rddmstatespace.Dockerfile` [DONE]
+docker image `zenkavi/rddmstatespace:0.0.1` [DONE]
+
 cluster config
 key pairs
 data and script pushing to cluster
-connect to cluter
+connect to cluster
 
 Model running:
-`optim_yn_ddm.R` ~ `ddm_Roptim.R` [don't need to use visualMLE `optim_save`]
+`optim_yn_ddm.R` ~ `ddm_Roptim.R` [DONE]
 `sim_yn_ddm.R` ~ `sim_task.R` [DONE]
 `fit_yn_ddm.R` ~ `fit_task.R` [DONE]
 `yn_ddm.R` ~ `ddm_model.R` [DONE]
@@ -52,7 +53,7 @@ docker build -t zenkavi/rddmstatespace:0.0.1 -f ./rddmstatespace.Dockerfile .
 docker images
 ```
 
-## Push docker container to dockerhub
+## Push docker image to dockerhub
 
 ```
 docker push zenkavi/rddmstatespace:0.0.1
@@ -60,20 +61,37 @@ docker push zenkavi/rddmstatespace:0.0.1
 
 ## Test scripts in container locally
 
+Optim
+
 ```
 export STUDY_DIR=/Users/zeynepenkavi/Documents/RangelLab/NovelVsRepeated
 export INPUT_PATH=$STUDY_DIR/behavior/inputs
 export CODE_PATH=$STUDY_DIR/behavior/analysis/helpers/ddm
-export OUT_PATH=$STUDY_DIR/behavior/analysis/helpers/cluter_scripts/ddm/optim_out
+export OUT_PATH=$STUDY_DIR/behavior/analysis/helpers/cluster_scripts/ddm/optim_out
 
-docker run --rm -it -v $INPUT_PATH:/inputs -v $CODE_PATH:/ddm -v $OUT_PATH:/optim_out\
--e INPUT_PATH=$INPUT_PATH -e CODE_PATH=$CODE_PATH -e OUT_PATH=$OUT_PATH\
-zenkavi/rddmstatespace:0.0.1 Rscript --vanilla /ddm/optim_yn_ddm.R --model yn_ddm --subnum 611 --day 9 --type RE --num_starts 2 --max_iter 20
+# Interactive - remove -it when submitting jobs
+docker run --rm -it -v $INPUT_PATH:/inputs -v $CODE_PATH:/ddm -v $OUT_PATH:/optim_out \
+-e INPUT_PATH=/inputs -e CODE_PATH=/ddm -e OUT_PATH=/optim_out \
+zenkavi/rddmstatespace:0.0.1 Rscript --vanilla /ddm/optim_yn_ddm.R --model yn_ddm --subnum 621 --day 4 --type RE --num_starts 2 --max_iter 10
+```
+
+Grid search
+
+```
+export STUDY_DIR=/Users/zeynepenkavi/Documents/RangelLab/NovelVsRepeated
+export INPUT_PATH=$STUDY_DIR/behavior/inputs
+export CODE_PATH=$STUDY_DIR/behavior/analysis/helpers/ddm
+export OUT_PATH=$STUDY_DIR/behavior/analysis/helpers/cluster_scripts/ddm/grid_search_out
+
+# Interactive - remove -it when submitting jobs
+docker run --rm -it -v $INPUT_PATH:/inputs -v $CODE_PATH:/ddm -v $OUT_PATH:/grid_search_out \
+-e INPUT_PATH=/inputs -e CODE_PATH=/ddm -e OUT_PATH=/grid_search_out \
+zenkavi/rddmstatespace:0.0.1 Rscript --vanilla /ddm/grid_search_yn_ddm.R --model yn_ddm --subnum 621 --day 4 --type RE --grid ddm_grid_test.csv
 ```
 
 ## Push behavior files to S3
 
-MAKE THIS MORE SPECIFIC TO THE DATA FILES NEEDED FOR THIS STEP
+MAKE THIS MORE SPECIFIC TO THE DATA FILES NEEDED FOR THIS STEP instead of pushing and pulling all of inputs directory
 
 ```
 export INPUTS_DIR=/Users/zeynepenkavi/Documents/RangelLab/NovelVsRepeated/behavior/inputs
