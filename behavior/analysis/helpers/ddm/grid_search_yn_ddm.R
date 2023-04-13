@@ -61,7 +61,7 @@ out_path = opt$out_path
 dir.create(out_path, showWarnings = FALSE)
 
 #######################
-# Run optim
+# Run grid search
 #######################
 
 print(paste0("Starting grid search for sub-", cur_sub, ", day ", cur_day, ", type ", cur_type))
