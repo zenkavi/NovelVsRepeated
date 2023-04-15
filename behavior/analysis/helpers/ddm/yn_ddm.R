@@ -22,8 +22,7 @@ sim_trial = function(d, sigma, nonDecisionTime, bias, barrierDecay, barrier=1, t
 
   kwargs = list(...)
 
-  ValStim=kwargs$ValStim
-  ValRef=kwargs$ValRef
+  ValDiff=kwargs$ValDiff
 
   nonDecIters = nonDecisionTime / timeStep
 
@@ -35,7 +34,7 @@ sim_trial = function(d, sigma, nonDecisionTime, bias, barrierDecay, barrier=1, t
     barrier[t] = initialBarrier / (1 + (barrierDecay * t))
   }
 
-  mu_mean = d * (ValStim - ValRef)
+  mu_mean = d * (ValDiff)
 
   while (time<maxIter){
 
@@ -94,7 +93,7 @@ sim_trial = function(d, sigma, nonDecisionTime, bias, barrierDecay, barrier=1, t
   RT = ifelse( (RT*1000) < nonDecisionTime, nonDecisionTime/1000, RT)
 
   #Organize output
-  out = data.frame(ValStim = ValStim, ValRef = ValRef, choice=choice, reactionTime = RT, tooSlow = tooSlow, tooFast = tooFast, d = d, sigma = sigma, barrierDecay = barrierDecay, barrier=barrier[time], nonDecisionTime=nonDecisionTime, bias=bias, timeStep=timeStep, maxIter=maxIter)
+  out = data.frame(ValDiff = ValDiff, choice=choice, reactionTime = RT, tooSlow = tooSlow, tooFast = tooFast, d = d, sigma = sigma, barrierDecay = barrierDecay, barrier=barrier[time], nonDecisionTime=nonDecisionTime, bias=bias, timeStep=timeStep, maxIter=maxIter)
 
   if(debug){
     return(list(out=out, debug_df = debug_df))
@@ -104,25 +103,30 @@ sim_trial = function(d, sigma, nonDecisionTime, bias, barrierDecay, barrier=1, t
 }
 
 
-fit_trial = function(d, sigma, nonDecisionTime, bias, barrierDecay, barrier=1, timeStep=10, approxStateStep = 0.1, debug=FALSE, ...){
+
+
+
+fit_trial = function(d, sigma, nonDecisionTime, bias, barrierDecay, barrier=1, timeStep=10, approxStateStep = 0.01, debug=FALSE, ...){
 
   # RDV = bias
 
   kwargs = list(...)
 
-  choice=kwargs$choice #must be 1 for left and -1 for left
+  # make sure this matches choice values when assigning the likelihood
+  choice = kwargs$choice
   if(choice == "yes" | choice == 1){
     choice = 1
   } else if (choice == "no" | choice == 0){
     choice = -1
   }
+
+  # make sure this is in ms instead of secs
   reactionTime=kwargs$reactionTime #in ms
   if(reactionTime < 100){
     reactionTime = reactionTime *1000
   }
 
-  ValStim=kwargs$ValStim
-  ValRef=kwargs$ValRef
+  ValDiff=kwargs$ValDiff
 
   nonDecIters = nonDecisionTime / timeStep
 
@@ -139,21 +143,12 @@ fit_trial = function(d, sigma, nonDecisionTime, bias, barrierDecay, barrier=1, t
   # Obtain correct state step.
 
   # Make state space finer if the average drift rate is too small
-  mu_mean = d * (ValStim - ValRef)
-
-  i = 1
-  while(i < 4){
-    if(approxStateStep > abs(mu_mean)){
-      print("Reducing approxStateStep...")
-      approxStateStep = approxStateStep/10
-      print(paste0("New approxStateStep = ", approxStateStep))
-    }
-    i = i+1
-  }
+  mu_mean = d * (ValDiff)
 
   # If attempt to reduce the state step has failed notify
   if(approxStateStep > abs(mu_mean)){
-    print("State space reduction failed.")
+    print("State space step size is larger than the expected change.")
+    print(paste0("approxStateStep = ", approxStateStep, " mu_mean = ", mu_mean))
   }
 
   halfNumStateBins = round(initialBarrier / approxStateStep)
@@ -171,6 +166,10 @@ fit_trial = function(d, sigma, nonDecisionTime, bias, barrierDecay, barrier=1, t
 
   prStates = matrix(data = 0, nrow = length(states), ncol = numTimeSteps)
   prStates[biasState,1] = 1
+
+  if(debug){
+    prStatesNN = prStates
+  }
 
   # The probability of crossing each barrier over the time of the trial.
 
@@ -227,7 +226,23 @@ fit_trial = function(d, sigma, nonDecisionTime, bias, barrierDecay, barrier=1, t
 
     # Renormalize to cope with numerical approximations.
 
-    sumIn = sum(prStates[,curTime])
+    if(debug){
+      prStatesNN[, nextTime] = prStatesNew
+
+      cur_row = tibble(sumIn = sum(prStates[,curTime]),
+                       sumCurrent = sum(prStatesNew) + tempUpCross + tempDownCross,
+                       tempUpCross = tempUpCross,
+                       tempDownCross = tempDownCross,
+                       cumSumPUp = sum(probUpCrossing[1:curTime]),
+                       cumSumPDown = sum(probDownCrossing[1:curTime]))
+      if(curTime == 1){
+        renorm_debug = cur_row
+      } else{
+        renorm_debug = rbind(renorm_debug, cur_row)
+      }
+    }
+
+    sumIn = sum(prStates[,curTime]) # This is prob of still being inside the boundaries. It should decrease as p of crossing boundary increases
     sumCurrent = sum(prStatesNew) + tempUpCross + tempDownCross
     prStatesNew = prStatesNew * sumIn / sumCurrent
     tempUpCross = tempUpCross * sumIn / sumCurrent
@@ -240,19 +255,6 @@ fit_trial = function(d, sigma, nonDecisionTime, bias, barrierDecay, barrier=1, t
     probUpCrossing[nextTime] = tempUpCross
     probDownCrossing[nextTime] = tempDownCross
 
-    checksFailed = 0
-    checks = c(sumIn == 0,
-               is.nan(tempDownCross),
-               is.na(tempDownCross),
-               is.nan(tempUpCross),
-               is.na(tempUpCross),
-               (!is.nan(probUpCrossing[nextTime]) & probUpCrossing[nextTime] < probUpCrossing[curTime]),
-               (!is.nan(probDownCrossing[nextTime]) & probDownCrossing[nextTime] < probDownCrossing[curTime]))
-
-    if(sum(checks)>0){
-      print("Numerical approximations will break. Drift rate might be too high. Or RT too fast.")
-      break
-    }
   }
 
   likelihood = 0
@@ -266,8 +268,16 @@ fit_trial = function(d, sigma, nonDecisionTime, bias, barrierDecay, barrier=1, t
     }
   }
 
-  out = data.frame(likelihood = likelihood, ValStim = ValStim, ValRef = ValRef, choice=choice, reactionTime = reactionTime, d = d, sigma = sigma, nonDecisionTime=nonDecisionTime, bias=bias, barrierDecay = barrierDecay, barrier=barrier[numTimeSteps], timeStep=timeStep)
-
+  if(debug){
+    out = list(likelihood = tibble(likelihood = likelihood, ValDiff = ValDiff, choice=choice, reactionTime = reactionTime, d = d, sigma = sigma, nonDecisionTime=nonDecisionTime, bias=bias, barrierDecay = barrierDecay, barrier = barrier[numTimeSteps], timeStep=timeStep),
+               prStates = prStates,
+               probUpCrossing = probUpCrossing,
+               probDownCrossing = probDownCrossing,
+               renorm_debug = renorm_debug,
+               prStatesNN = prStatesNN)
+  } else{
+    out = tibble(likelihood = likelihood, ValDiff = ValDiff, choice=choice, reactionTime = reactionTime, d = d, sigma = sigma, nonDecisionTime=nonDecisionTime, bias=bias, barrierDecay = barrierDecay, barrier=barrier[numTimeSteps], timeStep=timeStep)
+  }
 
   return(out)
 

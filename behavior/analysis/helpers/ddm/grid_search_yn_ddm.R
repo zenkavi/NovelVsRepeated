@@ -37,12 +37,16 @@ cur_sub = as.numeric(opt$subnum)
 cur_day = as.numeric(opt$day)
 cur_type = opt$type
 
+normMax = 1
+normMin = -1
+
 data = data %>%
   mutate(type = ifelse(type == 1, "HT", "RE")) %>%
   filter((subnum == cur_sub) & (day == cur_day) & (type == cur_type)) %>%
   filter(reference != -99) %>%
   filter(rt > .3 & rt < 5) %>%
-  mutate(possiblePayoff_dmn = possiblePayoff - mean(possiblePayoff))
+  mutate(rawVDiff = possiblePayoff - reference,
+         normVDiff =  (normMax - normMin) / (max(rawVDiff) - min(rawVDiff)) * (rawVDiff - max(rawVDiff)) + (normMax) )
 
 
 model = opt$model

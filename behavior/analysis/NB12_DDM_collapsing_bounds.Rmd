@@ -21,14 +21,21 @@ rm(data_bc_clean)
 fig_out_path = paste0(here(), '/outputs/fig/')
 ```
 
-**Make sure to demean value and exclude too fast trials before fitting**
+**Make sure to scale value and exclude too fast trials before fitting**
 
 ```{r}
+normMax = 1
+normMin = -1
+
 data_yn_clean = data_yn_clean %>%
-  # filter(reference != -99) %>% 
-  # filter(rt > .3 & rt < 5) %>% # discard very long and short RT trials
+  filter(reference != -99) %>%
+  filter(rt > .3 & rt < 5) %>% # discard very long and short RT trials
   group_by(subnum, day, type) %>%
-  mutate(possiblePayoff_dmn = possiblePayoff - mean(possiblePayoff)) 
+  mutate(possiblePayoff_dmn = possiblePayoff - mean(possiblePayoff)) %>%
+  mutate(rawVDiff = possiblePayoff - reference,
+         normVDiff =  (normMax - normMin) / (max(rawVDiff) - min(rawVDiff)) * (rawVDiff - max(rawVDiff)) + (normMax) )
+
+rm(normMax, normMin)
 ```
 
 # Exploring priors and parameter space
@@ -63,14 +70,6 @@ dat %>%
   theme(legend.position = "bottom")+
   labs(fill="", x="")
 ```
-
-If these are the priors you use what is the prior probability of any given d from a uniform prior?
-
-(So you can use it to multiply with the likelihood to get an unnormalized posterior?)
-
-If it's a uniform prior then it doesn't really matter since the prior will be the same for all values.
-
-In the HDDMs d and sigma have uniform priors (yay!)
 
 What about the bias and ndt? Uniform-ish too.
 
@@ -139,12 +138,12 @@ dat %>%
 
 ```
 
-Ok, so if we assume uniform (uninformative) priors for every parameter (d, sigma, bias, ndt, barrierDecay) then the posteriors will be proportional to the likelihood. 
-
 What are reasonable values for barrierDecay? Prior: Uniform[0, .01]; min = 0, max = 0.02
 
 ```{r}
 decay_vals = c(0, .001, .01, .02, .1, 1)
+
+maxIter = 400
 
 dat = data.frame()
 
@@ -166,7 +165,6 @@ dat %>%
   theme_bw()+
   theme(legend.position = "bottom")
 ```
-
 # Test trial simulation function
 
 Simulate a few trials
@@ -184,18 +182,15 @@ cur_barrierDecay = .002
 
 cur_valStim = .25
 cur_valRef = 0
+cur_valDiff = cur_valStim - cur_valRef
 
-# cur_valStim = data_yn_clean$possiblePayoff_dmn[100]
-# cur_valRef = data_yn_clean$reference[100] #mean is 0 so not mutated
-
-tmp = sim_trial(d = cur_d, sigma = cur_sigma, nonDecisionTime = cur_nonDecisionTime, bias = cur_bias, barrierDecay = cur_barrierDecay, ValStim = cur_valStim, ValRef = cur_valRef, debug = T)
+tmp = sim_trial(d = cur_d, sigma = cur_sigma, nonDecisionTime = cur_nonDecisionTime, bias = cur_bias, barrierDecay = cur_barrierDecay, ValDiff = cur_valDiff, debug = T)
 
 tmp
 ```
 
 ```{r}
 tmp$debug_df %>%
-  mutate(RDV = ifelse(time<31, NA, RDV)) %>%
   ggplot()+
   geom_line(aes(time, RDV), color = "#F8766D", size = 2)+
   geom_line(aes(time, barrier))+
@@ -215,8 +210,8 @@ source(paste0(helpers_path, '/ddm/sim_yn_ddm.R'))
 ```
 
 ```{r}
-cur_d = .003
-cur_sigma = .002
+cur_d = .03
+cur_sigma = .02
 cur_nonDecisionTime = 300 #ms
 cur_bias = 0
 cur_barrierDecay = .002
@@ -230,9 +225,7 @@ sim_trial_list = list("model1" = sim_trial)
 
 tmp = sim_task(stimuli = sub_stims, model_name = "model1", sim_trial_list_ = sim_trial_list, d = cur_d, sigma = cur_sigma, nonDecisionTime = cur_nonDecisionTime, bias = cur_bias, barrierDecay = cur_barrierDecay, debug = T)
 
-tmp %>%
-  mutate(absValDiff = abs(ValStim - ValRef)) %>%
-  arrange(absValDiff)
+tmp
 
 
 ```
@@ -244,21 +237,200 @@ source(paste0(helpers_path, '/ddm/yn_ddm.R'))
 ```
 
 ```{r}
-i = 1
+i = 25
 
 tmp[i,]
 ```
 
 ```{r}
-fit_trial(d = cur_d, sigma = cur_sigma, nonDecisionTime = cur_nonDecisionTime, bias = cur_bias, barrierDecay = cur_barrierDecay, choice = tmp$choice[i], reactionTime = tmp$reactionTime[i], ValStim = tmp$ValStim[i], ValRef = tmp$ValRef[i])
+fit_trial(d = cur_d, sigma = cur_sigma, nonDecisionTime = cur_nonDecisionTime, bias = cur_bias, barrierDecay = cur_barrierDecay, choice = tmp$choice[i], reactionTime = tmp$reactionTime[i], ValDiff = tmp$ValDiff[i], approxStateStep = .1)
 ```
 
 ```{r}
-fit_trial(d = cur_d*10, sigma = cur_sigma*10, nonDecisionTime = cur_nonDecisionTime, bias = cur_bias, barrierDecay = cur_barrierDecay, choice = tmp$choice[i], reactionTime = tmp$reactionTime[i], ValStim = tmp$ValStim[i], ValRef = tmp$ValRef[i])
+fit_trial(d = cur_d, sigma = cur_sigma, nonDecisionTime = cur_nonDecisionTime, bias = cur_bias, barrierDecay = cur_barrierDecay, choice = tmp$choice[i], reactionTime = tmp$reactionTime[i], ValDiff = tmp$ValDiff[i], approxStateStep = .01)
+```
+
+**Note higher (and incorrect!) parameter has higher likelihood with large state step size!**
+
+```{r}
+fit_trial(d = cur_d*10, sigma = cur_sigma*10, nonDecisionTime = cur_nonDecisionTime, bias = cur_bias, barrierDecay = cur_barrierDecay, choice = tmp$choice[i], reactionTime = tmp$reactionTime[i], ValDiff = tmp$ValDiff[i], approxStateStep = .1)
 ```
 
 ```{r}
-fit_trial(d = cur_d/2, sigma = cur_sigma, nonDecisionTime = cur_nonDecisionTime, bias = cur_bias, barrierDecay = cur_barrierDecay, choice = tmp$choice[i], reactionTime = tmp$reactionTime[i], ValStim = tmp$ValStim[i], ValRef = tmp$ValRef[i])
+fit_trial(d = cur_d*10, sigma = cur_sigma*10, nonDecisionTime = cur_nonDecisionTime, bias = cur_bias, barrierDecay = cur_barrierDecay, choice = tmp$choice[i], reactionTime = tmp$reactionTime[i], ValDiff = tmp$ValDiff[i], approxStateStep = .01)
+```
+
+```{r}
+fit_trial(d = cur_d/2, sigma = cur_sigma, nonDecisionTime = cur_nonDecisionTime, bias = cur_bias, barrierDecay = cur_barrierDecay, choice = tmp$choice[i], reactionTime = tmp$reactionTime[i], ValDiff = tmp$ValDiff[i], approxStateStep = .01)
+```
+
+## Debugging state space
+
+```{r}
+source(paste0(helpers_path, '/ddm/yn_ddm.R'))
+```
+
+```{r}
+tmp = sim_trial(d = .005, sigma = .07, nonDecisionTime = 200, bias = 0, barrierDecay = 0.001, ValDiff = -1, debug = T)
+
+tmp$debug_df %>%
+  ggplot()+
+  geom_line(aes(time, RDV), color = "#F8766D", size = 2)+
+  geom_line(aes(time, barrier))+
+  geom_line(aes(time, -barrier))+
+  theme(panel.grid = element_blank())+
+  geom_hline(aes(yintercept = 0), linetype = "dashed")+
+  geom_hline(aes(yintercept = 1), linetype = "dashed")+
+  geom_hline(aes(yintercept = -1), linetype = "dashed")+
+  labs(x = "Timestep (in 10 ms)")
+```
+
+```{r}
+sim_trial_list = list("model1" = sim_trial)
+
+tmp = sim_task(stimuli = tibble(normVDiff = rep(-1, 200)), model_name = "model1", sim_trial_list_ = sim_trial_list, d = .005, sigma = .07, nonDecisionTime = 200, bias = 0, barrierDecay = 0.001)
+
+summary(tmp$reactionTime)
+```
+
+```{r}
+debug_out = fit_trial(d = .005, sigma = .07, nonDecisionTime = 200, bias = 0, barrierDecay = 0, ValDiff = -1, choice = -1, reactionTime = 1.5, debug=T)
+
+str(debug_out)
+```
+
+```{r}
+annotations <- data.frame(
+        xpos = c(-Inf),
+        ypos =  c(Inf),
+        annotateText = c(paste0("Choice: ", debug_out$likelihood$choice,
+                         "\nRT: ", debug_out$likelihood$reactionTime,
+                         "\nValDiff: ", debug_out$likelihood$ValDiff,
+                         "\nd: ", debug_out$likelihood$d,
+                         "\nsigma: ", debug_out$likelihood$sigma,
+                         "\nndt: ", debug_out$likelihood$nonDecisionTime,
+                         "\nlik: ", round(debug_out$likelihood$likelihood, 6))),
+        hjustvar = c(-0.1) ,
+        vjustvar = c(1.1))
+
+tibble(probUpCrossing = debug_out$probUpCrossing,
+       probDownCrossing = debug_out$probDownCrossing) %>%
+  mutate(time = 1:n() * (debug_out$likelihood$timeStep)) %>%
+  gather(key, value, -time) %>%
+  ggplot(aes(time, value))+
+  geom_line( aes(color = key) )+
+  labs(y = "likelihood", color = "") +
+  theme(legend.position = "bottom") +
+  geom_text(data = annotations, aes(x = xpos, y = ypos, 
+                                    hjust = hjustvar,
+                                    vjust = vjustvar,
+                                    label = annotateText))
+```
+
+
+```{r}
+debug_out$renorm_debug %>%
+  select(sumIn, cumSumPUp, cumSumPDown) %>%
+  mutate(total = sumIn + cumSumPUp + cumSumPDown,
+         time = 1:n() * debug_out$likelihood$timeStep) %>%
+  gather(key, value, -time) %>%
+  ggplot(aes(time, value))+
+  geom_line( aes(color = key) )+
+  labs(y = "Cumulative prob", color = "") +
+  theme(legend.position = "bottom") +
+  geom_text(data = annotations, aes(x = xpos, y = ypos, 
+                                    hjust = hjustvar,
+                                    vjust = vjustvar,
+                                    label = annotateText))
+
+```
+
+What are these kinks in the distributions when there is decay in barriers?
+
+```{r}
+debug_out = fit_trial(d = .005, sigma = .07, nonDecisionTime = 200, bias = 0, barrierDecay = 0.001, ValDiff = -1, choice = -1, reactionTime = 1.5, debug=T)
+
+annotations <- data.frame(
+        xpos = c(-Inf),
+        ypos =  c(Inf),
+        annotateText = c(paste0("Choice: ", debug_out$likelihood$choice,
+                         "\nRT: ", debug_out$likelihood$reactionTime,
+                         "\nValDiff: ", debug_out$likelihood$ValDiff,
+                         "\nd: ", debug_out$likelihood$d,
+                         "\nsigma: ", debug_out$likelihood$sigma,
+                         "\nndt: ", debug_out$likelihood$nonDecisionTime)),
+        hjustvar = c(-0.1) ,
+        vjustvar = c(1.1))
+
+tibble(probUpCrossing = debug_out$probUpCrossing,
+       probDownCrossing = debug_out$probDownCrossing) %>%
+  mutate(time = 1:n() * (debug_out$likelihood$timeStep)) %>%
+  gather(key, value, -time) %>%
+  ggplot(aes(time, value))+
+  geom_line( aes(color = key) )+
+  labs(y = "likelihood", color = "") +
+  theme(legend.position = "bottom") +
+  geom_text(data = annotations, aes(x = xpos, y = ypos, 
+                                    hjust = hjustvar,
+                                    vjust = vjustvar,
+                                    label = annotateText))
+
+debug_out$renorm_debug %>%
+  select(sumIn, cumSumPUp, cumSumPDown) %>%
+  mutate(total = sumIn + cumSumPUp + cumSumPDown,
+         time = 1:n() * debug_out$likelihood$timeStep) %>%
+  gather(key, value, -time) %>%
+  ggplot(aes(time, value))+
+  geom_line( aes(color = key) )+
+  labs(y = "Cumulative prob", color = "") +
+  theme(legend.position = "bottom") +
+  geom_text(data = annotations, aes(x = xpos, y = ypos, 
+                                    hjust = hjustvar,
+                                    vjust = vjustvar,
+                                    label = annotateText))
+```
+
+```{r}
+debug_out = fit_trial(d = .005, sigma = .07, nonDecisionTime = 200, bias = 0, barrierDecay = 0.001, ValDiff= -1, choice = -1, reactionTime = 3.5, debug=T)
+
+annotations <- data.frame(
+        xpos = c(-Inf),
+        ypos =  c(Inf),
+        annotateText = c(paste0("Choice: ", debug_out$likelihood$choice,
+                         "\nRT: ", debug_out$likelihood$reactionTime,
+                         "\nValDiff: ", debug_out$likelihood$ValDiff,
+                         "\nd: ", debug_out$likelihood$d,
+                         "\nsigma: ", debug_out$likelihood$sigma,
+                         "\nndt: ", debug_out$likelihood$nonDecisionTime)),
+        hjustvar = c(-0.1) ,
+        vjustvar = c(1.1))
+
+tibble(probUpCrossing = debug_out$probUpCrossing,
+       probDownCrossing = debug_out$probDownCrossing) %>%
+  mutate(time = 1:n() * (debug_out$likelihood$timeStep)) %>%
+  gather(key, value, -time) %>%
+  ggplot(aes(time, value))+
+  geom_line( aes(color = key) )+
+  labs(y = "likelihood", color = "") +
+  theme(legend.position = "bottom") +
+  geom_text(data = annotations, aes(x = xpos, y = ypos, 
+                                    hjust = hjustvar,
+                                    vjust = vjustvar,
+                                    label = annotateText))
+
+debug_out$renorm_debug %>%
+  select(sumIn, cumSumPUp, cumSumPDown) %>%
+  mutate(total = sumIn + cumSumPUp + cumSumPDown,
+         time = 1:n() * debug_out$likelihood$timeStep) %>%
+  gather(key, value, -time) %>%
+  ggplot(aes(time, value))+
+  geom_line( aes(color = key) )+
+  labs(y = "Cumulative prob", color = "") +
+  theme(legend.position = "bottom") +
+  geom_text(data = annotations, aes(x = xpos, y = ypos, 
+                                    hjust = hjustvar,
+                                    vjust = vjustvar,
+                                    label = annotateText))
 ```
 
 # Test task fitting functions
@@ -268,12 +440,27 @@ source(paste0(helpers_path, '/ddm/fit_yn_ddm.R'))
 ```
 
 ```{r}
-cur_d = .003
-cur_sigma = .002
+cur_d = .03
+cur_sigma = .02
 cur_nonDecisionTime = 300 #ms
 cur_bias = 0
 cur_barrierDecay = .002
+```
 
+```{r}
+sub_stims = data_yn_clean %>%
+  filter((subnum == 611) & (day == 4) & (type == 1))
+
+# names(sub_stims)
+
+sim_trial_list = list("model1" = sim_trial)
+
+tmp = sim_task(stimuli = sub_stims, model_name = "model1", sim_trial_list_ = sim_trial_list, d = cur_d, sigma = cur_sigma, nonDecisionTime = cur_nonDecisionTime, bias = cur_bias, barrierDecay = cur_barrierDecay, debug = T)
+
+tmp
+```
+
+```{r}
 fit_trial_list = list("model1" = fit_trial)
 
 fit_task(data_ = tmp[1:100,], model_name_ = "model1", pars_ = list(d = cur_d, sigma = cur_sigma, nonDecisionTime = cur_nonDecisionTime, bias = cur_bias, barrierDecay = cur_barrierDecay) , fit_trial_list_ = fit_trial_list, debug=FALSE)
@@ -293,76 +480,52 @@ get_task_nll(data_ = tmp[1:100,], par_ = c(cur_d/2, cur_sigma, cur_nonDecisionTi
 get_task_nll(data_ = tmp[1:100,], par_ = c(cur_d, cur_sigma/2, cur_nonDecisionTime, cur_bias, cur_barrierDecay), par_names_ = c("d", "sigma", "nonDecisionTime", "bias", "barrierDecay"), model_name_ = "model1")
 ```
 
-# Test optim
+## Test optim on simulated data
 
-```{r eval = FALSE}
-
-max_iter = 100
-
-par_names = c("d", "sigma", "nonDecisionTime", "bias", "barrierDecay")
-
-subnums = sort(unique(data_yn_clean$subnum))
-subnums = subnums[1]
-days = sort(unique(data_yn_clean$day))
-days = days[1]
-types = sort(unique(data_yn_clean$type))
-
-for(cur_sub in subnums){
-  for(cur_day in days){
-    for(cur_type in types){
-      
-      cur_dat = data_yn_clean %>%
-        filter((subnum == cur_sub) & (day == cur_day) & (type == cur_type)) %>%
-        filter(reference != -99) %>%
-        filter(rt > .3 & rt < 5)
-      
-      start_num = 1
-      while(start_num < 100){
-        # while(start_num < 10){
-        start_d = runif(1, .00001, 1)
-        start_sigma = runif(1, 0.000001, 2)
-        start_nonDecisionTime = runif(1, 10, 500)
-        start_bias = runif(1, -1, 1)
-        start_barrierDecay = runif(1, 0, .01)
-        
-        start_vals = c(start_d, start_sigma, start_nonDecisionTime, start_bias, start_barrierDecay)
-        
-        optim_out = optim(par = start_vals, get_task_nll, data_= cur_dat, par_names_ = par_names, model_name_ = "model1", control = list(maxit=max_iter))
-        
-        cur_out = data_frame(key = par_names, value = optim_out$par)
-        cur_out = cur_out %>% spread(key, value)
-        cur_out$nll = optim_out$value
-        cur_out$optim_iters = as.numeric(optim_out$counts[1])
-        cur_out$subnum = cur_sub
-        cur_out$day = cur_day
-        cur_out$type = cur_type
-        cur_out = cbind(cur_out, data_frame(key = paste0("start_", par_names), value = start_vals) %>% spread(key, value))
-        cur_out$start_num = start_num
-        
-        if(start_num == 1){
-          out = cur_out
-        } else{
-          out = rbind(out, cur_out)
-        }
-        
-        start_num = start_num + 1 
-      }
-      
-      fn_type = ifelse(cur_type == 1, "HT", "RE")
-      fn = paste0("optim_YN_DDM_FIT_sub-",cur_sub, "_",fn_type,"_day_",cur_day,".csv")
-      write.csv(out, paste0(here(), '/inputs/',fn), row.names = F)
-    }
-  }
-}
-
-out
+```{r}
+cur_d = .03
+cur_sigma = .02
+cur_nonDecisionTime = 300 #ms
+cur_bias = 0
+cur_barrierDecay = .002
 ```
 
 ```{r}
-get_task_nll(data_ = tmp, par_ = c(cur_d, cur_sigma, cur_nonDecisionTime, cur_bias, cur_barrierDecay), par_names_ = c("d", "sigma", "nonDecisionTime", "bias", "barrierDecay"), model_name_ = "model1")
+sub_stims = data_yn_clean %>%
+  filter((subnum == 611) & (day == 4) & (type == 1))
+
+sim_trial_list = list("model1" = sim_trial)
+
+tmp = sim_task(stimuli = sub_stims, model_name = "model1", sim_trial_list_ = sim_trial_list, d = cur_d, sigma = cur_sigma, nonDecisionTime = cur_nonDecisionTime, bias = cur_bias, barrierDecay = cur_barrierDecay, debug = T)
 ```
 
-## Single subject estimates
+```{r eval=FALSE}
+start_vals = c(.01, .01, 100, 0, .001)
+par_names = c("d", "sigma", "nonDecisionTime", "bias", "barrierDecay")
+model = 'model1'
+
+optim_out = optim(par = start_vals, get_task_nll, data_= tmp, par_names_ = par_names, model_name_ = model)
+
+cur_out = tibble(key = par_names, value = optim_out$par)
+cur_out = cur_out %>% spread(key, value)
+cur_out$nll = optim_out$value
+
+cur_out
+```
+
+
+## Test optim on single subject
+
+```{r}
+
+```
+
+```{r}
+rm(annotations, cur_dat, dat, debug_out, sub_stims, tmp, cur_barrierDecay, cur_bias, cur_d, cur_dv, cur_nonDecisionTime, cur_sigma, cur_valDiff, cur_valRef, cur_valStim, decay_vals, i, n, cur_out, optim_out)
+```
+
+
+# Examine optim output for a single subject
 
 Read in the estimates for a single subject:
 

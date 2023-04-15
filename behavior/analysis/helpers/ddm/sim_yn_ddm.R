@@ -67,15 +67,14 @@ sim_task = function(stimuli, model_name, sim_trial_list_ = sim_trial_list, ...){
 
   # Parallel loop
   out <- foreach(
-    ValStim = stimuli$possiblePayoff_dmn,
-    ValRef = stimuli$reference,
+    ValDiff = stimuli$normVDiff,
     .combine = 'rbind'
   ) %dopar% {
     # Simulate RT and choice for a single trial with given DDM parameters and trial stimulus values
     sim_trial(d = kwargs$d, sigma = kwargs$sigma,
               barrier = kwargs$barrier, nonDecisionTime = kwargs$nonDecisionTime, barrierDecay = kwargs$barrierDecay,
               bias = kwargs$bias, timeStep = kwargs$timeStep, maxIter = kwargs$maxIter,
-              ValStim = ValStim, ValRef = ValRef)
+              ValDiff = ValDiff)
 
   }
 

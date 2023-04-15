@@ -54,17 +54,10 @@ fit_task = function(data_, model_name_, pars_, fit_trial_list_ = fit_trial_list,
   }
 
   # If fitting on simulated data col names might be different
-  if("possiblePayoff_dmn" %in% names(data_) == FALSE){
-    # print("possiblePayoff_dmn not in data")
-    if("ValStim" %in% names(data_)){
-      data_$possiblePayoff_dmn = data_$ValStim
-    }
-  }
-
-  if("reference" %in% names(data_) == FALSE){
-    # print("reference not in data")
-    if("ValRef" %in% names(data_)){
-      data_$reference =  data_$ValRef
+  if("normVDiff" %in% names(data_) == FALSE){
+    # print("yesChosen not in data")
+    if("ValDiff" %in% names(data_)){
+      data_$normVDiff =  data_$ValDiff
     }
   }
 
@@ -88,8 +81,7 @@ fit_task = function(data_, model_name_, pars_, fit_trial_list_ = fit_trial_list,
     # Specifying expression
     expr = {
       out <- foreach(
-        ValStim = data_$possiblePayoff_dmn,
-        ValRef = data_$reference,
+        ValDiff = data_$normVDiff,
         choice = data_$yesChosen,
         reactionTime = data_$rt,
         .combine = 'rbind'
@@ -98,11 +90,11 @@ fit_task = function(data_, model_name_, pars_, fit_trial_list_ = fit_trial_list,
         fit_trial(d=pars_$d, sigma = pars_$sigma,
                   barrier = pars_$barrier, nonDecisionTime = pars_$nonDecisionTime, barrierDecay = pars_$barrierDecay,
                   bias = pars_$bias, timeStep = pars_$timeStep,
-                  ValStim = ValStim, ValRef = ValRef, choice = choice, reactionTime = reactionTime)
+                  ValDiff = ValDiff, choice = choice, reactionTime = reactionTime)
 
       }
 
-      return(out)     
+      return(out)
       print("Completed parallel.")
     },
 
@@ -111,8 +103,7 @@ fit_task = function(data_, model_name_, pars_, fit_trial_list_ = fit_trial_list,
       print("Trying serial")
 
       out <- foreach(
-        ValStim = data_$possiblePayoff_dmn,
-        ValRef = data_$reference,
+        ValDiff = data_$normVDiff,
         choice = data_$yesChosen,
         reactionTime = data_$rt,
         .combine = 'rbind'
@@ -121,10 +112,10 @@ fit_task = function(data_, model_name_, pars_, fit_trial_list_ = fit_trial_list,
         fit_trial(d=pars_$d, sigma = pars_$sigma,
                   barrier = pars_$barrier, nonDecisionTime = pars_$nonDecisionTime, barrierDecay = pars_$barrierDecay,
                   bias = pars_$bias, timeStep = pars_$timeStep,
-                  ValStim = ValStim, ValRef = ValRef, choice = choice, reactionTime = reactionTime)
+                  ValDiff = ValDiff, choice = choice, reactionTime = reactionTime)
 
       }
-      
+
       return(out)
 
     }
@@ -148,7 +139,7 @@ get_task_nll = function(data_, par_, par_names_, model_name_){
   # Get trial likelihoods for the stimuli using the initialized parameters
   out = fit_task(data_ = data_, model_name_ = model_name_, pars_ = pars)
 
-  # Adding a small number to likelihood to avoid log(0) 
+  # Adding a small number to likelihood to avoid log(0)
   nll = -sum(log(out$likelihood+1e-200))
 
   return(nll)
