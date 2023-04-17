@@ -1,7 +1,6 @@
 #!/bin/bash
 
 #SBATCH -J optim_{MODEL}_sub-{SUBNUM}-day-{DAYNUM}_{TYPE}_%j
-#SBATCH -c 4
 
 # Outputs ----------------------------------
 #SBATCH -o /shared/.out/optim_{MODEL}_sub-{SUBNUM}-day-{DAYNUM}_{TYPE}_%j.out

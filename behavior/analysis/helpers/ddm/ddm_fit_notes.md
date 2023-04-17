@@ -72,7 +72,7 @@ export OUT_PATH=$STUDY_DIR/behavior/analysis/helpers/cluster_scripts/ddm/optim_o
 # Interactive - remove -it when submitting jobs
 docker run --rm -it -v $INPUT_PATH:/inputs -v $CODE_PATH:/ddm -v $OUT_PATH:/optim_out \
 -e INPUT_PATH=/inputs -e CODE_PATH=/ddm -e OUT_PATH=/optim_out \
-zenkavi/rddmstatespace:0.0.1 Rscript --vanilla /ddm/optim_yn_ddm.R --model yn_ddm --subnum 621 --day 4 --type RE --num_starts 2 --max_iter 10
+zenkavi/rddmstatespace:0.0.1 Rscript --vanilla /ddm/optim_yn_ddm.R --model yn_ddm --subnum 621 --day 4 --type RE --testing 1 --max_iter 10
 ```
 
 Grid search
@@ -91,24 +91,25 @@ zenkavi/rddmstatespace:0.0.1 Rscript --vanilla /ddm/grid_search_yn_ddm.R --model
 
 ## Push behavior files to S3
 
-MAKE THIS MORE SPECIFIC TO THE DATA FILES NEEDED FOR THIS STEP instead of pushing and pulling all of inputs directory
-
 ```
 export INPUTS_DIR=/Users/zeynepenkavi/Documents/RangelLab/NovelVsRepeated/behavior/inputs
 
-docker run --rm -it -v ~/.aws:/root/.aws -v $INPUTS_DIR:/inputs amazon/aws-cli s3 cp /inputs/.... s3://novel-vs-repeated/behavior/inputs/....
-docker run --rm -it -v ~/.aws:/root/.aws -v $INPUTS_DIR:/inputs amazon/aws-cli s3 cp /inputs/.... s3://novel-vs-repeated/behavior/inputs/....
-docker run --rm -it -v ~/.aws:/root/.aws -v $INPUTS_DIR:/inputs amazon/aws-cli s3 cp /inputs/.... s3://novel-vs-repeated/behavior/inputs/....
+docker run --rm -it -v ~/.aws:/root/.aws -v $INPUTS_DIR:/inputs amazon/aws-cli s3 cp /inputs/data_choiceYN.csv s3://novel-vs-repeated/behavior/inputs/data_choiceYN.csv
+
+docker run --rm -it -v ~/.aws:/root/.aws -v $INPUTS_DIR:/inputs amazon/aws-cli s3 cp /inputs/ddm_grid.csv s3://novel-vs-repeated/behavior/inputs/ddm_grid.csv
+
+docker run --rm -it -v ~/.aws:/root/.aws -v $INPUTS_DIR:/inputs amazon/aws-cli s3 cp /inputs/ddm_grid_test.csv s3://novel-vs-repeated/behavior/inputs/ddm_grid_test.csv
 ```
 
 ## Push cluster setup and model fitting scripts to s3
 
-This is pushing all of `helpers` directory but things you need specifically for this should be in `helpers/ddm` and `helpers/cluster_scripts/ddm`
-
 ```
 export STUDY_DIR=/Users/zeynepenkavi/Documents/RangelLab/NovelVsRepeated
 cd $STUDY_DIR
-docker run --rm -it -v ~/.aws:/root/.aws -v $(pwd)/behavior/analysis/helpers:/behavior/analysis/helpers amazon/aws-cli s3 sync /behavior/analysis/helpers s3://novel-vs-repeated/behavior/analysis/helpers --exclude "*.DS_Store"
+
+docker run --rm -it -v ~/.aws:/root/.aws -v $(pwd)/behavior/analysis/helpers/ddm:/behavior/analysis/helpers/ddm amazon/aws-cli s3 sync /behavior/analysis/helpers/ddm s3://novel-vs-repeated/behavior/analysis/helpers/ddm --exclude "*.DS_Store"
+
+docker run --rm -it -v ~/.aws:/root/.aws -v $(pwd)/behavior/analysis/helpers/cluster_scripts/ddm:/behavior/analysis/helpers/cluster_scripts/ddm amazon/aws-cli s3 sync /behavior/analysis/helpers/cluster_scripts/ddm s3://novel-vs-repeated/behavior/analysis/helpers/cluster_scripts/ddm --exclude "*.DS_Store"
 ```
 
 ## Make key pair for `rddmstatespace-cluster`
@@ -148,7 +149,7 @@ pcluster ssh --cluster-name rddmstatespace-cluster -i $KEYS_PATH/rddmstatespace-
 ```
 export DATA_PATH=/shared/behavior/inputs
 
-aws s3 sync s3://novel-vs-repeated/behavior/inputs $DATA_PATH --exclude '*' --include 'data_choiceYN.csv' --include 'data_choiceBC.csv'
+aws s3 sync s3://novel-vs-repeated/behavior/inputs $DATA_PATH --exclude '*' --include 'data_choiceYN.csv' --include 'ddm_grid.csv' --include 'ddm_grid_test.csv'
 ```
 
 ## Copy model fitting code from s3 to cluster
@@ -156,15 +157,23 @@ aws s3 sync s3://novel-vs-repeated/behavior/inputs $DATA_PATH --exclude '*' --in
 ```
 export CODE_PATH=/shared/behavior/analysis/helpers
 
-aws s3 sync s3://novel-vs-repeated/behavior/analysis/helpers $CODE_PATH
+aws s3 sync s3://novel-vs-repeated/behavior/analysis/helpers/ddm $CODE_PATH/ddm
+
+aws s3 sync s3://novel-vs-repeated/behavior/analysis/helpers/cluster_scripts/ddm $CODE_PATH/cluster_scripts/ddm
 ```
 
 ## Test fitting on single subject on head node
 
 ```
-export DATA_PATH=/shared/behavior
+export INPUT_PATH=/shared/behavior/inputs
+export CODE_PATH=/shared/behavior/analysis/helpers/ddm
+export OUT_PATH=/shared/behavior/analysis/helpers/cluster_scripts/ddm/grid_search_out
 
-docker run --rm -it -v $DATA_PATH:/behavior -w /behavior zenkavi/rddmstatespace:0.0.1 Rscript --vanilla /behavior/analysis/helpers/hddm/fit_yn_hddm.R --type HT --day 2
+docker run --rm -it -v $INPUT_PATH:/inputs -v $CODE_PATH:/ddm -v $OUT_PATH:/grid_search_out \
+-e INPUT_PATH=/inputs -e CODE_PATH=/ddm -e OUT_PATH=/grid_search_out \
+zenkavi/rddmstatespace:0.0.1 Rscript --vanilla /ddm/grid_search_yn_ddm.R --model yn_ddm --subnum 621 --day 4 --type RE --grid ddm_grid_test.csv
+
+
 ```
 
 ## Submit jobs for levels 1s of all subjects and sessions for both tasks
@@ -174,25 +183,26 @@ Only a few examples listed below
 ```
 cd /shared/behavior/analysis/helpers/cluster_scripts/ddm/
 
-sh run_fit_yn_hddm_rjags.sh -s HT -d 4
-sh run_fit_yn_hddm_rjags.sh -s RE -d 4
-
-sh run_fit_bc_hddm_rjags.sh -s HT -d 6
+sh run_grid_search_yn_ddm.sh -s 611 -t HT -d 5
+sh run_optim_yn_ddm.sh -s 601 -t RE -d 4
 ```
 
 ## Push outputs back to s3
 
 ```
-export OUT_PATH=/shared/behavior/inputs
-aws s3 sync $OUT_PATH s3://novel-vs-repeated/behavior/inputs
+export OUT_PATH=/shared/behavior/analysis/helpers/cluster_scripts/ddm/grid_search_out
+aws s3 sync $OUT_PATH s3://novel-vs-repeated/behavior/analysis/helpers/cluster_scripts/ddm/grid_search_out
+
+export OUT_PATH=/shared/behavior/analysis/helpers/cluster_scripts/ddm/optim_out
+aws s3 sync $OUT_PATH s3://novel-vs-repeated/behavior/analysis/helpers/cluster_scripts/ddm/optim_out
 ```
 
-## Download contrasts you want to visualize
+## Download fitted parameters
 
 ```
-export INPUTS_DIR=/Users/zeynepenkavi/Documents/RangelLab/NovelVsRepeated/behavior/inputs
+export OUTPUTS_DIR=/Users/zeynepenkavi/CpuEaters/NovelVsRepeated/behavior/analysis/helpers/cluster_scripts/ddm
 
-docker run --rm -it -v ~/.aws:/root/.aws -v $INPUTS_DIR:/inputs amazon/aws-cli s3 sync s3://novel-vs-repeated/behavior/inputs /inputs --exclude '*' --include '*YN_HDDM_FIT*'
+docker run --rm -it -v ~/.aws:/root/.aws -v $OUTPUTS_DIR:/outputs amazon/aws-cli s3 sync s3://novel-vs-repeated/behavior/analysis/helpers/cluster_scripts/ddm /outputs
 ```
 
 ## Delete cluster

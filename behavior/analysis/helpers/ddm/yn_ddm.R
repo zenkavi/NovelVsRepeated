@@ -146,10 +146,10 @@ fit_trial = function(d, sigma, nonDecisionTime, bias, barrierDecay, barrier=1, t
   mu_mean = d * (ValDiff)
 
   # If attempt to reduce the state step has failed notify
-  if(approxStateStep > abs(mu_mean)){
-    print("State space step size is larger than the expected change.")
-    print(paste0("approxStateStep = ", approxStateStep, " mu_mean = ", mu_mean))
-  }
+  # if(approxStateStep > abs(mu_mean)){
+  #   print("State space step size is larger than the expected change.")
+  #   print(paste0("approxStateStep = ", approxStateStep, " mu_mean = ", mu_mean))
+  # }
 
   halfNumStateBins = round(initialBarrier / approxStateStep)
   stateStep = initialBarrier / (halfNumStateBins + 0.5)

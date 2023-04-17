@@ -85,7 +85,7 @@ fit_task = function(data_, model_name_, pars_, fit_trial_list_ = fit_trial_list,
         choice = data_$yesChosen,
         reactionTime = data_$rt,
         .combine = 'rbind'
-      ) %dopar% {
+      ) %do% {
         # Simulate RT and choice for a single trial with given DDM parameters and trial stimulus values
         fit_trial(d=pars_$d, sigma = pars_$sigma,
                   barrier = pars_$barrier, nonDecisionTime = pars_$nonDecisionTime, barrierDecay = pars_$barrierDecay,
@@ -95,19 +95,21 @@ fit_task = function(data_, model_name_, pars_, fit_trial_list_ = fit_trial_list,
       }
 
       return(out)
-      print("Completed parallel.")
+      # print("Completed parallel.")
+      print("Completed serial.")
     },
 
     # Specifying error case
     error = function(e){
-      print("Trying serial")
+      # print("Trying serial")
+      print("Trying parallel")
 
       out <- foreach(
         ValDiff = data_$normVDiff,
         choice = data_$yesChosen,
         reactionTime = data_$rt,
         .combine = 'rbind'
-      ) %do% {
+      ) %dopar% {
         # Simulate RT and choice for a single trial with given DDM parameters and trial stimulus values
         fit_trial(d=pars_$d, sigma = pars_$sigma,
                   barrier = pars_$barrier, nonDecisionTime = pars_$nonDecisionTime, barrierDecay = pars_$barrierDecay,

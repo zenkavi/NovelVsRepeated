@@ -1,7 +1,7 @@
 # Save to /inputs
 
 d = seq(0.01, .1, .01)
-sigma = seq(.5, 2, .25)
+sigma = seq(0.01, .1, .01)
 ndt = seq(200, 400, 100)
 bias = seq(-.1, .1, .1)
 barrierDecay = c(0, .001, .01, .02)

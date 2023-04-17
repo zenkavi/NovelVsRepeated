@@ -210,24 +210,47 @@ source(paste0(helpers_path, '/ddm/sim_yn_ddm.R'))
 ```
 
 ```{r}
-cur_d = .03
-cur_sigma = .02
-cur_nonDecisionTime = 300 #ms
+cur_d = .08
+cur_sigma = .03
+cur_nonDecisionTime = 200 #ms
 cur_bias = 0
-cur_barrierDecay = .002
+cur_barrierDecay = .008
 
 sub_stims = data_yn_clean %>%
-  filter((subnum == 611) & (day == 4) & (type == 1))
+  filter((subnum == 611) & (day == 4) & (type == 1)) %>%
+  filter(reference != -99) %>%
+  filter(rt > .3 & rt < 2)
 
 # names(sub_stims)
 
 sim_trial_list = list("model1" = sim_trial)
 
-tmp = sim_task(stimuli = sub_stims, model_name = "model1", sim_trial_list_ = sim_trial_list, d = cur_d, sigma = cur_sigma, nonDecisionTime = cur_nonDecisionTime, bias = cur_bias, barrierDecay = cur_barrierDecay, debug = T)
+tmp = sim_task(stimuli = sub_stims, model_name = "model1", sim_trial_list_ = sim_trial_list, d = cur_d, sigma = cur_sigma, nonDecisionTime = cur_nonDecisionTime, bias = cur_bias, barrierDecay = cur_barrierDecay, maxIter = 300, debug = T)
 
 tmp
 
 
+```
+
+Are these reasonable parameter values?
+
+```{r}
+true_dat = sub_stims %>%
+  ungroup() %>%
+  select(yesChosen, rt) %>%
+  mutate(rt = ifelse(yesChosen == 0, (-1) * rt, rt),
+         data = "true")
+
+sim_dat = tmp %>%
+  select(choice, reactionTime) %>%
+  mutate(yesChosen = ifelse(choice == "yes", 1, 0),
+         rt = ifelse(choice == "yes", reactionTime, (-1) * reactionTime),
+         data = "sim") %>%
+  select(-choice, -reactionTime)
+
+ggplot()+
+  geom_histogram(data = true_dat, aes(rt, y = ..density..), bins = 30, alpha = 0.5)+
+  geom_density(data = sim_dat, aes(rt))
 ```
 
 # Test trial likelihood function
@@ -504,7 +527,7 @@ start_vals = c(.01, .01, 100, 0, .001)
 par_names = c("d", "sigma", "nonDecisionTime", "bias", "barrierDecay")
 model = 'model1'
 
-optim_out = optim(par = start_vals, get_task_nll, data_= tmp, par_names_ = par_names, model_name_ = model)
+optim_out = optim(par = start_vals, get_task_nll, data_= tmp, par_names_ = par_names, model_name_ = model, control = list(maxit = 5, trace = 2))
 
 cur_out = tibble(key = par_names, value = optim_out$par)
 cur_out = cur_out %>% spread(key, value)
@@ -512,8 +535,6 @@ cur_out$nll = optim_out$value
 
 cur_out
 ```
-
-
 ## Test optim on single subject
 
 ```{r}

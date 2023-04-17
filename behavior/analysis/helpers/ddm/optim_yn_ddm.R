@@ -20,7 +20,7 @@ option_list = list(
   make_option("--type", type="character"),
   make_option("--model", type="character", default = "yn_ddm"),
   make_option("--max_iter", type="integer", default = as.integer(500)),
-  make_option("--num_starts", type="integer", default = as.integer(500)),
+  make_option("--testing", type="integer", default = 0),
   make_option("--par_names", type="character", default = c("d", "sigma", "nonDecisionTime", "bias", "barrierDecay")),
   make_option("--out_path", type="character", default = output_path)
 )
@@ -57,7 +57,6 @@ fit_trial_list = list()
 fit_trial_list[[model]] = fit_trial
 
 max_iter = opt$max_iter
-num_starts = opt$num_starts
 
 # PREVIOUSLY HAD TEXT PARSING TO PROCESS PAR_NAMES SPECIFIED IN BATCH SCRIPT BUT REMOVING IT FOR NOW UNLESS WE TRY OTHER MODELS WITH EITHER FIXED OR FEWER PARAMETERS
 par_names = opt$par_names
@@ -74,6 +73,20 @@ out_path = opt$out_path
 # Make sure path exists
 dir.create(out_path, showWarnings = FALSE)
 
+# Specify different starting points
+start_ds = c(.01, .05, .10)
+start_sigmas = c(.01, .05, .10)
+start_nonDecisionTimes = c(100, 200, 300)
+start_biases = c(0, .1, -.1)
+start_barrierDecays = c(0, .001, .01)
+start_vals = expand.grid(start_ds, start_sigmas, start_nonDecisionTimes, start_biases, start_barrierDecays)
+if(opt$testing == 1){
+  start_vals = start_vals[100:101,]
+}
+
+num_starts = 1:nrow(start_vals)
+print(paste0("Total number of starts will be = ", num_starts))
+
 #######################
 # Run optim
 #######################
@@ -81,33 +94,11 @@ dir.create(out_path, showWarnings = FALSE)
 print(paste0("Starting optim for sub-", cur_sub, ", day ", cur_day, ", type ", cur_type))
 for(start_num in 1:num_starts){
 
-  start_vals = c()
-  for(cur_par in par_names){
-    if(cur_par == "d"){
-      start_d = runif(1, .001, .01)
-      start_vals = c(start_vals, start_d)
-    }
-    if(cur_par == "sigma"){
-      start_sigma = runif(1, 0.001, .01)
-      start_vals = c(start_vals, start_sigma)
-    }
-    if(cur_par == "nonDecisionTime"){
-      start_nonDecisionTime = runif(1, 10, 500)
-      start_vals = c(start_vals, start_nonDecisionTime)
-    }
-    if(cur_par == "bias"){
-      start_bias = runif(1, -.2, 2)
-      start_vals = c(start_vals, start_bias)
-    }
-    if(cur_par == "barrierDecay"){
-      start_barrierDecay = runif(1, 0, .01)
-      start_vals = c(start_vals, start_barrierDecay)
-    }
-  }
-
+  cur_start_vals = start_vals[start_num,]
+  
   print(paste0("Num start = ", start_num))
 
-  optim_out = optim(par = start_vals, get_task_nll, data_= data, par_names_ = par_names, model_name_ = model, control = list(maxit=max_iter))
+  optim_out = optim(par = cur_start_vals, get_task_nll, data_= data, par_names_ = par_names, model_name_ = model, control = list(maxit = max_iter))
 
   cur_out = tibble(key = par_names, value = optim_out$par)
   cur_out = cur_out %>% spread(key, value)
