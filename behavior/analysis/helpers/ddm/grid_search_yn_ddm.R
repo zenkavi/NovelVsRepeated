@@ -93,7 +93,7 @@ for(i in 1:nrow(ddm_grid)){
   #######################
   # Save output (save for each start)
   #######################
-
   fn = paste0("grid_search_YN_DDM_FIT_sub-", cur_sub, "_", cur_type, "_day_", cur_day, ".csv")
+  print(paste0("Saving ", file.path(out_path, fn)))
   write.csv(out, file.path(out_path, fn), row.names = F)
 }

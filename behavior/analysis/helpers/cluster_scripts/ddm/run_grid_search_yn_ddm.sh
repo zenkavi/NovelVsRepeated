@@ -11,6 +11,6 @@ do
     esac
 done
 
-sed -e "s/{MODEL}/$model/g" -e "s/{SUBNUM}/$subnum/g" -e "s/{DAY}/$day/g" -e "s/{TYPE}/$type/g" run_grid_search_yn_ddm.batch | sbatch
+sed -e "s/{MODEL}/$model/g" -e "s/{SUBNUM}/$subnum/g" -e "s/{DAYNUM}/$day/g" -e "s/{TYPE}/$type/g" run_grid_search_yn_ddm.batch | sbatch
 
 # sh run_grid_search_yn_ddm.sh -s 601 -t RE -d 4

@@ -84,7 +84,7 @@ if(opt$testing == 1){
   start_vals = start_vals[100:101,]
 }
 
-num_starts = 1:nrow(start_vals)
+num_starts = nrow(start_vals)
 print(paste0("Total number of starts will be = ", num_starts))
 
 #######################
