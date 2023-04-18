@@ -98,7 +98,7 @@ for(start_num in 1:num_starts){
   
   print(paste0("Num start = ", start_num))
 
-  optim_out = optim(par = cur_start_vals, get_task_nll, data_= data, par_names_ = par_names, model_name_ = model, control = list(maxit = max_iter))
+  optim_out = optim(par = cur_start_vals, get_task_nll, data_= data, par_names_ = par_names, model_name_ = model, control = list(maxit = max_iter, trace = 1))
 
   cur_out = tibble(key = par_names, value = optim_out$par)
   cur_out = cur_out %>% spread(key, value)
@@ -107,7 +107,7 @@ for(start_num in 1:num_starts){
   cur_out$subnum = cur_sub
   cur_out$day = cur_day
   cur_out$type = cur_type
-  cur_out = cbind(cur_out, tibble(key = paste0("start_", par_names), value = start_vals) %>% spread(key, value))
+  cur_out = cbind(cur_out, tibble(key = paste0("start_", par_names), value = as.numeric(cur_start_vals)) %>% spread(key, value))
   cur_out$start_num = start_num
 
   if(start_num == 1){

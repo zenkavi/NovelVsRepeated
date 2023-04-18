@@ -1,42 +1,12 @@
-Previously:
-
-`ddm_model.R` - contains `sim_trial` and `fit_trial` functions for a given model
-
-`fit_task.R` - calls `fit_trial` function from a list of ddm model names in its `fit_task` function
-
-`ddm_Roptim.R` - `optim_save` calls `get_task_nll` defined in `fit_task.R`
-
-GRID SEARCH OR OPTIM?
-
-If grid search: d, sigma, starting point bias, barrier decay, ndt (fix?)
-If you try 10 values for each fixing one of these that's 10000 likelihoods to compute for each subject, day, stimulus type
-
-If optim you can start from random points e.g. 500 times and see where the algorithm ends up
-
-To build:
-
-Job submission:
-`run_optim_yn_ddm.sh`
-`run_optim_yn_ddm.batch`
-
-Cluster creation:
-docker file  `rddmstatespace.Dockerfile` [DONE]
-docker image `zenkavi/rddmstatespace:0.0.1` [DONE]
-
-cluster config
-key pairs
-data and script pushing to cluster
-connect to cluster
-
-Model running:
-`optim_yn_ddm.R` ~ `ddm_Roptim.R` [DONE]
-`sim_yn_ddm.R` ~ `sim_task.R` [DONE]
-`fit_yn_ddm.R` ~ `fit_task.R` [DONE]
-`yn_ddm.R` ~ `ddm_model.R` [DONE]
-
-------------------------------------------------------------------------------------------------
-
 # Steps for ddm fitting using state space
+
+## Complete model fitting code
+
+`yn_ddm.R`: Model definition (trial simulation and likelihood functions)  
+`fit_yn_ddm.R`: Task likelihood computation functions
+`sim_yn_ddm.R`: Task simulation functions
+`optim_yn_ddm.R`: Parameter optimization functions
+`grid_search_yn_ddm.R`: Grid search over parameters functions
 
 ## Create docker container
 
@@ -61,6 +31,8 @@ docker push zenkavi/rddmstatespace:0.0.1
 
 ## Test scripts in container locally
 
+Note: Remove `-it` from docker command when submitting jobs
+
 Optim
 
 ```
@@ -69,7 +41,6 @@ export INPUT_PATH=$STUDY_DIR/behavior/inputs
 export CODE_PATH=$STUDY_DIR/behavior/analysis/helpers/ddm
 export OUT_PATH=$STUDY_DIR/behavior/analysis/helpers/cluster_scripts/ddm/optim_out
 
-# Interactive - remove -it when submitting jobs
 docker run --rm -it -v $INPUT_PATH:/inputs -v $CODE_PATH:/ddm -v $OUT_PATH:/optim_out \
 -e INPUT_PATH=/inputs -e CODE_PATH=/ddm -e OUT_PATH=/optim_out \
 zenkavi/rddmstatespace:0.0.1 Rscript --vanilla /ddm/optim_yn_ddm.R --model yn_ddm --subnum 621 --day 4 --type RE --testing 1 --max_iter 10
@@ -83,7 +54,6 @@ export INPUT_PATH=$STUDY_DIR/behavior/inputs
 export CODE_PATH=$STUDY_DIR/behavior/analysis/helpers/ddm
 export OUT_PATH=$STUDY_DIR/behavior/analysis/helpers/cluster_scripts/ddm/grid_search_out
 
-# Interactive - remove -it when submitting jobs
 docker run --rm -it -v $INPUT_PATH:/inputs -v $CODE_PATH:/ddm -v $OUT_PATH:/grid_search_out \
 -e INPUT_PATH=/inputs -e CODE_PATH=/ddm -e OUT_PATH=/grid_search_out \
 zenkavi/rddmstatespace:0.0.1 Rscript --vanilla /ddm/grid_search_yn_ddm.R --model yn_ddm --subnum 621 --day 4 --type RE --grid ddm_grid_test.csv
@@ -116,8 +86,11 @@ docker run --rm -it -v ~/.aws:/root/.aws -v $(pwd)/behavior/analysis/helpers/clu
 
 ```
 export KEYS_PATH=/Users/zeynepenkavi/aws_keys
+
 aws ec2 create-key-pair --key-name rddmstatespace-cluster --query 'KeyMaterial' --output text > $KEYS_PATH/rddmstatespace-cluster.pem
+
 chmod 400 $KEYS_PATH/rddmstatespace-cluster.pem
+
 aws ec2 describe-key-pairs
 ```
 
@@ -125,7 +98,9 @@ aws ec2 describe-key-pairs
 
 ```
 export STUDY_DIR=/Users/zeynepenkavi/Documents/RangelLab/NovelVsRepeated
+
 cd $STUDY_DIR/behavior/analysis/helpers/cluster_scripts/ddm/
+
 sh make_rddmstatespace_cluster_config.sh
 ```
 
@@ -133,7 +108,9 @@ sh make_rddmstatespace_cluster_config.sh
 
 ```
 cd $STUDY_DIR/behavior/analysis/helpers/cluster_scripts/ddm/
+
 pcluster create-cluster --cluster-name rddmstatespace-cluster --cluster-configuration tmp.yaml
+
 pcluster list-clusters
 ```
 
@@ -164,6 +141,8 @@ aws s3 sync s3://novel-vs-repeated/behavior/analysis/helpers/cluster_scripts/ddm
 
 ## Test fitting on single subject on head node
 
+Grid search
+
 ```
 export INPUT_PATH=/shared/behavior/inputs
 export CODE_PATH=/shared/behavior/analysis/helpers/ddm
@@ -172,8 +151,18 @@ export OUT_PATH=/shared/behavior/analysis/helpers/cluster_scripts/ddm/grid_searc
 docker run --rm -it -v $INPUT_PATH:/inputs -v $CODE_PATH:/ddm -v $OUT_PATH:/grid_search_out \
 -e INPUT_PATH=/inputs -e CODE_PATH=/ddm -e OUT_PATH=/grid_search_out \
 zenkavi/rddmstatespace:0.0.1 Rscript --vanilla /ddm/grid_search_yn_ddm.R --model yn_ddm --subnum 621 --day 4 --type RE --grid ddm_grid_test.csv
+```
 
+Optim
 
+```
+export INPUT_PATH=/shared/behavior/inputs
+export CODE_PATH=/shared/behavior/analysis/helpers/ddm
+export OUT_PATH=/shared/behavior/analysis/helpers/cluster_scripts/ddm/optim_out
+
+docker run --rm -it -v $INPUT_PATH:/inputs -v $CODE_PATH:/ddm -v $OUT_PATH:/optim_out \
+-e INPUT_PATH=/inputs -e CODE_PATH=/ddm -e OUT_PATH=/optim_out \
+zenkavi/rddmstatespace:0.0.1 Rscript --vanilla /ddm/optim_yn_ddm.R --model yn_ddm --subnum 619 --day 5 --type RE --testing 1 --max_iter 10
 ```
 
 ## Submit jobs for levels 1s of all subjects and sessions for both tasks

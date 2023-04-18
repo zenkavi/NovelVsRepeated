@@ -8,6 +8,10 @@
 #SBATCH -e /shared/.err/yn-fit-hddm-rjags-{TYPE}-sub-{SUB}_%j.err
 # ------------------------------------------
 
-export DATA_PATH=/shared/behavior
+export INPUT_PATH=/shared/behavior/inputs
+export CODE_PATH=/shared/behavior/analysis/helpers/hddm
+export OUT_PATH=/shared/behavior/analysis/helpers/cluster_scripts/hddm/jags_out
 
-docker run --rm -v $DATA_PATH:/behavior -w /behavior zenkavi/rjagswiener:0.0.3 Rscript --vanilla /behavior/analysis/helpers/hddm/fit_yn_sub_hddm.R --type {TYPE} --sub {SUB}
+docker run --rm -v $INPUT_PATH:/inputs -v $CODE_PATH:/hddm -v $OUT_PATH:/jags_out \
+-e INPUT_PATH=/inputs -e CODE_PATH=/hddm -e OUT_PATH=/jags_out \
+zenkavi/rjagswiener:0.0.3 Rscript --vanilla /hddm/fit_yn_sub_hddm.R --sub {SUB} --type {TYPE}

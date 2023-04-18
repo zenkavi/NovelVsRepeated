@@ -1,10 +1,13 @@
 #!/usr/bin/env Rscript
 
-library(here)
 library(optparse)
 library(runjags)
 library(tidyverse)
 set.seed(38992)
+
+input_path = Sys.getenv("INPUT_PATH")
+code_path = Sys.getenv("CODE_PATH")
+output_path = Sys.getenv("OUT_PATH")
 
 #######################
 # Usage
@@ -37,9 +40,9 @@ stim_type_str = opt$type
 day_num_str = paste0("day_", day_num)
 fn = paste0('YN_HDDM_FIT_', stim_type_str, '_', day_num_str)
 
-data <- read.csv(paste0(here(), '/inputs/data_choiceYN.csv'))
-model_fn <- file.path(here(), "analysis/helpers/hddm/yn_hddm_jags.txt")
-out_path <- file.path(here(), "inputs")
+data <- read.csv(file.path(input_path , "data_choiceYN.csv"))
+model_fn <- file.path(code_path, "yn_hddm_jags.txt")
+out_path <- output_path
 
 #
 # # # some data variables: # # #
@@ -54,19 +57,22 @@ out_path <- file.path(here(), "inputs")
 # subject numbers
 subjs <- unique(data$subnum)
 
+normMax = 1
+normMin = -1
 # RT is positive if yes/stim chosen, negative if no/reference chosen
 data = data %>%
   filter(reference != -99) %>%
   filter(rt > .3 & rt < 5) %>% # discard very long and short RT trials
-  group_by(subnum) %>%
-  mutate(possiblePayoff_std = possiblePayoff - mean(possiblePayoff)) %>%
   filter((type %in% stim_type) & (day %in% day_num)) %>%
+  group_by(subnum) %>% # Make sure val diff ranges from -1 to 1 for each subject (in this condition and day)
+  mutate(rawVDiff = possiblePayoff - reference,
+         normVDiff =  (normMax - normMin) / (max(rawVDiff) - min(rawVDiff)) * (rawVDiff - max(rawVDiff)) + (normMax) ) %>%
   mutate(rtPN = ifelse(yesChosen == 1, rt, (-1)*rt))
 
 print(paste0("N Rows in data that will be modeled: ", nrow(data), " stim_type = ", stim_type, " day = ", day_num))
 
-#non decision time = rt - total fixation time
-#data$ndt<- data$rt - data$totfix
+# non decision time = rt - total fixation time
+# data$ndt<- data$rt - data$totfix
 # you can decide whether to fit the ndt or give it as input to the model
 
 # NB BEFORE FITTING THE MODEL MAKE SURE YOU HAVE NO NAN or NA IN YOUR DATA
@@ -75,8 +81,7 @@ print(paste0("N Rows in data that will be modeled: ", nrow(data), " stim_type = 
 
 idxP = as.numeric(ordered(data$subnum)) #makes a sequentially numbered subj index
 
-v_stim = data$possiblePayoff_std
-v_ref = data$reference # Did not mutate because mean per subject, per day, per type is 0  
+v_diff = data$normVDiff
 
 # proportion of fixations to the left option (nb. fixright = 1-gazeL)
 # gazeL = data$fixleft/data$totfix
@@ -96,7 +101,7 @@ ns = length(unique(idxP))
 
 # data
 # dat <- dump.format(list(N=N, y=y, idxP=idxP, v_left=v_left,v_right=v_right, gazeL=gazeL, ns=ns))
-dat <- dump.format(list(N=N, y=y, idxP=idxP, v_stim=v_stim, v_ref=v_ref, ns=ns))
+dat <- dump.format(list(N=N, y=y, idxP=idxP, v_diff=v_diff, ns=ns))
 
 # create random values for the inital values of noise mean and variance
 alpha.mu1 = as.vector(matrix(1.3 + rnorm(1)*0.2,1,1))
@@ -126,8 +131,9 @@ monitor = c(
 # run the fitting
 results <- run.jags(model=model_fn, monitor=monitor, data=dat, n.chains=3, inits=c(inits1,inits2, inits3), plots = TRUE, method="parallel", module="wiener", burnin=50000, sample=10000, thin=10)
 
-
 suuum<-summary(results)
+
+dir.create(out_path, showWarnings = FALSE)
 
 save(results, file=file.path(out_path, paste0("results_", fn,".RData")) )
 write.csv(suuum, file=file.path(out_path, paste0("summary_", fn ,".csv")) )

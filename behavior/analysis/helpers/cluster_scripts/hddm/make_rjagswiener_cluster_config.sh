@@ -16,7 +16,7 @@ SharedStorage:
      VolumeType: gp2
      Size: 20
 HeadNode:
-  InstanceType: t3.2xlarge
+  InstanceType: t3.large
   Networking:
     SubnetId: ${SUBNET_ID}
     ElasticIp: false
@@ -43,7 +43,7 @@ Scheduling:
         - Name: compute
           InstanceType: c5.xlarge
           MinCount: 0
-          MaxCount: 20
+          MaxCount: 22
           DisableSimultaneousMultithreading: true
       ComputeSettings:
         LocalStorage:

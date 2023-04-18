@@ -86,7 +86,7 @@ fit_task = function(data_, model_name_, pars_, fit_trial_list_ = fit_trial_list,
         reactionTime = data_$rt,
         .combine = 'rbind'
       ) %do% {
-        # Simulate RT and choice for a single trial with given DDM parameters and trial stimulus values
+        # Compute likelihood for a single trial with given DDM parameters, trial stimulus values and observed RT and choice
         fit_trial(d=pars_$d, sigma = pars_$sigma,
                   barrier = pars_$barrier, nonDecisionTime = pars_$nonDecisionTime, barrierDecay = pars_$barrierDecay,
                   bias = pars_$bias, timeStep = pars_$timeStep,
@@ -110,7 +110,7 @@ fit_task = function(data_, model_name_, pars_, fit_trial_list_ = fit_trial_list,
         reactionTime = data_$rt,
         .combine = 'rbind'
       ) %dopar% {
-        # Simulate RT and choice for a single trial with given DDM parameters and trial stimulus values
+        # Compute likelihood for a single trial with given DDM parameters, trial stimulus values and observed RT and choice
         fit_trial(d=pars_$d, sigma = pars_$sigma,
                   barrier = pars_$barrier, nonDecisionTime = pars_$nonDecisionTime, barrierDecay = pars_$barrierDecay,
                   bias = pars_$bias, timeStep = pars_$timeStep,

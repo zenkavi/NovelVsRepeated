@@ -72,12 +72,7 @@ model {
     w[i] ~ dnorm(li.hat[i], e.p.tau[idxP[i]])
 
     # Drift rate function, depends on the fixations and rt
-    li.hat[i] <- b.p[idxP[i]] * (v_1[i] - v_2[i])
-
-    # The linear regression of the value of the two options in the choice set
-    v_1[i] <-  v_left[i]
-    v_2[i] <-  v_right[i]
-
+    li.hat[i] <- b.p[idxP[i]] * (v_diff[i])
 
   }
 }

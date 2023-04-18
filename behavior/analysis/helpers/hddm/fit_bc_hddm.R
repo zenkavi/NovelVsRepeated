@@ -1,10 +1,13 @@
 #!/usr/bin/env Rscript
 
-library(here)
 library(optparse)
 library(runjags)
 library(tidyverse)
 set.seed(38992)
+
+input_path = Sys.getenv("INPUT_PATH")
+code_path = Sys.getenv("CODE_PATH")
+output_path = Sys.getenv("OUT_PATH")
 
 #######################
 # Usage
@@ -41,26 +44,24 @@ stim_type_str = opt$type
 day_num_str = paste0("day_", day_num)
 fn = paste0('BC_HDDM_FIT_', stim_type_str, '_', day_num_str)
 
-data <- read.csv(paste0(here(), '/inputs/data_choiceBC.csv'))
-model_fn <- file.path(here(), "analysis/helpers/hddm/bc_hddm_jags.txt")
-out_path <- file.path(here(), "inputs")
-
+data <- read.csv(file.path(input_path , "data_choiceBC.csv"))
+model_fn <- file.path(code_path, "bc_hddm_jags.txt")
+out_path <- output_path
 
 ### prepare data
 # subject numbers
 subjs <- unique(data$subnum)
 
+normMax = 1
+normMin = -1
 # RT is positive if yes/stim chosen, negative if no/reference chosen
 data = data %>%
-  filter(rt < 5) %>% # discard very long RT trials
-  filter(fmri == 0) %>% #fit this only to non scan sessions
-  group_by(subnum) %>%
-  mutate(possiblePayoffleft_std = possiblePayoffleft - mean(possiblePayoffleft),
-         possiblePayoffright_std = possiblePayoffright - mean(possiblePayoffright)) %>%
+  filter(rt > .3 & rt < 5) %>% # discard very long and short RT trials
   filter((typeLeft %in% stim_type) & (day %in% day_num)) %>%
-  mutate(rtPN = ifelse(leftChosen == 1, rt, (-1)*rt),
-         leftval = possiblePayoffleft_std,
-         rightval = possiblePayoffright_std)
+  group_by(subnum) %>% # Make sure val diff ranges from -1 to 1 for each subject (in this condition and day)
+  mutate(rawVDiff = possiblePayoffleft - possiblePayoffrigt,
+         normVDiff =  (normMax - normMin) / (max(rawVDiff) - min(rawVDiff)) * (rawVDiff - max(rawVDiff)) + (normMax) ) %>%
+  mutate(rtPN = ifelse(yesChosen == 1, rt, (-1)*rt))
 
 print(paste0("N Rows in data that will be modeled: ", nrow(data), " stim_type = ", stim_type, " day = ", day_num))
 
@@ -70,8 +71,7 @@ print(paste0("N Rows in data that will be modeled: ", nrow(data), " stim_type = 
 
 idxP = as.numeric(ordered(data$subnum)) #makes a sequentially numbered subj index
 
-v_left = data$leftval
-v_right = data$rightval
+v_diff = data$normVDiff
 
 # proportion of fixations to the left option (nb. fixright = 1-gazeL)
 # gazeL = data$fixleft/data$totfix
@@ -91,7 +91,7 @@ ns = length(unique(idxP))
 
 # data
 # dat <- dump.format(list(N=N, y=y, idxP=idxP, v_left=v_left,v_right=v_right, gazeL=gazeL, ns=ns))
-dat <- dump.format(list(N=N, y=y, idxP=idxP, v_left=v_left, v_right=v_right, ns=ns))
+dat <- dump.format(list(N=N, y=y, idxP=idxP, v_diff=v_diff, ns=ns))
 
 # create random values for the inital values of noise mean and variance
 alpha.mu1 = as.vector(matrix(1.3 + rnorm(1)*0.2,1,1))
@@ -123,6 +123,8 @@ results <- run.jags(model=model_fn, monitor=monitor, data=dat, n.chains=3, inits
 
 
 suuum<-summary(results)
+
+dir.create(out_path, showWarnings = FALSE)
 
 save(results, file=file.path(out_path, paste0("results_", fn,".RData")) )
 write.csv(suuum, file=file.path(out_path, paste0("summary_", fn ,".csv")) )

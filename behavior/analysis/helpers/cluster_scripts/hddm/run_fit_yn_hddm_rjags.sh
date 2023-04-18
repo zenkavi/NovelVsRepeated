@@ -1,13 +1,13 @@
 set -e
 
-while getopts s:d: flag
+while getopts t:d: flag
 do
     case "${flag}" in
-        s) stim=${OPTARG};;
+        t) type=${OPTARG};;
         d) day=${OPTARG};;
     esac
 done
 
-sed -e "s/{STIM}/$stim/g" -e "s/{DAY}/$day/g" run_fit_yn_hddm_rjags.batch | sbatch
+sed -e "s/{TYPE}/$type/g" -e "s/{DAY}/$day/g" run_fit_yn_hddm_rjags.batch | sbatch
 
-# sh run_fit_yn_hddm_rjags.sh -s RE -d 4
+# sh run_fit_yn_hddm_rjags.sh -t RE -d 4
