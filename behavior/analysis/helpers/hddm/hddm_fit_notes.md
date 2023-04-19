@@ -25,6 +25,8 @@ docker push zenkavi/rjagswiener:0.0.3
 
 Note: Remove `-it` from docker command when submitting jobs
 
+Hierarchy over subjects for each day
+
 ```
 export STUDY_DIR=/Users/zeynepenkavi/Documents/RangelLab/NovelVsRepeated
 export INPUT_PATH=$STUDY_DIR/behavior/inputs
@@ -33,7 +35,33 @@ export OUT_PATH=$STUDY_DIR/behavior/analysis/helpers/cluster_scripts/hddm/jags_o
 
 docker run --rm -it -v $INPUT_PATH:/inputs -v $CODE_PATH:/hddm -v $OUT_PATH:/jags_out \
 -e INPUT_PATH=/inputs -e CODE_PATH=/hddm -e OUT_PATH=/jags_out \
-zenkavi/rjagswiener:0.0.3 Rscript --vanilla /hddm/fit_yn_hddm.R ---day {DAY} --type {TYPE}
+zenkavi/rjagswiener:0.0.3 Rscript --vanilla /hddm/fit_yn_hddm.R ---day 4 --type HT
+```
+
+Hierarchy over days for each sub
+
+```
+export STUDY_DIR=/Users/zeynepenkavi/Documents/RangelLab/NovelVsRepeated
+export INPUT_PATH=$STUDY_DIR/behavior/inputs
+export CODE_PATH=$STUDY_DIR/behavior/analysis/helpers/hddm
+export OUT_PATH=$STUDY_DIR/behavior/analysis/helpers/cluster_scripts/hddm/jags_out
+
+docker run --rm -it -v $INPUT_PATH:/inputs -v $CODE_PATH:/hddm -v $OUT_PATH:/jags_out \
+-e INPUT_PATH=/inputs -e CODE_PATH=/hddm -e OUT_PATH=/jags_out \
+zenkavi/rjagswiener:0.0.3 Rscript --vanilla /hddm/fit_yn_sub_hddm.R --sub 619 --type HT
+```
+
+Hierarchy over days for each sub with collapsing bounds
+
+```
+export STUDY_DIR=/Users/zeynepenkavi/Documents/RangelLab/NovelVsRepeated
+export INPUT_PATH=$STUDY_DIR/behavior/inputs
+export CODE_PATH=$STUDY_DIR/behavior/analysis/helpers/hddm
+export OUT_PATH=$STUDY_DIR/behavior/analysis/helpers/cluster_scripts/hddm/jags_out
+
+docker run --rm -it -v $INPUT_PATH:/inputs -v $CODE_PATH:/hddm -v $OUT_PATH:/jags_out \
+-e INPUT_PATH=/inputs -e CODE_PATH=/hddm -e OUT_PATH=/jags_out \
+zenkavi/rjagswiener:0.0.3 Rscript --vanilla /hddm/fit_yn_sub_cb_hddm.R --sub 629 --type RE
 ```
 
 ## Push behavior files to S3

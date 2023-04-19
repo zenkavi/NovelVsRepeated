@@ -165,6 +165,59 @@ dat %>%
   theme_bw()+
   theme(legend.position = "bottom")
 ```
+```{r}
+decay_vals = c(0, .001, .01, .02, .1, .2, .5, 1)
+
+maxIter = 500
+
+dat = data.frame()
+
+for(cur_dv in decay_vals){
+  cur_dat = data.frame(t = c(0:maxIter),
+                       initialBarrier = 2, 
+                       barrierDecay = cur_dv)
+  
+  cur_dat = cur_dat %>%
+    mutate(barrier = initialBarrier / (1 + (barrierDecay * t)))
+  
+  dat = rbind(dat, cur_dat)
+}
+
+dat %>%
+  mutate(barrierDecay = factor(barrierDecay, levels = decay_vals)) %>%
+  ggplot(aes(t, barrier, color = barrierDecay))+
+  geom_point()+
+  theme_bw()+
+  theme(legend.position = "bottom")
+```
+```{r}
+dat %>%
+  filter(barrierDecay == .5) %>%
+  arrange(-t)
+```
+
+```{r}
+n = 10000
+
+dat = data.frame(decay.alpha = rbeta(n, .1, 1), decay.beta = rgamma(n, 2, .5))
+dat$decay.alpha = ifelse(dat$decay.alpha < 0, 0, ifelse(dat$decay.alpha > .5, .5, dat$decay.alpha))
+
+for(i in 1:nrow(dat)){
+  dat$decay[i] = rbeta(1, dat$decay.alpha[i], dat$decay.beta[i])
+}
+
+dat$decay = ifelse(dat$decay < 0, 0, ifelse(dat$decay > .5, .5, dat$decay))
+
+dat %>%
+  gather(key, value) %>%
+  ggplot(aes(value, fill=key))+
+  geom_histogram(position = "identity", alpha = .5, bins = 30)+
+  facet_wrap(~key, scales = "free")+
+  theme(legend.position = "bottom")+
+  labs(fill="", x="")
+
+```
+
 # Test trial simulation function
 
 Simulate a few trials

@@ -11,11 +11,13 @@ Set up environment and load in data
 
 ```{r include=FALSE, message=FALSE}
 library(tidyverse)
+library(brms)
 library(here)
 library(grid)
 library(gridExtra)
 theme_set(theme_bw())
 helpers_path = paste0(here(),'/analysis/helpers/')
+inputs_path = paste0(here(),'/inputs/')
 source(paste0(helpers_path, '01_clean_behavioral_data.R'))
 fig_out_path = paste0(here(), '/outputs/fig/')
 ```
@@ -25,7 +27,7 @@ Add columns that will be used for plots below.
 ```{r}
 data_yn_clean = data_yn_clean %>%
   mutate(correct = ifelse(possiblePayoff>reference & yesChosen == 1, 1, ifelse(possiblePayoff < reference & yesChosen == 0, 1, 0))) %>%
-  mutate(type = ifelse(type == 1, "HT", "RE"),
+  mutate(type_chr = ifelse(type == 1, "HT", "RE"),
          week = ifelse(week == 1, "Week 1", ifelse(week == 2, "Week 2", ifelse(week == 3, "Week 3", NA))),
          week = factor(week, levels = c("Week 1", "Week 2", "Week 3"))) %>%
   mutate(val_diff = possiblePayoff - reference,
@@ -35,7 +37,7 @@ data_yn_clean = data_yn_clean %>%
 
 data_bc_clean = data_bc_clean %>%
   mutate(correct = ifelse(possiblePayoffleft>possiblePayoffright & leftChosen == 1, 1, ifelse(possiblePayoffleft<possiblePayoffright & leftChosen == 0, 1, 0))) %>%
-  mutate(type = ifelse(typeLeft == 1, "HT", "RE"),
+  mutate(type_chr = ifelse(typeLeft == 1, "HT", "RE"),
          week = ifelse(week == 1, "Week 1", ifelse(week == 2, "Week 2", ifelse(week == 3, "Week 3", NA))),
          week = factor(week, levels = c("Week 1", "Week 2", "Week 3"))) %>%
   mutate(val_diff = possiblePayoffleft - possiblePayoffright,
@@ -47,18 +49,16 @@ data_bc_clean = data_bc_clean %>%
 
 # Accuracy across days
 
-## Plot variations
-
 ```{r}
 sub_summary = data_yn_clean %>%
-  group_by(day, subnum, type) %>%
+  group_by(day, subnum, type_chr) %>%
   summarise(mean_accuracy = mean(correct),
             sem_accuracy = sd(correct)/sqrt(n()),
             .groups = 'keep') %>%
   mutate(task = "Y/N",
          sum_type = "sub") %>%
   rbind(data_bc_clean %>%
-  group_by(day, subnum, type) %>%
+  group_by(day, subnum, type_chr) %>%
   summarise(mean_accuracy = mean(correct),
             sem_accuracy = sd(correct)/sqrt(n()),
             .groups = 'keep') %>%
@@ -67,13 +67,13 @@ sub_summary = data_yn_clean %>%
   mutate(task = factor(task, levels = c("Y/N", "BC")))
 
 group_summary = data_yn_clean %>%
-  group_by(day, type) %>%
+  group_by(day, type_chr) %>%
   summarise(mean_accuracy = mean(correct),
             .groups = 'keep') %>%
   mutate(task = "Y/N",
          sum_type = "group", subnum = 600) %>%
   rbind(data_bc_clean %>%
-          group_by(day, type) %>%
+          group_by(day, type_chr) %>%
           summarise(mean_accuracy = mean(correct),
                     .groups = 'keep') %>%
           mutate(task = "BC",
@@ -81,39 +81,14 @@ group_summary = data_yn_clean %>%
   mutate(task = factor(task, levels = c("Y/N", "BC")))
 ```
 
-```{r}
-p = ggplot()+
-  geom_point(data = group_summary, aes(day, mean_accuracy, color = type), size = 2)+
-  
-  geom_line(data = group_summary, aes(day, mean_accuracy, color = type))+
-  
-  geom_point(data = sub_summary, aes(day, mean_accuracy, color = type, shape = as.factor(subnum)), alpha = .3, position=position_dodge(width=0.75))+
-  
-  geom_errorbar(data = sub_summary, aes(x = day, color = type, ymin = mean_accuracy - sem_accuracy, ymax = mean_accuracy + sem_accuracy, linetype = as.factor(subnum)), width=0, alpha = .3, position=position_dodge(width=0.75))+
-
-  facet_wrap(~task)+
-  guides(linetype = "none")+
-  labs(x = "Day", y = "Accuracy", color="", shape = "")+
-  theme(panel.grid.minor.x = element_blank(),
-        panel.grid.major.x = element_blank(),
-        legend.position = "bottom",
-        legend.box.margin=margin(t = -10),
-        legend.spacing.y = unit(-0.25, "cm"),
-        legend.box="vertical")+
-  scale_x_continuous(breaks=seq(1,11,1))+
-  scale_color_brewer(palette = "Dark2")
-
-# ggsave(file=paste0(fig_out_path, 'ynbc_groupAndSub_accuracyOverDaysWGrid.jpg'), p, height = 5, width=12, units="in")
-p
-```
 
 ```{r}
 p = ggplot()+
-  geom_point(data = group_summary, aes(day, mean_accuracy, color = type), size = 2)+
+  geom_point(data = group_summary, aes(day, mean_accuracy, color = type_chr))+
+
+  geom_line(data = group_summary, aes(day, mean_accuracy, color = type_chr))+
   
-  geom_line(data = group_summary, aes(day, mean_accuracy, color = type))+
-  
-  geom_line(data = sub_summary, aes(day, mean_accuracy, color = type, linetype = as.factor(subnum)), alpha = .3)+
+  geom_line(data = sub_summary, aes(day, mean_accuracy, color = type_chr, linetype = as.factor(subnum)), alpha = .3)+
 
   facet_wrap(~task)+
   labs(x = "Day", y = "Accuracy", color="", linetype = "")+
@@ -124,9 +99,184 @@ p = ggplot()+
         legend.spacing.y = unit(-0.25, "cm"),
         legend.box="vertical")+
   scale_x_continuous(breaks=seq(1,11,1))+
-  scale_color_brewer(palette = "Dark2")
+  scale_y_continuous(breaks=seq(.7,1,.1), limits = c(.7, 1))+
+  scale_color_brewer(palette = "Dark2")+
+  scale_linetype_manual(values = rep("solid", 6))+
+  guides(linetype = "none")+
+  annotate("rect", xmin = 2.75, xmax = 3.25, ymin = .7, ymax = 1,
+           alpha = .25,fill = "gray")+
+  annotate("rect", xmin = 6.75, xmax = 7.25, ymin = .7, ymax = 1,
+           alpha = .25,fill = "gray")+
+  annotate("rect", xmin = 10.75, xmax = 11.25, ymin = .7, ymax = 1,
+           alpha = .25,fill = "gray")
 
-# ggsave(file=paste0(fig_out_path, 'ynbc_groupAndSub_accuracyOverDaysNoErrorbars.jpg'), p, height = 5, width=12, units="in")
+# ggsave(file=paste0(fig_out_path, 'ynbc_groupAndSub_accuracyOverDaysNoErrorbarsNoLtype.jpg'), p, height = 5, width=12, units="in")
+p
+```
+
+```{r}
+p = ggplot()+
+  geom_point(data = group_summary, aes(day, mean_accuracy, color = type_chr))+
+
+  geom_line(data = group_summary, aes(day, mean_accuracy, color = type_chr))+
+  
+  geom_line(data = sub_summary, aes(day, mean_accuracy, color = type_chr, linetype = as.factor(subnum)), alpha = .3)+
+
+  facet_grid(task~type_chr)+
+  labs(x = "Day", y = "Accuracy", color="", linetype = "")+
+  theme(panel.grid.minor.x = element_blank(),
+        panel.grid.major.x = element_blank(),
+        legend.position = "bottom",
+        legend.box.margin=margin(t = -10),
+        legend.spacing.y = unit(-0.25, "cm"),
+        legend.box="vertical")+
+  scale_x_continuous(breaks=seq(1,11,1))+
+  scale_y_continuous(breaks=seq(.7,1,.1), limits = c(.7, 1))+
+  scale_color_brewer(palette = "Dark2")+
+  scale_linetype_manual(values = rep("solid", 6))+
+  guides(linetype = "none", color = "none")+
+  annotate("rect", xmin = 2.75, xmax = 3.25, ymin = .7, ymax = 1,
+           alpha = .25,fill = "gray")+
+  annotate("rect", xmin = 6.75, xmax = 7.25, ymin = .7, ymax = 1,
+           alpha = .25,fill = "gray")+
+  annotate("rect", xmin = 10.75, xmax = 11.25, ymin = .7, ymax = 1,
+           alpha = .25,fill = "gray")
+
+# ggsave(file=paste0(fig_out_path, 'ynbc_groupAndSub_accuracyOverDaysNoErrorbarsNoLtypeMoreFacets.jpg'), p, height = 7, width=12, units="in")
+p
+```
+
+```{r}
+fn_draws = paste0(inputs_path, 'yn_acc_draws.csv')
+
+if(file.exists(fn_draws)){
+  yn_acc_draws = read.csv(fn_draws)
+} else{
+  subnums = unique(data_yn_clean$subnum)
+  normMax = 1
+  normMin = 0
+  
+  yn_acc_draws = tibble()
+  
+  for(cur_sub in subnums){
+  
+    cur_dat = data_yn_clean %>% 
+      ungroup() %>%
+      filter(subnum == cur_sub) %>%
+      mutate(type = as.factor(type),
+             norm_day = (normMax - normMin) / (max(day) - min(day)) * (day - max(day)) + (normMax))
+    
+    cur_m <- brm(formula = correct ~  norm_day * type,
+                        data= cur_dat,
+                        family = bernoulli(link = "logit"),
+                        warmup = 500,
+                        iter = 2500,
+                        chains = 4,
+                        init = "0",
+                        cores = 4,
+                        seed = 389253)
+    
+    cur_draws = as_draws_df(cur_m)
+    cur_draws$subnum = cur_sub
+    
+    yn_acc_draws = rbind(yn_acc_draws, cur_draws)
+  }
+  names(yn_acc_draws) = gsub(":", ".", names(yn_acc_draws))
+  write.csv(yn_acc_draws, fn_draws, row.names = F)
+
+  rm(cur_dat, cur_m, cur_draws, cur_sub)
+}
+
+```
+
+
+```{r}
+fn_draws = paste0(inputs_path, 'bc_acc_draws.csv')
+
+if(file.exists(fn_draws)){
+  bc_acc_draws = read.csv(fn_draws)
+} else{
+  subnums = unique(data_bc_clean$subnum)
+  
+  bc_acc_draws = tibble()
+  
+  for(cur_sub in subnums){
+  
+    cur_dat = data_bc_clean %>% 
+      ungroup() %>%
+      filter(subnum == cur_sub) %>%
+      mutate(type = as.factor(typeLeft),
+             norm_day = (normMax - normMin) / (max(day) - min(day)) * (day - max(day)) + (normMax))
+    
+    cur_m <- brm(formula = correct ~  norm_day * type,
+                        data= cur_dat,
+                        family = bernoulli(link = "logit"),
+                        warmup = 500,
+                        iter = 2500,
+                        chains = 4,
+                        init = "0",
+                        cores = 4,
+                        seed = 389253)
+    
+    cur_draws = as_draws_df(cur_m)
+    cur_draws$subnum = cur_sub
+    
+    bc_acc_draws = rbind(bc_acc_draws, cur_draws)
+  }
+  names(bc_acc_draws) = gsub(":", ".", names(bc_acc_draws))
+  write.csv(bc_acc_draws, fn_draws, row.names = F)
+
+  rm(cur_dat, cur_m, cur_draws, cur_sub)
+}
+
+```
+
+```{r}
+yn_par_summary = as_tibble(yn_acc_draws) %>%
+  select(b_Intercept, b_norm_day, b_type1, b_norm_day.type1, subnum) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key = ifelse(key == "b_Intercept", "Intercept", ifelse(key == "b_norm_day", "Day [0, 1]", ifelse(key == "b_type1", "Type (RE = 0, HT = 1)", ifelse(key == "b_norm_day.type1", "Day x Type", NA)))),
+         key = factor(key, levels = c("Intercept", "Day [0, 1]", "Type (RE = 0, HT = 1)", "Day x Type"))) %>%
+  group_by(subnum, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(subnum = as.factor(subnum),
+         task = "Y/N") 
+
+bc_par_summary = as_tibble(bc_acc_draws) %>%
+  select(b_Intercept, b_norm_day, b_type1, b_norm_day.type1, subnum) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key = ifelse(key == "b_Intercept", "Intercept", ifelse(key == "b_norm_day", "Day [0, 1]", ifelse(key == "b_type1", "Type (RE = 0, HT = 1)", ifelse(key == "b_norm_day.type1", "Day x Type", NA)))),
+         key = factor(key, levels = c("Intercept", "Day [0, 1]", "Type (RE = 0, HT = 1)", "Day x Type"))) %>%
+  group_by(subnum, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(subnum = as.factor(subnum),
+         task = "BC") 
+
+plim = max(abs(bc_par_summary$l95), abs(yn_par_summary$l95) ,bc_par_summary$h95, yn_par_summary$h95)
+
+p = yn_par_summary %>%
+  rbind(bc_par_summary) %>%
+  ggplot(aes(m, subnum, color = task, alpha = task)) +
+  geom_vline(aes(xintercept = 0), color = "gray") + 
+  geom_point(position = position_dodge(width=.75))+
+  geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
+  facet_grid(.~key, scales = 'free_x') +
+  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - Correct ~ Day x Type") +
+  theme(legend.position = "bottom",
+        panel.grid = element_blank(),
+        legend.box.margin=margin(t = -10))+
+  scale_x_continuous(limits = c(-plim, plim))+
+  scale_color_manual(values = c("red", "blue"))+
+  scale_alpha_manual(values = c(1, 1))+
+  guides(alpha = "none")
+
+# ggsave(file=paste0(fig_out_path, 'ynbc_acc_ParEsts.jpg'), p, height = 3, width = 9, units="in")
 p
 ```
 
@@ -138,7 +288,7 @@ p = ggplot()+
   
   geom_line(data = sub_summary, aes(day, mean_accuracy, color = task, linetype = as.factor(subnum)), alpha = .3)+
 
-  facet_wrap(~type)+
+  facet_wrap(~type_chr)+
   labs(x = "Day", y = "Accuracy", color="", linetype = "")+
   theme(panel.grid.minor.x = element_blank(),
         panel.grid.major.x = element_blank(),
@@ -147,7 +297,16 @@ p = ggplot()+
         legend.spacing.y = unit(-0.25, "cm"),
         legend.box="vertical")+
   scale_x_continuous(breaks=seq(1,11,1))+
-  scale_color_manual(values = c("blue", "red"))
+  scale_y_continuous(breaks=seq(.7,1,.1), limits = c(.7, 1))+
+  scale_color_manual(values = c("blue", "red"))+
+  scale_linetype_manual(values = rep("solid", 6))+
+  guides(linetype = "none")+
+  annotate("rect", xmin = 2.75, xmax = 3.25, ymin = .7, ymax = 1,
+           alpha = .25,fill = "gray")+
+  annotate("rect", xmin = 6.75, xmax = 7.25, ymin = .7, ymax = 1,
+           alpha = .25,fill = "gray")+
+  annotate("rect", xmin = 10.75, xmax = 11.25, ymin = .7, ymax = 1,
+           alpha = .25,fill = "gray")
 
 # ggsave(file=paste0(fig_out_path, 'ynbc_groupAndSub_accuracyOverDaysPanelByType.jpg'), p, height = 5, width=12, units="in")
 p
@@ -162,7 +321,7 @@ p = ggplot(data = sub_summary)+
   
   geom_errorbar(aes(x = day, color = task, ymin = mean_accuracy - sem_accuracy, ymax = mean_accuracy + sem_accuracy), width=0, alpha = .3)+
 
-  facet_grid(type~subnum)+
+  facet_grid(type_chr~subnum)+
   labs(x = "Day", y = "Accuracy", color="")+
   theme(panel.grid.minor.x = element_blank(),
         panel.grid.major.x = element_blank(),
@@ -171,9 +330,112 @@ p = ggplot(data = sub_summary)+
         legend.spacing.y = unit(-0.25, "cm"),
         legend.box="vertical")+
   scale_x_continuous(breaks=seq(1,11,1))+
-  scale_color_manual(values = c("blue", "red"))
+  scale_y_continuous(breaks=seq(.7,1,.1), limits = c(.7, 1))+
+  scale_color_manual(values = c("blue", "red"))+
+  annotate("rect", xmin = 2.75, xmax = 3.25, ymin = .7, ymax = 1,
+           alpha = .25,fill = "gray")+
+  annotate("rect", xmin = 6.75, xmax = 7.25, ymin = .7, ymax = 1,
+           alpha = .25,fill = "gray")+
+  annotate("rect", xmin = 10.75, xmax = 11.25, ymin = .7, ymax = 1,
+           alpha = .25,fill = "gray")
 
-ggsave(file=paste0(fig_out_path, 'ynbc_Sub_accuracyOverDaysPanelByType.jpg'), p, height = 5, width=12, units="in")
+# ggsave(file=paste0(fig_out_path, 'ynbc_Sub_accuracyOverDaysPanelByType.jpg'), p, height = 5, width=12, units="in")
+p
+```
+
+```{r}
+fn_draws = paste0(inputs_path, 'ynbc_acc_draws.csv')
+
+if(file.exists(fn_draws)){
+  ynbc_acc_draws = read.csv(fn_draws)
+} else{
+  subnums = unique(data_bc_clean$subnum)
+  
+  ynbc_acc_draws = tibble()
+  
+  for(cur_sub in subnums){
+  
+    cur_dat1 = data_yn_clean %>% 
+      ungroup() %>%
+      filter(subnum == cur_sub) %>%
+      mutate(type = as.factor(type),
+             norm_day = (normMax - normMin) / (max(day) - min(day)) * (day - max(day)) + (normMax),
+             task = "YN") %>%
+      select(correct, norm_day, type, task)
+    
+    cur_dat2 = data_bc_clean %>% 
+      ungroup() %>%
+      filter(subnum == cur_sub) %>%
+      mutate(type = as.factor(typeLeft),
+             norm_day = (normMax - normMin) / (max(day) - min(day)) * (day - max(day)) + (normMax),
+             task = "BC") %>%
+      select(correct, norm_day, type, task)
+    
+    cur_dat = rbind(cur_dat1, cur_dat2) %>%
+      mutate(task = factor(task, levels = c("YN", "BC")))
+    
+    cur_m <- brm(formula = correct ~  norm_day * type * task,
+                        data= cur_dat,
+                        family = bernoulli(link = "logit"),
+                        warmup = 500,
+                        iter = 2500,
+                        chains = 4,
+                        init = "0",
+                        cores = 4,
+                        seed = 389253)
+    
+    cur_draws = as_draws_df(cur_m)
+    cur_draws$subnum = cur_sub
+    
+    ynbc_acc_draws = rbind(ynbc_acc_draws, cur_draws)
+  }
+  names(ynbc_acc_draws) = gsub(":", ".", names(ynbc_acc_draws))
+  write.csv(ynbc_acc_draws, fn_draws, row.names = F)
+
+  rm(cur_dat, cur_m, cur_draws, cur_sub)
+}
+```
+
+```{r}
+names(as_tibble(ynbc_acc_draws))[grepl("b_", names(as_tibble(ynbc_acc_draws)))]
+```
+
+```{r}
+ynbc_par_summary = as_tibble(ynbc_acc_draws) %>%
+  select(b_Intercept, b_norm_day, b_type1, b_taskBC, b_norm_day.type1, b_norm_day.taskBC, b_type1.taskBC, b_norm_day.type1.taskBC, subnum) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key=recode(key, 
+                    "b_Intercept" = "Intercept", 
+                    "b_norm_day" = "Day [0, 1]",
+                    "b_type1" = "Type (RE = 0, HT = 1)",
+                    "b_taskBC" = "Task (YN = 0, BC = 1)",
+                    "b_norm_day.type1" = "Day x Type",
+                    "b_norm_day.taskBC" = "Day x Task", 
+                    "b_type1.taskBC" = "Type x Task", 
+                    "b_norm_day.type1.taskBC" = "Day x Type x Task"),
+         key = factor(key, levels = c("Intercept", "Day [0, 1]", "Type (RE = 0, HT = 1)", "Task (YN = 0, BC = 1)", "Day x Type", "Day x Task", "Type x Task", "Day x Type x Task"))) %>%
+  group_by(subnum, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(subnum = as.factor(subnum)) 
+
+plim = max(abs(ynbc_par_summary$l95), ynbc_par_summary$h95)
+
+p = ynbc_par_summary %>%
+  ggplot(aes(m, subnum)) +
+  geom_vline(aes(xintercept = 0), color = "gray") + 
+  geom_point(position = position_dodge(width=.75), color = "purple")+
+  geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75), color ="purple")+
+  facet_wrap(~key, scales = 'free_x', nrow = 2) +
+  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - Correct ~ Day x Type x Task") +
+  theme(legend.position = "bottom",
+        panel.grid = element_blank(),
+        legend.box.margin=margin(t = -10))+
+  scale_x_continuous(limits = c(-plim, plim))
+
+# ggsave(file=paste0(fig_out_path, 'ynbc_acc_SingleModelParEsts.jpg'), p, height = 5, width = 9, units="in")
 p
 ```
 
@@ -237,5 +499,3 @@ p = ggplot()+
 p
 ```
 
-
-## Stats
