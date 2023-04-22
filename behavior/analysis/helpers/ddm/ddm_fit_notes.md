@@ -191,7 +191,9 @@ aws s3 sync $OUT_PATH s3://novel-vs-repeated/behavior/analysis/helpers/cluster_s
 ```
 export OUTPUTS_DIR=/Users/zeynepenkavi/CpuEaters/NovelVsRepeated/behavior/analysis/helpers/cluster_scripts/ddm
 
-docker run --rm -it -v ~/.aws:/root/.aws -v $OUTPUTS_DIR:/outputs amazon/aws-cli s3 sync s3://novel-vs-repeated/behavior/analysis/helpers/cluster_scripts/ddm /outputs
+docker run --rm -it -v ~/.aws:/root/.aws -v $OUTPUTS_DIR:/outputs amazon/aws-cli s3 sync s3://novel-vs-repeated/behavior/analysis/helpers/cluster_scripts/ddm/grid_search_out /outputs/grid_search_out
+
+docker run --rm -it -v ~/.aws:/root/.aws -v $OUTPUTS_DIR:/outputs amazon/aws-cli s3 sync s3://novel-vs-repeated/behavior/analysis/helpers/cluster_scripts/ddm/optim_out /outputs/optim_out
 ```
 
 ## Delete cluster

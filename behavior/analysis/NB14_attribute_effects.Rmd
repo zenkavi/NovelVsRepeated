@@ -1,0 +1,314 @@
+---
+title: "Novel vs. repeated choice project: Attribute efe"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: 'hide'
+---
+
+Set up environment and load in data
+
+```{r include=FALSE, message=FALSE}
+library(tidyverse)
+library(brms)
+library(here)
+library(lemon)
+theme_set(theme_bw())
+helpers_path = paste0(here(),'/analysis/helpers/')
+inputs_path = paste0(here(),'/inputs/')
+source(paste0(helpers_path, '01_clean_behavioral_data.R'))
+rm(data_bc_clean)
+fig_out_path = paste0(here(), '/outputs/fig/')
+```
+
+Add columns that will be used for plots below.
+
+```{r}
+data_yn_clean = data_yn_clean %>%
+  mutate(correct = ifelse(possiblePayoff>reference & yesChosen == 1, 1, ifelse(possiblePayoff < reference & yesChosen == 0, 1, 0))) %>%
+  mutate(type_chr = ifelse(type == 1, "HT", "RE"),
+         week = ifelse(week == 1, "Week 1", ifelse(week == 2, "Week 2", ifelse(week == 3, "Week 3", NA))),
+         week = factor(week, levels = c("Week 1", "Week 2", "Week 3"))) %>%
+  mutate(val_diff = possiblePayoff - reference,
+         abs_val_diff = abs(possiblePayoff - reference),
+         val_diff_bin = round(val_diff/50),
+         val_diff_bin_str = paste0(val_diff_bin*50-25,":",val_diff_bin*50+25),
+         val_diff_bin_str = factor(val_diff_bin_str, levels = c("-225:-175", "-175:-125", "-125:-75", "-75:-25", "-25:25", "25:75", "75:125", "125:175", "175:225")))
+```
+
+Add regressors for attribute effect regressions
+
+```{r}
+normMin = 0
+normMax = 1
+
+data_yn_clean = data_yn_clean %>%
+  mutate(shapeI1 = ifelse(shape == 1, 1, 0),
+         shapeI2 = ifelse(shape == 2, 1, 0),
+         shapeI3 = ifelse(shape == 3, 1, 0),
+         shapeI4 = ifelse(shape == 4, 1, 0),
+         shapeI5 = ifelse(shape == 5, 1, 0),
+         shapeI6 = ifelse(shape == 6, 1, 0),
+         # fillingPos = ifelse(filling > 0, 1, 0),
+         # fillingNeg = ifelse(filling < 0, 1, 0),
+         fillingPos = ifelse(valueF > 0, 1, 0),
+         fillingNeg = ifelse(valueF < 0, 1, 0),
+         filling0 = ifelse(filling == 0, 1, 0), 
+         fillingCol = ifelse(filling > 0, "blue", ifelse(filling < 0, "red", "white")),
+         orientationNorm = (normMax - normMin) / (max(orientation) - min(orientation)) * (orientation - max(orientation)) + (normMax))
+
+rm(normMin, normMax)
+
+data_yn_clean
+```
+
+
+## Attribute effects on accuracy
+
+Within subject compare slopes of each attribute
+
+Models:
+
+```
+correct ~ orientation + filling + shape, data = all
+yes ~ orientation + filling + shape, data = all
+
+correct ~ orientation + filling + shape, data = HT # didn't work
+yes ~ orientation + filling + shape, data = HT
+```
+What should be the baseline here? Filling = white, shape = 1, orientation = 0? Or filling = white, shape = average across all, orientation = average across all?
+
+Recode all attributes to be higher levels = higher values across subjects
+
+
+```{r}
+fn_draws = paste0(inputs_path, 'yn_attr_cor_draws.csv')
+
+if(file.exists(fn_draws)){
+  yn_attr_cor_draws = read.csv(fn_draws)
+} else{
+  subnums = unique(data_yn_clean$subnum)
+ 
+  yn_attr_cor_draws = tibble()
+  
+  for(cur_sub in subnums){
+  
+    cur_dat = data_yn_clean %>% 
+      ungroup() %>%
+      filter(subnum == cur_sub)
+    
+    cur_m <- brm(formula = correct ~  orientationNorm + fillingPos + fillingNeg + shapeI2 + shapeI3 + shapeI4 + shapeI5 + shapeI6,
+                        data= cur_dat,
+                        family = bernoulli(link = "logit"),
+                        warmup = 500,
+                        iter = 2500,
+                        chains = 4,
+                        init = "0",
+                        cores = 4,
+                        seed = 389253)
+    
+    cur_draws = as_draws_df(cur_m)
+    cur_draws$subnum = cur_sub
+    
+    yn_attr_cor_draws = rbind(yn_attr_cor_draws, cur_draws)
+  }
+  names(yn_attr_cor_draws) = gsub(":", ".", names(yn_attr_cor_draws))
+  write.csv(yn_attr_cor_draws, fn_draws, row.names = F)
+
+  rm(cur_dat, cur_m, cur_draws, cur_sub)
+}
+rm(subnums)
+```
+
+```{r}
+yn_par_summary = as.tibble(yn_attr_cor_draws) %>%
+  select(subnum, b_Intercept, b_orientationNorm, b_fillingPos, b_fillingNeg, b_shapeI2, b_shapeI3, b_shapeI4, b_shapeI5, b_shapeI6) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key = recode(key,
+                      "b_Intercept" = "Intercept",
+                      "b_orientationNorm" = "Orientation [0, 1]", 
+                      "b_fillingPos" = "Fill = Blue", 
+                      "b_fillingNeg" = "Fill = Red", 
+                      "b_shapeI2" = "Shape 2", 
+                      "b_shapeI3" = "Shape 3", 
+                      "b_shapeI4" = "Shape 4", 
+                      "b_shapeI5" = "Shape 5", 
+                      "b_shapeI6" = "Shape 6"),
+         key = factor(key, levels = c("Intercept", "Orientation [0, 1]", "Fill = Blue", "Fill = Red", "Shape 2", "Shape 3", "Shape 4", "Shape 5", "Shape 6"))) %>%
+  group_by(subnum, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(subnum = as.factor(subnum))
+```
+
+```{r}
+yn_par_summary %>%
+  ggplot(aes(m, subnum)) +
+  geom_vline(aes(xintercept = 0), color = "gray") + 
+  geom_point(position = position_dodge(width=.75))+
+  geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
+  facet_wrap(~key, scales = 'free_x', nrow = 2) +
+  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - Correct ~ Orientation x Filling x Shape") +
+  theme(legend.position = "bottom",
+        panel.grid = element_blank(),
+        legend.box.margin=margin(t = -10))+
+  scale_x_symmetric(mid=0)
+
+```
+
+```{r}
+fn_draws = paste0(inputs_path, 'yn_attr_yes_draws.csv')
+
+if(file.exists(fn_draws)){
+  yn_attr_yes_draws = read.csv(fn_draws)
+} else{
+  subnums = unique(data_yn_clean$subnum)
+ 
+  yn_attr_yes_draws = tibble()
+  
+  for(cur_sub in subnums){
+  
+    cur_dat = data_yn_clean %>% 
+      ungroup() %>%
+      filter(subnum == cur_sub)
+    
+    cur_m <- brm(formula = yesChosen ~  orientationNorm + fillingPos + fillingNeg + shapeI2 + shapeI3 + shapeI4 + shapeI5 + shapeI6,
+                        data= cur_dat,
+                        family = bernoulli(link = "logit"),
+                        warmup = 500,
+                        iter = 2500,
+                        chains = 4,
+                        init = "0",
+                        cores = 4,
+                        seed = 389253)
+    
+    cur_draws = as_draws_df(cur_m)
+    cur_draws$subnum = cur_sub
+    
+    yn_attr_yes_draws = rbind(yn_attr_yes_draws, cur_draws)
+  }
+  names(yn_attr_yes_draws) = gsub(":", ".", names(yn_attr_yes_draws))
+  write.csv(yn_attr_yes_draws, fn_draws, row.names = F)
+
+  rm(cur_dat, cur_m, cur_draws, cur_sub)
+}
+
+```
+
+```{r}
+yn_par_summary = as.tibble(yn_attr_yes_draws) %>%
+  select(subnum, b_Intercept, b_orientationNorm, b_fillingPos, b_fillingNeg, b_shapeI2, b_shapeI3, b_shapeI4, b_shapeI5, b_shapeI6) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key = recode(key,
+                      "b_Intercept" = "Intercept",
+                      "b_orientationNorm" = "Orientation [0, 1]", 
+                      "b_fillingPos" = "Fill = Blue", 
+                      "b_fillingNeg" = "Fill = Red", 
+                      "b_shapeI2" = "Shape 2", 
+                      "b_shapeI3" = "Shape 3", 
+                      "b_shapeI4" = "Shape 4", 
+                      "b_shapeI5" = "Shape 5", 
+                      "b_shapeI6" = "Shape 6"),
+         key = factor(key, levels = c("Intercept", "Orientation [0, 1]", "Fill = Blue", "Fill = Red", "Shape 2", "Shape 3", "Shape 4", "Shape 5", "Shape 6"))) %>%
+  group_by(subnum, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(subnum = as.factor(subnum))
+```
+
+```{r}
+yn_par_summary %>%
+  ggplot(aes(m, subnum)) +
+  geom_vline(aes(xintercept = 0), color = "gray") + 
+  geom_point(position = position_dodge(width=.75))+
+  geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
+  facet_wrap(~key, scales = 'free_x', nrow = 2) +
+  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - Yes ~ Orientation x Filling x Shape") +
+  theme(legend.position = "bottom",
+        panel.grid = element_blank(),
+        legend.box.margin=margin(t = -10))+
+  scale_x_symmetric(mid=0)
+
+```
+
+How to visualize attribute effects?
+
+
+```{r}
+cur_dat %>%
+  group_by(subnum, shape) %>%
+  summarise(.groups = "keep",
+            mean_acc = mean(correct),
+            sem_acc = sd(correct)/sqrt(n())) %>%
+  mutate(attribute = "shape",
+         shape = as.character(shape)) %>%
+  rename(level = shape) %>%
+  rbind(cur_dat %>%
+          group_by(subnum, fillingCol) %>%
+          summarise(.groups = "keep",
+                    mean_acc = mean(correct),
+                    sem_acc = sd(correct)/sqrt(n())) %>%
+          mutate(attribute = "filling color") %>%
+          rename(level = fillingCol)) %>%
+  rbind(cur_dat %>%
+          group_by(subnum, orientation) %>%
+          summarise(.groups = "keep",
+                    mean_acc = mean(correct),
+                    sem_acc = sd(correct)/sqrt(n())) %>%
+          mutate(attribute = "orientation",
+                 orientation = as.character(orientation)) %>%
+          rename(level = orientation)) %>%
+  mutate(level = factor(level, levels = c("red", "blue", "white", "1", "2", "3", "4", "5", "6", as.character(seq(0,150, 15))))) %>%
+  ggplot(aes(level, mean_acc, color=attribute))+
+  geom_point()+
+  geom_errorbar(aes(ymin = mean_acc - sem_acc, ymax = mean_acc + sem_acc), width = .1)+
+  facet_wrap(~subnum)+
+  theme(legend.position = "bottom", 
+        panel.grid.minor = element_blank())+
+  labs(color = "", x = "")
+```
+
+# Coding closeness to HT
+
+```{r}
+data_yn_clean %>%
+  filter(subnum == 601 & type == 1) %>%
+  select(type, stimNum, shape, filling, orientation) %>%
+  distinct() %>%
+  arrange(stimNum)
+
+sort(unique(data_yn_clean$filling))
+
+sort(unique(data_yn_clean$orientation))
+
+# For each of the HT stims define CHT stims as:
+  # same filling, same orientation, different shape (5 stims)
+  # same shape, same orientation. filling level +/- 1 (2 stims)
+  # same shape, filling, orientation level +/1 (2 stims)
+
+get_cht_stims = function(shape_level, filling_level, orientation_level){
+  filling_levels = sort(unique(data_yn_clean$filling))
+  
+  orientation_levels = sort(unique(data_yn_clean$orientation))
+  
+  shape_levels = sort(unique(data_yn_clean$shape))
+  
+  close_shape_levels = shape_levels[shape_levels != shape_level]
+
+  orientation_level_index = which(orientation_levels == orientation_level)  
+  
+  if(orientation_level_index == 1){
+    close_orientation_level = orientation_levels[2]
+  } else if (orientation_level_index == length(orientation_levels)){
+    close_orientation_level = orientation_levels[length(orientation_levels) - 1]
+  } else{
+    close_orientation_level = orientation_levels[c(orientation_level_index-1, orientation_level_index+1)]
+  }
+  
+}
+```

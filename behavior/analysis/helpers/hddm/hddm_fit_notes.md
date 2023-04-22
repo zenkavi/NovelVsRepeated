@@ -162,7 +162,7 @@ docker run --rm -it -v $INPUT_PATH:/inputs -v $CODE_PATH:/hddm -v $OUT_PATH:/jag
 zenkavi/rjagswiener:0.0.3 Rscript --vanilla /hddm/fit_yn_sub_hddm.R --sub 619 --type HT
 ```
 
-## Submit jobs for levels 1s of all subjects and sessions for both tasks
+## Submit jobs for all subjects and sessions for both tasks
 
 Only a few examples listed below
 
