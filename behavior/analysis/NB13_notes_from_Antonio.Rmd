@@ -15,6 +15,7 @@ library(brms)
 library(here)
 library(grid)
 library(gridExtra)
+library(lemon)
 theme_set(theme_bw())
 helpers_path = paste0(here(),'/analysis/helpers/')
 inputs_path = paste0(here(),'/inputs/')
@@ -1133,12 +1134,6 @@ p
 
 ## Pooled model comparing value difference slope across time bins
 
-For each subject
-Is the effect of value difference growing across all time bins
-Or does it only jump from day 1 to day 2 and then stay at that level?
-Does this differ by stim type?
-And task?
-
 Useful [set of notes](https://stats.oarc.ucla.edu/r/library/r-library-contrast-coding-systems-for-categorical-variables/) on various contrast codings.
 
 ```{r}
@@ -1159,12 +1154,27 @@ data_yn_clean = data_yn_clean %>%
                     `11` = "week 3"),
          time_bin = factor(time_bin))
 
+data_bc_clean = data_bc_clean %>%
+  mutate(time_bin = recode(day, 
+                    `1` = "day 1", 
+                    `2` = "day 2",
+                    `3` = "day 3",
+                    `4` = "week 2",
+                    `5` = "week 2",
+                    `6` = "week 2",
+                    `7` = "week 2",
+                    `8` = "week 2",
+                    `9` = "week 3",
+                    `10` = "week 3",
+                    `11` = "week 3"),
+         time_bin = factor(time_bin))
+
 contrasts(data_yn_clean$time_bin)
 ```
+
 ### Current to all later
 
-Do I want Helmert coding where I compare day 1 to later, day 2 to later etc. 
-or forward difference coding where I compared day 1 to day 2, day 2 to day 3 etc?
+Helmert coding: Compare day 1 to later, day 2 to later etc. 
 
 ```{r}
 k = length(unique(data_yn_clean$time_bin)) # number of factor levels
@@ -1176,7 +1186,218 @@ my_helmert = matrix(c(4/5, -1/5, -1/5, -1/5, -1/5,
   
 my_helmert
 ```
+
+```{r}
+fn_draws = paste0(inputs_path, 'yn_logit_norm_bydays_helmert_draws.csv')
+
+if(file.exists(fn_draws)){
+  yn_logit_draws = read.csv(fn_draws)
+} else{
+  subnums = unique(data_yn_clean$subnum)
+
+  normMax = 1
+  normMinDay = 0
+  normMinVal = -1
+
+  yn_logit_draws = tibble()
+
+  for(cur_sub in subnums){
+
+    cur_dat = data_yn_clean %>%
+      ungroup() %>%
+      filter(subnum == cur_sub) %>%
+      mutate(type = as.factor(type), # Coding of type: doesn't matter if it's a factor vs 0/1 integer
+             norm_day = (normMax - normMinDay) / (max(day) - min(day)) * (day - max(day)) + (normMax)) %>%
+      group_by(day) %>% # Grouping by day to normalize valdiff matters. This makes sure every day ranges [-1,1]
+      mutate(norm_valDiff = (normMax - normMinVal) / (max(val_diff) - min(val_diff)) * (val_diff - max(val_diff)) + (normMax)) %>%
+      ungroup() %>%
+      select(yesChosen, norm_valDiff, time_bin, type)
+    
+    contrasts(cur_dat$time_bin) = my_helmert
+    
+    cur_m <- brm(formula = yesChosen ~ norm_valDiff * type * time_bin,
+                 data= cur_dat,
+                 family = bernoulli(link = "logit"),
+                 warmup = 500,
+                 iter = 2500,
+                 chains = 4,
+                 init = "0",
+                 cores = 4,
+                 seed = 389253)
+
+    cur_draws = as_draws_df(cur_m)
+    cur_draws$subnum = cur_sub
+
+    yn_logit_draws = rbind(yn_logit_draws, cur_draws)
+
+  }
+  names(yn_logit_draws) = gsub(":", ".", names(yn_logit_draws))
+  write.csv(yn_logit_draws, fn_draws, row.names = F)
+
+  rm(cur_dat, cur_m, cur_draws, cur_sub)
+}
+
+```
+
+
+```{r}
+fn_draws = paste0(inputs_path, 'bc_logit_norm_bydays_helmert_draws.csv')
+
+if(file.exists(fn_draws)){
+  bc_logit_draws = read.csv(fn_draws)
+} else{
+  subnums = unique(data_bc_clean$subnum)
+  normMax = 1
+  normMinDay = 0
+  normMinVal = -1
+  
+  bc_logit_draws = tibble()
+  
+  for(cur_sub in subnums){
+  
+    cur_dat = data_bc_clean %>% 
+      ungroup() %>%
+      filter(subnum == cur_sub) %>%
+      mutate(type = as.factor(typeLeft), # Coding of type: doesn't matter if it's a factor vs 0/1 integer
+             norm_day = (normMax - normMinDay) / (max(day) - min(day)) * (day - max(day)) + (normMax)) %>%
+      group_by(day) %>% # Grouping by day to normalize valdiff matters. This makes sure every day ranges [-1,1]
+      mutate(norm_valDiff = (normMax - normMinVal) / (max(val_diff) - min(val_diff)) * (val_diff - max(val_diff)) + (normMax)) %>%
+      select(leftChosen, norm_valDiff, time_bin, type)
+    
+    contrasts(cur_dat$time_bin) = my_helmert
+    
+    cur_m <- brm(formula = leftChosen ~ norm_valDiff * type * time_bin,
+                        data= cur_dat,
+                        family = bernoulli(link = "logit"),
+                        warmup = 500,
+                        iter = 2500,
+                        chains = 4,
+                        init = "0",
+                        cores = 4,
+                        seed = 389253)
+    
+    cur_draws = as_draws_df(cur_m)
+    cur_draws$subnum = cur_sub
+    
+    bc_logit_draws = rbind(bc_logit_draws, cur_draws)
+  }
+  names(bc_logit_draws) = gsub(":", ".", names(bc_logit_draws))
+  write.csv(bc_logit_draws, fn_draws, row.names = F)
+
+  rm(cur_dat, cur_m, cur_draws, cur_sub)
+}
+
+```
+
+```{r}
+names(as_tibble(yn_logit_draws))[grepl("b_", names(as_tibble(yn_logit_draws)))]
+```
+
+```{r}
+names(as_tibble(bc_logit_draws))[grepl("b_", names(as_tibble(bc_logit_draws)))]
+```
+
+```{r}
+names(as_tibble(yn_logit_draws))
+```
+
+```{r}
+yn_par_summary = as_tibble(yn_logit_draws) %>%
+  select(-lprior, -lp__, -.chain, -.iteration, -.draw) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key=recode(key, 
+                    "b_Intercept" = "Intercept", 
+                    "b_norm_valDiff"  = "Value Diff [-1, 1]",
+                    "b_type1" = "Type (RE = 0, HT = 1)",
+                    "b_time_bin1" = "Day 1 vs Later",
+                    "b_time_bin2" = "Day 2 vs Later",
+                    "b_time_bin3" = "Day 3 vs Later",
+                    "b_time_bin4" = "Week 2 vs Later",
+                    "b_norm_valDiff.type1" = "Value Diff x Type",
+                    "b_norm_valDiff.time_bin1" = "Value Diff x Day 1 vs Later",
+                    "b_norm_valDiff.time_bin2" = "Value Diff x Day 2 vs Later",
+                    "b_norm_valDiff.time_bin3" = "Value Diff x Day 3 vs Later",
+                    "b_norm_valDiff.time_bin4" = "Value Diff x Week 2 vs Later",
+                    "b_type1.time_bin1" = "Type x Day 1 vs Later",
+                    "b_type1.time_bin2" = "Type x Day 2 vs Later",
+                    "b_type1.time_bin3" = "Type x Day 3 vs Later",
+                    "b_type1.time_bin4" = "Type x Week 2 vs Later",
+                    "b_norm_valDiff.type1.time_bin1" = "Value Diff x Type x Day 1 vs Later",
+                    "b_norm_valDiff.type1.time_bin2" = "Value Diff x Type x Day 2 vs Later",
+                    "b_norm_valDiff.type1.time_bin3" = "Value Diff x Type x Day 3 vs Later",
+                    "b_norm_valDiff.type1.time_bin4" = "Value Diff x Type x Week 2 vs Later",
+                    ),
+         key = factor(key, levels = c("Intercept", "Value Diff [-1, 1]", "Type (RE = 0, HT = 1)", "Day 1 vs Later", "Day 2 vs Later", "Day 3 vs Later", "Week 2 vs Later", "Value Diff x Type", "Value Diff x Day 1 vs Later", "Value Diff x Day 2 vs Later", "Value Diff x Day 3 vs Later", "Value Diff x Week 2 vs Later", "Type x Day 1 vs Later", "Type x Day 2 vs Later", "Type x Day 3 vs Later", "Type x Week 2 vs Later", "Value Diff x Type x Day 1 vs Later", "Value Diff x Type x Day 2 vs Later", "Value Diff x Type x Day 3 vs Later", "Value Diff x Type x Week 2 vs Later"))) %>%
+  group_by(subnum, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(subnum = as.factor(subnum),
+         task = "Y/N") 
+
+bc_par_summary = as_tibble(bc_logit_draws) %>%
+  select(-lprior, -lp__, -.chain, -.iteration, -.draw) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key=recode(key, 
+                    "b_Intercept" = "Intercept", 
+                    "b_norm_valDiff"  = "Value Diff [-1, 1]",
+                    "b_type1" = "Type (RE = 0, HT = 1)",
+                    "b_time_bin1" = "Day 1 vs Later",
+                    "b_time_bin2" = "Day 2 vs Later",
+                    "b_time_bin3" = "Day 3 vs Later",
+                    "b_time_bin4" = "Week 2 vs Later",
+                    "b_norm_valDiff.type1" = "Value Diff x Type",
+                    "b_norm_valDiff.time_bin1" = "Value Diff x Day 1 vs Later",
+                    "b_norm_valDiff.time_bin2" = "Value Diff x Day 2 vs Later",
+                    "b_norm_valDiff.time_bin3" = "Value Diff x Day 3 vs Later",
+                    "b_norm_valDiff.time_bin4" = "Value Diff x Week 2 vs Later",
+                    "b_type1.time_bin1" = "Type x Day 1 vs Later",
+                    "b_type1.time_bin2" = "Type x Day 2 vs Later",
+                    "b_type1.time_bin3" = "Type x Day 3 vs Later",
+                    "b_type1.time_bin4" = "Type x Week 2 vs Later",
+                    "b_norm_valDiff.type1.time_bin1" = "Value Diff x Type x Day 1 vs Later",
+                    "b_norm_valDiff.type1.time_bin2" = "Value Diff x Type x Day 2 vs Later",
+                    "b_norm_valDiff.type1.time_bin3" = "Value Diff x Type x Day 3 vs Later",
+                    "b_norm_valDiff.type1.time_bin4" = "Value Diff x Type x Week 2 vs Later",
+                    ),
+         key = factor(key, levels = c("Intercept", "Value Diff [-1, 1]", "Type (RE = 0, HT = 1)", "Day 1 vs Later", "Day 2 vs Later", "Day 3 vs Later", "Week 2 vs Later", "Value Diff x Type", "Value Diff x Day 1 vs Later", "Value Diff x Day 2 vs Later", "Value Diff x Day 3 vs Later", "Value Diff x Week 2 vs Later", "Type x Day 1 vs Later", "Type x Day 2 vs Later", "Type x Day 3 vs Later", "Type x Week 2 vs Later", "Value Diff x Type x Day 1 vs Later", "Value Diff x Type x Day 2 vs Later", "Value Diff x Type x Day 3 vs Later", "Value Diff x Type x Week 2 vs Later"))) %>%
+  group_by(subnum, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(subnum = as.factor(subnum),
+         task = "BC") 
+
+```
+
+
+```{r}
+p = yn_par_summary %>%
+  rbind(bc_par_summary) %>%
+  ggplot(aes(m, subnum, color = task, alpha = task)) +
+  geom_vline(aes(xintercept = 0), color = "gray") + 
+  geom_point(position = position_dodge(width=.75))+
+  geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
+  facet_wrap(~key, scales = 'free_x', nrow = 2, labeller = labeller(key = label_wrap_gen(10))) +
+  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - Yes/Left ~ Value Diff x Time Bin x Type") +
+  theme(legend.position = "bottom",
+        panel.grid = element_blank(),
+        legend.box.margin=margin(t = -10))+
+  scale_x_symmetric(mid=0)+
+  scale_color_manual(values = c("red", "blue"))+
+  scale_alpha_manual(values = c(1, 1))+
+  guides(alpha = "none")
+
+# ggsave(file=paste0(fig_out_path, 'ynbc_normLogit_helmert_ParEsts.jpg'), p, height = 6, width = 12, units="in")
+p
+```
+
 ### Successive levels
+
+Forward difference coding: Compare day 1 to day 2, day 2 to day 3 etc
+
 
 ```{r}
 my_fwd_diff = matrix(c(4/5, -1/5, -1/5, -1/5, -1/5,
@@ -1188,53 +1409,210 @@ my_fwd_diff
 ```
 
 ```{r}
-# fn_draws = paste0(inputs_path, 'yn_logit_norm_bydays_pooled_draws.csv')
-# 
-# if(file.exists(fn_draws)){
-#   yn_logit_draws = read.csv(fn_draws)
-# } else{
-#   subnums = unique(data_yn_clean$subnum)
-#   
-#   normMax = 1
-#   normMinDay = 0
-#   normMinVal = -1
-#   
-#   yn_logit_draws = tibble()
-#   
-#   for(cur_sub in subnums){
-#     
-#     cur_dat = data_yn_clean %>% 
-#       ungroup() %>%
-#       filter(subnum == cur_sub) %>%
-#       mutate(type = as.factor(type), # Coding of type: doesn't matter if it's a factor vs 0/1 integer
-#              norm_day = (normMax - normMinDay) / (max(day) - min(day)) * (day - max(day)) + (normMax)) %>%
-#       group_by(day) %>% # Grouping by day to normalize valdiff matters. This makes sure every day ranges [-1,1]
-#       mutate(norm_valDiff = (normMax - normMinVal) / (max(val_diff) - min(val_diff)) * (val_diff - max(val_diff)) + (normMax)) %>%
-#       ungroup() %>%
-#       select(yesChosen, norm_valDiff, timebin, type)
-#     
-#     cur_m <- brm(formula = yesChosen ~ norm_valDiff * type * ...,
-#                  data= cur_dat,
-#                  family = bernoulli(link = "logit"),
-#                  warmup = 500,
-#                  iter = 2500,
-#                  chains = 4,
-#                  init = "0",
-#                  cores = 4,
-#                  seed = 389253)
-#     
-#     cur_draws = as_draws_df(cur_m)
-#     cur_draws$subnum = cur_sub
-#     
-#     yn_logit_draws = rbind(yn_logit_draws, cur_draws)
-#     
-#   }
-#   names(yn_logit_draws) = gsub(":", ".", names(yn_logit_draws))
-#   write.csv(yn_logit_draws, fn_draws, row.names = F)
-#   
-#   rm(cur_dat, cur_m, cur_draws, cur_sub)
-# }
+fn_draws = paste0(inputs_path, 'yn_logit_norm_bydays_fwd_diff_draws.csv')
 
+if(file.exists(fn_draws)){
+  yn_logit_draws = read.csv(fn_draws)
+} else{
+  subnums = unique(data_yn_clean$subnum)
+
+  normMax = 1
+  normMinDay = 0
+  normMinVal = -1
+
+  yn_logit_draws = tibble()
+
+  for(cur_sub in subnums){
+
+    cur_dat = data_yn_clean %>%
+      ungroup() %>%
+      filter(subnum == cur_sub) %>%
+      mutate(type = as.factor(type), # Coding of type: doesn't matter if it's a factor vs 0/1 integer
+             norm_day = (normMax - normMinDay) / (max(day) - min(day)) * (day - max(day)) + (normMax)) %>%
+      group_by(day) %>% # Grouping by day to normalize valdiff matters. This makes sure every day ranges [-1,1]
+      mutate(norm_valDiff = (normMax - normMinVal) / (max(val_diff) - min(val_diff)) * (val_diff - max(val_diff)) + (normMax)) %>%
+      ungroup() %>%
+      select(yesChosen, norm_valDiff, time_bin, type)
+    
+    contrasts(cur_dat$time_bin) = my_fwd_diff
+    
+    cur_m <- brm(formula = yesChosen ~ norm_valDiff * type * time_bin,
+                 data= cur_dat,
+                 family = bernoulli(link = "logit"),
+                 warmup = 500,
+                 iter = 2500,
+                 chains = 4,
+                 init = "0",
+                 cores = 4,
+                 seed = 389253)
+
+    cur_draws = as_draws_df(cur_m)
+    cur_draws$subnum = cur_sub
+
+    yn_logit_draws = rbind(yn_logit_draws, cur_draws)
+
+  }
+  names(yn_logit_draws) = gsub(":", ".", names(yn_logit_draws))
+  write.csv(yn_logit_draws, fn_draws, row.names = F)
+
+  rm(cur_dat, cur_m, cur_draws, cur_sub)
+}
+
+```
+
+
+```{r}
+fn_draws = paste0(inputs_path, 'bc_logit_norm_bydays_fwd_diff_draws.csv')
+
+if(file.exists(fn_draws)){
+  bc_logit_draws = read.csv(fn_draws)
+} else{
+  subnums = unique(data_bc_clean$subnum)
+  normMax = 1
+  normMinDay = 0
+  normMinVal = -1
+  
+  bc_logit_draws = tibble()
+  
+  for(cur_sub in subnums){
+  
+    cur_dat = data_bc_clean %>% 
+      ungroup() %>%
+      filter(subnum == cur_sub) %>%
+      mutate(type = as.factor(typeLeft), # Coding of type: doesn't matter if it's a factor vs 0/1 integer
+             norm_day = (normMax - normMinDay) / (max(day) - min(day)) * (day - max(day)) + (normMax)) %>%
+      group_by(day) %>% # Grouping by day to normalize valdiff matters. This makes sure every day ranges [-1,1]
+      mutate(norm_valDiff = (normMax - normMinVal) / (max(val_diff) - min(val_diff)) * (val_diff - max(val_diff)) + (normMax)) %>%
+      select(leftChosen, norm_valDiff, time_bin, type)
+    
+    contrasts(cur_dat$time_bin) = my_helmert
+    
+    cur_m <- brm(formula = leftChosen ~ norm_valDiff * type * time_bin,
+                        data= cur_dat,
+                        family = bernoulli(link = "logit"),
+                        warmup = 500,
+                        iter = 2500,
+                        chains = 4,
+                        init = "0",
+                        cores = 4,
+                        seed = 389253)
+    
+    cur_draws = as_draws_df(cur_m)
+    cur_draws$subnum = cur_sub
+    
+    bc_logit_draws = rbind(bc_logit_draws, cur_draws)
+  }
+  names(bc_logit_draws) = gsub(":", ".", names(bc_logit_draws))
+  write.csv(bc_logit_draws, fn_draws, row.names = F)
+
+  rm(cur_dat, cur_m, cur_draws, cur_sub)
+}
+
+```
+
+```{r}
+names(as_tibble(yn_logit_draws))[grepl("b_", names(as_tibble(yn_logit_draws)))]
+```
+
+```{r}
+names(as_tibble(bc_logit_draws))[grepl("b_", names(as_tibble(bc_logit_draws)))]
+```
+
+```{r}
+names(as_tibble(yn_logit_draws))
+```
+
+```{r}
+yn_par_summary = as_tibble(yn_logit_draws) %>%
+  select(-lprior, -lp__, -.chain, -.iteration, -.draw) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key=recode(key, 
+                    "b_Intercept" = "Intercept", 
+                    "b_norm_valDiff"  = "Value Diff [-1, 1]",
+                    "b_type1" = "Type (RE = 0, HT = 1)",
+                    "b_time_bin1" = "Day 1 vs Day 2",
+                    "b_time_bin2" = "Day 2 vs Day 3",
+                    "b_time_bin3" = "Day 3 vs Week 2",
+                    "b_time_bin4" = "Week 2 vs Week 3",
+                    "b_norm_valDiff.type1" = "Value Diff x Type",
+                    "b_norm_valDiff.time_bin1" = "Value Diff x Day 1 vs Day 2",
+                    "b_norm_valDiff.time_bin2" = "Value Diff x Day 2 vs Day 3",
+                    "b_norm_valDiff.time_bin3" = "Value Diff x Day 3 vs Week 2",
+                    "b_norm_valDiff.time_bin4" = "Value Diff x Week 2 vs Week 3",
+                    "b_type1.time_bin1" = "Type x Day 1 vs Day 2",
+                    "b_type1.time_bin2" = "Type x Day 2 vs Day 3",
+                    "b_type1.time_bin3" = "Type x Day 3 vs Week 2",
+                    "b_type1.time_bin4" = "Type x Week 2 vs Week 3",
+                    "b_norm_valDiff.type1.time_bin1" = "Value Diff x Type x Day 1 vs Day 2",
+                    "b_norm_valDiff.type1.time_bin2" = "Value Diff x Type x Day 2 vs Day 3",
+                    "b_norm_valDiff.type1.time_bin3" = "Value Diff x Type x Day 3 vs Week 2",
+                    "b_norm_valDiff.type1.time_bin4" = "Value Diff x Type x Week 2 vs Week 3",
+                    ),
+         key = factor(key, levels = c("Intercept", "Value Diff [-1, 1]", "Type (RE = 0, HT = 1)", "Day 1 vs Day 2", "Day 2 vs Day 3", "Day 3 vs Week 2", "Week 2 vs Week 3", "Value Diff x Type", "Value Diff x Day 1 vs Day 2", "Value Diff x Day 2 vs Day 3", "Value Diff x Day 3 vs Week 2", "Value Diff x Week 2 vs Week 3", "Type x Day 1 vs Day 2", "Type x Day 2 vs Day 3", "Type x Day 3 vs Week 2", "Type x Week 2 vs Week 3", "Value Diff x Type x Day 1 vs Day 2", "Value Diff x Type x Day 2 vs Day 3", "Value Diff x Type x Day 3 vs Week 2", "Value Diff x Type x Week 2 vs Week 3"))) %>%
+  group_by(subnum, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(subnum = as.factor(subnum),
+         task = "Y/N") 
+
+bc_par_summary = as_tibble(bc_logit_draws) %>%
+  select(-lprior, -lp__, -.chain, -.iteration, -.draw) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key=recode(key, 
+                    "b_Intercept" = "Intercept", 
+                    "b_norm_valDiff"  = "Value Diff [-1, 1]",
+                    "b_type1" = "Type (RE = 0, HT = 1)",
+                    "b_time_bin1" = "Day 1 vs Day 2",
+                    "b_time_bin2" = "Day 2 vs Day 3",
+                    "b_time_bin3" = "Day 3 vs Week 2",
+                    "b_time_bin4" = "Week 2 vs Week 3",
+                    "b_norm_valDiff.type1" = "Value Diff x Type",
+                    "b_norm_valDiff.time_bin1" = "Value Diff x Day 1 vs Day 2",
+                    "b_norm_valDiff.time_bin2" = "Value Diff x Day 2 vs Day 3",
+                    "b_norm_valDiff.time_bin3" = "Value Diff x Day 3 vs Week 2",
+                    "b_norm_valDiff.time_bin4" = "Value Diff x Week 2 vs Week 3",
+                    "b_type1.time_bin1" = "Type x Day 1 vs Day 2",
+                    "b_type1.time_bin2" = "Type x Day 2 vs Day 3",
+                    "b_type1.time_bin3" = "Type x Day 3 vs Week 2",
+                    "b_type1.time_bin4" = "Type x Week 2 vs Week 3",
+                    "b_norm_valDiff.type1.time_bin1" = "Value Diff x Type x Day 1 vs Day 2",
+                    "b_norm_valDiff.type1.time_bin2" = "Value Diff x Type x Day 2 vs Day 3",
+                    "b_norm_valDiff.type1.time_bin3" = "Value Diff x Type x Day 3 vs Week 2",
+                    "b_norm_valDiff.type1.time_bin4" = "Value Diff x Type x Week 2 vs Week 3",
+                    ),
+         key = factor(key, levels = c("Intercept", "Value Diff [-1, 1]", "Type (RE = 0, HT = 1)", "Day 1 vs Day 2", "Day 2 vs Day 3", "Day 3 vs Week 2", "Week 2 vs Week 3", "Value Diff x Type", "Value Diff x Day 1 vs Day 2", "Value Diff x Day 2 vs Day 3", "Value Diff x Day 3 vs Week 2", "Value Diff x Week 2 vs Week 3", "Type x Day 1 vs Day 2", "Type x Day 2 vs Day 3", "Type x Day 3 vs Week 2", "Type x Week 2 vs Week 3", "Value Diff x Type x Day 1 vs Day 2", "Value Diff x Type x Day 2 vs Day 3", "Value Diff x Type x Day 3 vs Week 2", "Value Diff x Type x Week 2 vs Week 3"))) %>%
+  group_by(subnum, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(subnum = as.factor(subnum),
+         task = "BC") 
+
+```
+
+
+```{r}
+p = yn_par_summary %>%
+  rbind(bc_par_summary) %>%
+  ggplot(aes(m, subnum, color = task, alpha = task)) +
+  geom_vline(aes(xintercept = 0), color = "gray") + 
+  geom_point(position = position_dodge(width=.75))+
+  geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
+  facet_wrap(~key, scales = 'free_x', nrow = 2, labeller = labeller(key = label_wrap_gen(10))) +
+  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - Yes/Left ~ Value Diff x Time Bin x Type") +
+  theme(legend.position = "bottom",
+        panel.grid = element_blank(),
+        legend.box.margin=margin(t = -10))+
+  scale_x_symmetric(mid=0)+
+  scale_color_manual(values = c("red", "blue"))+
+  scale_alpha_manual(values = c(1, 1))+
+  guides(alpha = "none")
+
+# ggsave(file=paste0(fig_out_path, 'ynbc_normLogit_fwd_diff_ParEsts.jpg'), p, height = 6, width = 12, units="in")
+p
 ```
 
 # RT
@@ -1305,6 +1683,7 @@ p = ggplot()+
 # ggsave(file=paste0(fig_out_path, 'ynbc_groupAndSub_meanLogRTOverDays.jpg'), p, height = 5, width=12, units="in")
 p
 ```
+
 ```{r}
 sub_summary = data_yn_clean %>%
   group_by(day, subnum, type_chr) %>%
@@ -1501,6 +1880,7 @@ p = yn_par_summary %>%
 # ggsave(file=paste0(fig_out_path, 'ynbc_rt_ParEsts.jpg'), p, height = 3, width = 9, units="in")
 p
 ```
+
 ## Modeling tasks together
 
 ```{r}
@@ -1563,6 +1943,7 @@ p = ggplot(data = sub_summary)+
 # ggsave(file=paste0(fig_out_path, 'ynbc_Sub_rtOverDaysPanelByType.jpg'), p, height = 5, width=12, units="in")
 p
 ```
+
 ```{r}
 fn_draws = paste0(inputs_path, 'ynbc_rtOverDays_draws.csv')
 
@@ -1657,6 +2038,7 @@ p = ynbc_par_summary %>%
 # ggsave(file=paste0(fig_out_path, 'ynbc_rt_SingleModelParEsts.jpg'), p, height = 5, width = 9, units="in")
 p
 ```
+
 ## RT difference over days
 
 ```{r}
@@ -2004,8 +2386,8 @@ p = ggplot() +
 # ggsave(file=paste0(fig_out_path, 'bc_subj_MeanLogRTValDiffAcrossTime.jpg'), p, height = 5, width = 12, units="in")
 p
 ```
-## Models
 
+## Models
 
 ```{r}
 fn_draws = paste0(inputs_path, 'yn_rt_norm_draws.csv')
@@ -2062,8 +2444,7 @@ if(file.exists(fn_draws)){
 } else{
   subnums = unique(data_bc_clean$subnum)
   normMax = 1
-  normMinDay = 0
-  normMinVal = -1
+  normMin = 0
   
   bc_rt_draws = tibble()
   
@@ -2180,3 +2561,523 @@ p = yn_par_summary %>%
 p
 ```
 
+# Continuous increase of value difference effect
+
+## Pooled model comparing value difference slope across time bins
+
+```{r}
+
+# days = list("day 1" = c(1), "day 2" = c(2), "day 3" = c(3), "week 2" = c(4, 5, 6, 7, 8), "week 3" = c(9, 10, 11))
+data_yn_clean = data_yn_clean %>%
+  mutate(time_bin = recode(day, 
+                    `1` = "day 1", 
+                    `2` = "day 2",
+                    `3` = "day 3",
+                    `4` = "week 2",
+                    `5` = "week 2",
+                    `6` = "week 2",
+                    `7` = "week 2",
+                    `8` = "week 2",
+                    `9` = "week 3",
+                    `10` = "week 3",
+                    `11` = "week 3"),
+         time_bin = factor(time_bin))
+
+data_bc_clean = data_bc_clean %>%
+  mutate(time_bin = recode(day, 
+                    `1` = "day 1", 
+                    `2` = "day 2",
+                    `3` = "day 3",
+                    `4` = "week 2",
+                    `5` = "week 2",
+                    `6` = "week 2",
+                    `7` = "week 2",
+                    `8` = "week 2",
+                    `9` = "week 3",
+                    `10` = "week 3",
+                    `11` = "week 3"),
+         time_bin = factor(time_bin))
+
+contrasts(data_yn_clean$time_bin)
+```
+
+### Current to all later
+
+Helmert coding: Compare day 1 to later, day 2 to later etc. 
+
+```{r}
+k = length(unique(data_yn_clean$time_bin)) # number of factor levels
+
+my_helmert = matrix(c(4/5, -1/5, -1/5, -1/5, -1/5,
+                      0, 3/4, -1/4, -1/4, -1/4,
+                      0, 0, 2/3, -1/3, -1/3,
+                      0, 0, 0, 1/2, -1/2), ncol = k-1)
+  
+my_helmert
+```
+
+```{r}
+fn_draws = paste0(inputs_path, 'yn_rt_norm_helmert_draws.csv')
+
+if(file.exists(fn_draws)){
+  yn_rt_draws = read.csv(fn_draws)
+} else{
+  subnums = unique(data_yn_clean$subnum)
+
+  normMax = 1
+  normMin = 0
+  
+  yn_rt_draws = tibble()
+
+  for(cur_sub in subnums){
+    
+    cur_dat = data_yn_clean %>% 
+      ungroup() %>%
+      filter(subnum == cur_sub) %>%
+      mutate(type = as.factor(type), # Coding of type: doesn't matter if it's a factor vs 0/1 integer
+             norm_day = (normMax - normMin) / (max(day) - min(day)) * (day - max(day)) + (normMax),
+             log_rt = log(rt)) %>%
+      group_by(day) %>% # Grouping by day to normalize valdiff matters. This makes sure every day ranges [-1,1]
+      mutate(norm_absValDiff = (normMax - normMin) / (max(abs_val_diff) - min(abs_val_diff)) * (abs_val_diff - max(abs_val_diff)) + (normMax)) %>%
+      ungroup() %>%
+      select(log_rt, norm_absValDiff, time_bin, type)
+    
+    contrasts(cur_dat$time_bin) = my_helmert
+    
+    cur_m <- brm(formula = log_rt ~ norm_absValDiff * type * time_bin,
+                        data= cur_dat,
+                        warmup = 500,
+                        iter = 2500,
+                        chains = 4,
+                        init = "0",
+                        cores = 4,
+                        seed = 389253)
+
+    cur_draws = as_draws_df(cur_m)
+    cur_draws$subnum = cur_sub
+
+    yn_rt_draws = rbind(yn_rt_draws, cur_draws)
+
+  }
+  names(yn_rt_draws) = gsub(":", ".", names(yn_rt_draws))
+  write.csv(yn_rt_draws, fn_draws, row.names = F)
+
+  rm(cur_dat, cur_m, cur_draws, cur_sub)
+}
+
+```
+
+```{r}
+fn_draws = paste0(inputs_path, 'bc_rt_norm_helmert_draws.csv')
+
+if(file.exists(fn_draws)){
+  bc_rt_draws = read.csv(fn_draws)
+} else{
+  subnums = unique(data_bc_clean$subnum)
+  normMax = 1
+  normMin = 0
+
+  bc_rt_draws = tibble()
+  
+  for(cur_sub in subnums){
+  
+    cur_dat = data_bc_clean %>% 
+      ungroup() %>%
+      filter(subnum == cur_sub) %>%
+      mutate(type = as.factor(typeLeft), # Coding of type: doesn't matter if it's a factor vs 0/1 integer
+             norm_day = (normMax - normMin) / (max(day) - min(day)) * (day - max(day)) + (normMax),
+             log_rt = log(rt)) %>%
+      group_by(day) %>% # Grouping by day to normalize valdiff matters. This makes sure every day ranges [-1,1]
+      mutate(norm_absValDiff = (normMax - normMin) / (max(abs_val_diff) - min(abs_val_diff)) * (abs_val_diff - max(abs_val_diff)) + (normMax)) %>%
+      ungroup() %>%
+      select(log_rt, norm_absValDiff, time_bin, type)
+    
+    contrasts(cur_dat$time_bin) = my_helmert
+    
+    cur_m <- brm(formula = log_rt ~ norm_absValDiff * type * time_bin,
+                        data= cur_dat,
+                        warmup = 500,
+                        iter = 2500,
+                        chains = 4,
+                        init = "0",
+                        cores = 4,
+                        seed = 389253)
+    
+    cur_draws = as_draws_df(cur_m)
+    cur_draws$subnum = cur_sub
+    
+    bc_rt_draws = rbind(bc_rt_draws, cur_draws)
+  }
+  names(bc_rt_draws) = gsub(":", ".", names(bc_rt_draws))
+  write.csv(bc_rt_draws, fn_draws, row.names = F)
+
+  rm(cur_dat, cur_m, cur_draws, cur_sub)
+}
+
+```
+
+```{r}
+names(as_tibble(yn_rt_draws))[grepl("b_", names(as_tibble(yn_rt_draws)))]
+```
+
+```{r}
+names(as_tibble(bc_rt_draws))[grepl("b_", names(as_tibble(bc_rt_draws)))]
+```
+
+```{r}
+names(as_tibble(yn_rt_draws) %>% select(-lprior, -lp__, -.chain, -.iteration, -.draw, -sigma))
+```
+```{r}
+names(as_tibble(bc_rt_draws) %>% select(-lprior, -lp__, -.chain, -.iteration, -.draw, -sigma))
+```
+
+```{r}
+yn_par_summary = as_tibble(yn_rt_draws) %>%
+  select(-lprior, -lp__, -.chain, -.iteration, -.draw, -sigma) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key=recode(key, 
+                    "b_Intercept" = "Intercept", 
+                    "b_norm_absValDiff"  = "|Value Diff| [0, 1]",
+                    "b_type1" = "Type (RE = 0, HT = 1)",
+                    "b_time_bin1" = "Day 1 vs Later",
+                    "b_time_bin2" = "Day 2 vs Later",
+                    "b_time_bin3" = "Day 3 vs Later",
+                    "b_time_bin4" = "Week 2 vs Later",
+                    "b_norm_absValDiff.type1" = "|Value Diff| x Type",
+                    "b_norm_absValDiff.time_bin1" = "|Value Diff| x Day 1 vs Later",
+                    "b_norm_absValDiff.time_bin2" = "|Value Diff| x Day 2 vs Later",
+                    "b_norm_absValDiff.time_bin3" = "|Value Diff| x Day 3 vs Later",
+                    "b_norm_absValDiff.time_bin4" = "|Value Diff| x Week 2 vs Later",
+                    "b_type1.time_bin1" = "Type x Day 1 vs Later",
+                    "b_type1.time_bin2" = "Type x Day 2 vs Later",
+                    "b_type1.time_bin3" = "Type x Day 3 vs Later",
+                    "b_type1.time_bin4" = "Type x Week 2 vs Later",
+                    "b_norm_absValDiff.type1.time_bin1" = "|Value Diff| x Type x Day 1 vs Later",
+                    "b_norm_absValDiff.type1.time_bin2" = "|Value Diff| x Type x Day 2 vs Later",
+                    "b_norm_absValDiff.type1.time_bin3" = "|Value Diff| x Type x Day 3 vs Later",
+                    "b_norm_absValDiff.type1.time_bin4" = "|Value Diff| x Type x Week 2 vs Later",
+                    ),
+         key = factor(key, levels = c("Intercept", 
+                                      "|Value Diff| [0, 1]", 
+                                      "Type (RE = 0, HT = 1)", 
+                                      "Day 1 vs Later", 
+                                      "Day 2 vs Later", 
+                                      "Day 3 vs Later", 
+                                      "Week 2 vs Later", 
+                                      "|Value Diff| x Type", 
+                                      "|Value Diff| x Day 1 vs Later", 
+                                      "|Value Diff| x Day 2 vs Later", 
+                                      "|Value Diff| x Day 3 vs Later", 
+                                      "|Value Diff| x Week 2 vs Later", 
+                                      "Type x Day 1 vs Later", 
+                                      "Type x Day 2 vs Later", 
+                                      "Type x Day 3 vs Later", 
+                                      "Type x Week 2 vs Later", 
+                                      "|Value Diff| x Type x Day 1 vs Later", 
+                                      "|Value Diff| x Type x Day 2 vs Later", 
+                                      "|Value Diff| x Type x Day 3 vs Later", 
+                                      "|Value Diff| x Type x Week 2 vs Later"))) %>%
+  group_by(subnum, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(subnum = as.factor(subnum),
+         task = "Y/N") 
+
+bc_par_summary = as_tibble(bc_rt_draws) %>%
+  select(-lprior, -lp__, -.chain, -.iteration, -.draw, -sigma) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key=recode(key, 
+                    "b_Intercept" = "Intercept", 
+                    "b_norm_absValDiff"  = "|Value Diff| [0, 1]",
+                    "b_type1" = "Type (RE = 0, HT = 1)",
+                    "b_time_bin1" = "Day 1 vs Later",
+                    "b_time_bin2" = "Day 2 vs Later",
+                    "b_time_bin3" = "Day 3 vs Later",
+                    "b_time_bin4" = "Week 2 vs Later",
+                    "b_norm_absValDiff.type1" = "|Value Diff| x Type",
+                    "b_norm_absValDiff.time_bin1" = "|Value Diff| x Day 1 vs Later",
+                    "b_norm_absValDiff.time_bin2" = "|Value Diff| x Day 2 vs Later",
+                    "b_norm_absValDiff.time_bin3" = "|Value Diff| x Day 3 vs Later",
+                    "b_norm_absValDiff.time_bin4" = "|Value Diff| x Week 2 vs Later",
+                    "b_type1.time_bin1" = "Type x Day 1 vs Later",
+                    "b_type1.time_bin2" = "Type x Day 2 vs Later",
+                    "b_type1.time_bin3" = "Type x Day 3 vs Later",
+                    "b_type1.time_bin4" = "Type x Week 2 vs Later",
+                    "b_norm_absValDiff.type1.time_bin1" = "|Value Diff| x Type x Day 1 vs Later",
+                    "b_norm_absValDiff.type1.time_bin2" = "|Value Diff| x Type x Day 2 vs Later",
+                    "b_norm_absValDiff.type1.time_bin3" = "|Value Diff| x Type x Day 3 vs Later",
+                    "b_norm_absValDiff.type1.time_bin4" = "|Value Diff| x Type x Week 2 vs Later",
+                    ),
+         key = factor(key, levels = c("Intercept", "|Value Diff| [0, 1]", "Type (RE = 0, HT = 1)", "Day 1 vs Later", "Day 2 vs Later", "Day 3 vs Later", "Week 2 vs Later", "|Value Diff| x Type", "|Value Diff| x Day 1 vs Later", "|Value Diff| x Day 2 vs Later", "|Value Diff| x Day 3 vs Later", "|Value Diff| x Week 2 vs Later", "Type x Day 1 vs Later", "Type x Day 2 vs Later", "Type x Day 3 vs Later", "Type x Week 2 vs Later", "|Value Diff| x Type x Day 1 vs Later", "|Value Diff| x Type x Day 2 vs Later", "|Value Diff| x Type x Day 3 vs Later", "|Value Diff| x Type x Week 2 vs Later"))) %>%
+  group_by(subnum, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(subnum = as.factor(subnum),
+         task = "BC") 
+
+```
+
+
+```{r}
+p = yn_par_summary %>%
+  rbind(bc_par_summary) %>%
+  ggplot(aes(m, subnum, color = task, alpha = task)) +
+  geom_vline(aes(xintercept = 0), color = "gray") + 
+  geom_point(position = position_dodge(width=.75))+
+  geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
+  facet_wrap(~key, scales = 'free_x', nrow = 2, labeller = labeller(key = label_wrap_gen(10))) +
+  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - log(RT) ~ |Value Diff| x Time Bin x Type") +
+  theme(legend.position = "bottom",
+        panel.grid = element_blank(),
+        legend.box.margin=margin(t = -10))+
+  scale_x_symmetric(mid=0)+
+  scale_color_manual(values = c("red", "blue"))+
+  scale_alpha_manual(values = c(1, 1))+
+  guides(alpha = "none")
+
+# ggsave(file=paste0(fig_out_path, 'ynbc_rt_helmert_ParEsts.jpg'), p, height = 6, width = 12, units="in")
+p
+```
+
+### Successive levels
+
+Forward difference coding: Compare day 1 to day 2, day 2 to day 3 etc
+
+
+```{r}
+my_fwd_diff = matrix(c(4/5, -1/5, -1/5, -1/5, -1/5,
+                       3/5, 3/5, -2/5, -2/5, -2/5,
+                       2/5, 2/5, 2/5, -3/5, -3/5,
+                       1/5, 1/5, 1/5, 1/5, -4/5), ncol = k-1)
+
+my_fwd_diff
+```
+
+
+```{r}
+fn_draws = paste0(inputs_path, 'yn_rt_norm_fwd_diff_draws.csv')
+
+if(file.exists(fn_draws)){
+  yn_rt_draws = read.csv(fn_draws)
+} else{
+  subnums = unique(data_yn_clean$subnum)
+
+  normMax = 1
+  normMin = 0
+  
+  yn_rt_draws = tibble()
+
+  for(cur_sub in subnums){
+    
+    cur_dat = data_yn_clean %>% 
+      ungroup() %>%
+      filter(subnum == cur_sub) %>%
+      mutate(type = as.factor(type), # Coding of type: doesn't matter if it's a factor vs 0/1 integer
+             norm_day = (normMax - normMin) / (max(day) - min(day)) * (day - max(day)) + (normMax),
+             log_rt = log(rt)) %>%
+      group_by(day) %>% # Grouping by day to normalize valdiff matters. This makes sure every day ranges [-1,1]
+      mutate(norm_absValDiff = (normMax - normMin) / (max(abs_val_diff) - min(abs_val_diff)) * (abs_val_diff - max(abs_val_diff)) + (normMax)) %>%
+      ungroup() %>%
+      select(log_rt, norm_absValDiff, time_bin, type)
+    
+    contrasts(cur_dat$time_bin) = my_fwd_diff
+    
+    cur_m <- brm(formula = log_rt ~ norm_absValDiff * type * time_bin,
+                        data= cur_dat,
+                        warmup = 500,
+                        iter = 2500,
+                        chains = 4,
+                        init = "0",
+                        cores = 4,
+                        seed = 389253)
+
+    cur_draws = as_draws_df(cur_m)
+    cur_draws$subnum = cur_sub
+
+    yn_rt_draws = rbind(yn_rt_draws, cur_draws)
+
+  }
+  names(yn_rt_draws) = gsub(":", ".", names(yn_rt_draws))
+  write.csv(yn_rt_draws, fn_draws, row.names = F)
+
+  rm(cur_dat, cur_m, cur_draws, cur_sub)
+}
+
+```
+
+```{r}
+fn_draws = paste0(inputs_path, 'bc_rt_norm_fwd_diff_draws.csv')
+
+if(file.exists(fn_draws)){
+  bc_rt_draws = read.csv(fn_draws)
+} else{
+  subnums = unique(data_bc_clean$subnum)
+  normMax = 1
+  normMin = 0
+
+  bc_rt_draws = tibble()
+  
+  for(cur_sub in subnums){
+  
+    cur_dat = data_bc_clean %>% 
+      ungroup() %>%
+      filter(subnum == cur_sub) %>%
+      mutate(type = as.factor(typeLeft), # Coding of type: doesn't matter if it's a factor vs 0/1 integer
+             norm_day = (normMax - normMin) / (max(day) - min(day)) * (day - max(day)) + (normMax),
+             log_rt = log(rt)) %>%
+      group_by(day) %>% # Grouping by day to normalize valdiff matters. This makes sure every day ranges [-1,1]
+      mutate(norm_absValDiff = (normMax - normMin) / (max(abs_val_diff) - min(abs_val_diff)) * (abs_val_diff - max(abs_val_diff)) + (normMax)) %>%
+      ungroup() %>%
+      select(log_rt, norm_absValDiff, time_bin, type)
+    
+    contrasts(cur_dat$time_bin) = my_fwd_diff
+    
+    cur_m <- brm(formula = log_rt ~ norm_absValDiff * type * time_bin,
+                        data= cur_dat,
+                        warmup = 500,
+                        iter = 2500,
+                        chains = 4,
+                        init = "0",
+                        cores = 4,
+                        seed = 389253)
+    
+    cur_draws = as_draws_df(cur_m)
+    cur_draws$subnum = cur_sub
+    
+    bc_rt_draws = rbind(bc_rt_draws, cur_draws)
+  }
+  names(bc_rt_draws) = gsub(":", ".", names(bc_rt_draws))
+  write.csv(bc_rt_draws, fn_draws, row.names = F)
+
+  rm(cur_dat, cur_m, cur_draws, cur_sub)
+}
+
+```
+
+```{r}
+names(as_tibble(yn_rt_draws))[grepl("b_", names(as_tibble(yn_rt_draws)))]
+```
+
+```{r}
+names(as_tibble(bc_rt_draws))[grepl("b_", names(as_tibble(bc_rt_draws)))]
+```
+
+```{r}
+names(as_tibble(yn_rt_draws))
+```
+
+```{r}
+yn_par_summary = as_tibble(yn_rt_draws) %>%
+  select(-lprior, -lp__, -.chain, -.iteration, -.draw, -sigma) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key=recode(key, 
+                    "b_Intercept" = "Intercept", 
+                    "b_norm_absValDiff"  = "|Value Diff| [0, 1]",
+                    "b_type1" = "Type (RE = 0, HT = 1)",
+                    "b_time_bin1" = "Day 1 vs Day 2",
+                    "b_time_bin2" = "Day 2 vs Day 3",
+                    "b_time_bin3" = "Day 3 vs Week 2",
+                    "b_time_bin4" = "Week 2 vs Week 3",
+                    "b_norm_absValDiff.type1" = "|Value Diff| x Type",
+                    "b_norm_absValDiff.time_bin1" = "|Value Diff| x Day 1 vs Day 2",
+                    "b_norm_absValDiff.time_bin2" = "|Value Diff| x Day 2 vs Day 3",
+                    "b_norm_absValDiff.time_bin3" = "|Value Diff| x Day 3 vs Week 2",
+                    "b_norm_absValDiff.time_bin4" = "|Value Diff| x Week 2 vs Week 3",
+                    "b_type1.time_bin1" = "Type x Day 1 vs Day 2",
+                    "b_type1.time_bin2" = "Type x Day 2 vs Day 3",
+                    "b_type1.time_bin3" = "Type x Day 3 vs Week 2",
+                    "b_type1.time_bin4" = "Type x Week 2 vs Week 3",
+                    "b_norm_absValDiff.type1.time_bin1" = "|Value Diff| x Type x Day 1 vs Day 2",
+                    "b_norm_absValDiff.type1.time_bin2" = "|Value Diff| x Type x Day 2 vs Day 3",
+                    "b_norm_absValDiff.type1.time_bin3" = "|Value Diff| x Type x Day 3 vs Week 2",
+                    "b_norm_absValDiff.type1.time_bin4" = "|Value Diff| x Type x Week 2 vs Week 3",
+                    ),
+         key = factor(key, levels = c("Intercept", 
+                                      "|Value Diff| [0, 1]", 
+                                      "Type (RE = 0, HT = 1)", 
+                                      "Day 1 vs Day 2", 
+                                      "Day 2 vs Day 3", 
+                                      "Day 3 vs Week 2", 
+                                      "Week 2 vs Week 3", 
+                                      "|Value Diff| x Type", 
+                                      "|Value Diff| x Day 1 vs Day 2", 
+                                      "|Value Diff| x Day 2 vs Day 3", 
+                                      "|Value Diff| x Day 3 vs Week 2", 
+                                      "|Value Diff| x Week 2 vs Week 3", 
+                                      "Type x Day 1 vs Day 2", 
+                                      "Type x Day 2 vs Day 3", 
+                                      "Type x Day 3 vs Week 2", 
+                                      "Type x Week 2 vs Week 3", 
+                                      "|Value Diff| x Type x Day 1 vs Day 2", 
+                                      "|Value Diff| x Type x Day 2 vs Day 3", 
+                                      "|Value Diff| x Type x Day 3 vs Week 2", 
+                                      "|Value Diff| x Type x Week 2 vs Week 3"))) %>%
+  group_by(subnum, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(subnum = as.factor(subnum),
+         task = "Y/N") 
+
+bc_par_summary = as_tibble(bc_rt_draws) %>%
+  select(-lprior, -lp__, -.chain, -.iteration, -.draw, -sigma) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key=recode(key, 
+                    "b_Intercept" = "Intercept", 
+                    "b_norm_absValDiff"  = "|Value Diff| [0, 1]",
+                    "b_type1" = "Type (RE = 0, HT = 1)",
+                    "b_time_bin1" = "Day 1 vs Day 2",
+                    "b_time_bin2" = "Day 2 vs Day 3",
+                    "b_time_bin3" = "Day 3 vs Week 2",
+                    "b_time_bin4" = "Week 2 vs Week 3",
+                    "b_norm_absValDiff.type1" = "|Value Diff| x Type",
+                    "b_norm_absValDiff.time_bin1" = "|Value Diff| x Day 1 vs Day 2",
+                    "b_norm_absValDiff.time_bin2" = "|Value Diff| x Day 2 vs Day 3",
+                    "b_norm_absValDiff.time_bin3" = "|Value Diff| x Day 3 vs Week 2",
+                    "b_norm_absValDiff.time_bin4" = "|Value Diff| x Week 2 vs Week 3",
+                    "b_type1.time_bin1" = "Type x Day 1 vs Day 2",
+                    "b_type1.time_bin2" = "Type x Day 2 vs Day 3",
+                    "b_type1.time_bin3" = "Type x Day 3 vs Week 2",
+                    "b_type1.time_bin4" = "Type x Week 2 vs Week 3",
+                    "b_norm_absValDiff.type1.time_bin1" = "|Value Diff| x Type x Day 1 vs Day 2",
+                    "b_norm_absValDiff.type1.time_bin2" = "|Value Diff| x Type x Day 2 vs Day 3",
+                    "b_norm_absValDiff.type1.time_bin3" = "|Value Diff| x Type x Day 3 vs Week 2",
+                    "b_norm_absValDiff.type1.time_bin4" = "|Value Diff| x Type x Week 2 vs Week 3",
+                    ),
+         key = factor(key, levels = c("Intercept", "|Value Diff| [0, 1]", "Type (RE = 0, HT = 1)", "Day 1 vs Day 2", "Day 2 vs Day 3", "Day 3 vs Week 2", "Week 2 vs Week 3", "|Value Diff| x Type", "|Value Diff| x Day 1 vs Day 2", "|Value Diff| x Day 2 vs Day 3", "|Value Diff| x Day 3 vs Week 2", "|Value Diff| x Week 2 vs Week 3", "Type x Day 1 vs Day 2", "Type x Day 2 vs Day 3", "Type x Day 3 vs Week 2", "Type x Week 2 vs Week 3", "|Value Diff| x Type x Day 1 vs Day 2", "|Value Diff| x Type x Day 2 vs Day 3", "|Value Diff| x Type x Day 3 vs Week 2", "|Value Diff| x Type x Week 2 vs Week 3"))) %>%
+  group_by(subnum, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(subnum = as.factor(subnum),
+         task = "BC") 
+
+```
+
+
+```{r}
+p = yn_par_summary %>%
+  rbind(bc_par_summary) %>%
+  ggplot(aes(m, subnum, color = task, alpha = task)) +
+  geom_vline(aes(xintercept = 0), color = "gray") + 
+  geom_point(position = position_dodge(width=.75))+
+  geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
+  facet_wrap(~key, scales = 'free_x', nrow = 2, labeller = labeller(key = label_wrap_gen(10))) +
+  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - log(RT) ~ |Value Diff| x Time Bin x Type") +
+  theme(legend.position = "bottom",
+        panel.grid = element_blank(),
+        legend.box.margin=margin(t = -10))+
+  scale_x_symmetric(mid=0)+
+  scale_color_manual(values = c("red", "blue"))+
+  scale_alpha_manual(values = c(1, 1))+
+  guides(alpha = "none")
+
+# ggsave(file=paste0(fig_out_path, 'ynbc_rt_fwd_diff_ParEsts.jpg'), p, height = 6, width = 12, units="in")
+p
+```
