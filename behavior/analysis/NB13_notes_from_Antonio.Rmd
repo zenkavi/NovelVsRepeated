@@ -914,7 +914,8 @@ p = data_yn_clean %>%
 ggsave(file=paste0(fig_out_path, 'yn_sub-601_valDiffDists.jpg'), p, height = 5, width = 16, units="in")
 p
 ```
-# Linearity of value difference effects
+
+# Continuous increase of value difference effect
 
 ```{r}
 sub_summary = data_yn_clean %>%
@@ -1129,7 +1130,62 @@ p = yn_par_summary %>%
 
 p
 ```
-**TBD: Pooled model comparing the slopes in each time bin**
+
+## Pooled model comparing value difference slope across time bins
+
+For each subject
+Is the effect of value difference growing across all time bins
+Or does it only jump from day 1 to day 2 and then stay at that level?
+Does this differ by stim type?
+And task?
+
+Useful [set of notes](https://stats.oarc.ucla.edu/r/library/r-library-contrast-coding-systems-for-categorical-variables/) on various contrast codings.
+
+```{r}
+
+# days = list("day 1" = c(1), "day 2" = c(2), "day 3" = c(3), "week 2" = c(4, 5, 6, 7, 8), "week 3" = c(9, 10, 11))
+data_yn_clean = data_yn_clean %>%
+  mutate(time_bin = recode(day, 
+                    `1` = "day 1", 
+                    `2` = "day 2",
+                    `3` = "day 3",
+                    `4` = "week 2",
+                    `5` = "week 2",
+                    `6` = "week 2",
+                    `7` = "week 2",
+                    `8` = "week 2",
+                    `9` = "week 3",
+                    `10` = "week 3",
+                    `11` = "week 3"),
+         time_bin = factor(time_bin))
+
+contrasts(data_yn_clean$time_bin)
+```
+### Current to all later
+
+Do I want Helmert coding where I compare day 1 to later, day 2 to later etc. 
+or forward difference coding where I compared day 1 to day 2, day 2 to day 3 etc?
+
+```{r}
+k = length(unique(data_yn_clean$time_bin)) # number of factor levels
+
+my_helmert = matrix(c(4/5, -1/5, -1/5, -1/5, -1/5,
+                      0, 3/4, -1/4, -1/4, -1/4,
+                      0, 0, 2/3, -1/3, -1/3,
+                      0, 0, 0, 1/2, -1/2), ncol = k-1)
+  
+my_helmert
+```
+### Successive levels
+
+```{r}
+my_fwd_diff = matrix(c(4/5, -1/5, -1/5, -1/5, -1/5,
+                       3/5, 3/5, -2/5, -2/5, -2/5,
+                       2/5, 2/5, 2/5, -3/5, -3/5,
+                       1/5, 1/5, 1/5, 1/5, -4/5), ncol = k-1)
+
+my_fwd_diff
+```
 
 ```{r}
 # fn_draws = paste0(inputs_path, 'yn_logit_norm_bydays_pooled_draws.csv')
