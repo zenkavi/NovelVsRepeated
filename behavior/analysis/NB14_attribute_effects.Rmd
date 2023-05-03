@@ -1,5 +1,5 @@
 ---
-title: "Novel vs. repeated choice project: Attribute efe"
+title: "Novel vs. repeated choice project: Attribute and reference amount effects on choice"
 output: 
   html_document:
     toc: true
@@ -37,53 +37,14 @@ data_yn_clean = data_yn_clean %>%
          val_diff_bin_str = factor(val_diff_bin_str, levels = c("-225:-175", "-175:-125", "-125:-75", "-75:-25", "-25:25", "25:75", "75:125", "125:175", "175:225")))
 ```
 
-Add regressors for attribute effect regressions
-
-```{r}
-normMin = 0
-normMax = 1
-
-data_yn_clean = data_yn_clean %>%
-  mutate(shapeI1 = ifelse(shape == 1, 1, 0),
-         shapeI2 = ifelse(shape == 2, 1, 0),
-         shapeI3 = ifelse(shape == 3, 1, 0),
-         shapeI4 = ifelse(shape == 4, 1, 0),
-         shapeI5 = ifelse(shape == 5, 1, 0),
-         shapeI6 = ifelse(shape == 6, 1, 0),
-         # fillingPos = ifelse(filling > 0, 1, 0),
-         # fillingNeg = ifelse(filling < 0, 1, 0),
-         fillingPos = ifelse(valueF > 0, 1, 0),
-         fillingNeg = ifelse(valueF < 0, 1, 0),
-         filling0 = ifelse(filling == 0, 1, 0), 
-         fillingCol = ifelse(filling > 0, "blue", ifelse(filling < 0, "red", "white")),
-         orientationNorm = (normMax - normMin) / (max(orientation) - min(orientation)) * (orientation - max(orientation)) + (normMax))
-
-rm(normMin, normMax)
-
-data_yn_clean
-```
-
-
 ## Attribute effects on accuracy
 
-Within subject compare slopes of each attribute
-
-Models:
-
+```{r}
+names(data_yn_clean)
 ```
-correct ~ orientation + filling + shape, data = all
-yes ~ orientation + filling + shape, data = all
-
-correct ~ orientation + filling + shape, data = HT # didn't work
-yes ~ orientation + filling + shape, data = HT
-```
-What should be the baseline here? Filling = white, shape = 1, orientation = 0? Or filling = white, shape = average across all, orientation = average across all?
-
-Recode all attributes to be higher levels = higher values across subjects
-
 
 ```{r}
-fn_draws = paste0(inputs_path, 'yn_attr_cor_draws.csv')
+fn_draws = paste0(inputs_path, 'yn_attrVal_cor_draws.csv')
 
 if(file.exists(fn_draws)){
   yn_attr_cor_draws = read.csv(fn_draws)
@@ -98,7 +59,100 @@ if(file.exists(fn_draws)){
       ungroup() %>%
       filter(subnum == cur_sub)
     
-    cur_m <- brm(formula = correct ~  orientationNorm + fillingPos + fillingNeg + shapeI2 + shapeI3 + shapeI4 + shapeI5 + shapeI6,
+    cur_m <- brm(formula = correct ~  valueO * valueF * valueS,
+                        data= cur_dat,
+                        family = bernoulli(link = "logit"),
+                        warmup = 500,
+                        iter = 2500,
+                        chains = 4,
+                        init = "0",
+                        cores = 4,
+                        seed = 389253)
+    
+    cur_draws = as_draws_df(cur_m)
+    cur_draws$subnum = cur_sub
+    
+    yn_attr_cor_draws = rbind(yn_attr_cor_draws, cur_draws)
+  }
+  names(yn_attr_cor_draws) = gsub(":", ".", names(yn_attr_cor_draws))
+  write.csv(yn_attr_cor_draws, fn_draws, row.names = F)
+
+  rm(cur_dat, cur_m, cur_draws, cur_sub)
+}
+rm(subnums)
+```
+
+
+```{r}
+names(as_tibble(yn_attr_cor_draws))[grepl("b_", names(as_tibble(yn_attr_cor_draws)))]
+```
+
+```{r}
+yn_par_summary = as_tibble(yn_attr_cor_draws) %>%
+  select(subnum, b_Intercept, b_valueO, b_valueF, b_valueS, b_valueO.valueF, b_valueO.valueS, b_valueF.valueS, b_valueO.valueF.valueS) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key = recode(key,
+                      "b_Intercept" = "Intercept",
+                      "b_valueO" = "Orientation Value [-1, 1]", 
+                      "b_valueF" = "Filling Value [-1, 1]", 
+                      "b_valueS" = "Shape Value [-1, 1]", 
+                      "b_valueO.valueF" = "Value O x F", 
+                      "b_valueO.valueS" = "Value O x S", 
+                      "b_valueF.valueS" = "Value F x S", 
+                      "b_valueO.valueF.valueS" = "Value O x F x S"),
+         key = factor(key, levels = c("Intercept", "Orientation Value [-1, 1]", "Filling Value [-1, 1]", "Shape Value [-1, 1]", "Value O x F", "Value O x S", "Value F x S", "Value O x F x S"))) %>%
+  group_by(subnum, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(subnum = as.factor(subnum))
+```
+
+```{r}
+p = yn_par_summary %>%
+  ggplot(aes(m, subnum)) +
+  geom_vline(aes(xintercept = 0), color = "gray") + 
+  geom_point(position = position_dodge(width=.75))+
+  geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
+  facet_wrap(~key, scales = 'free_x', nrow = 2) +
+  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - Correct ~ Orientation x Filling x Shape") +
+  theme(legend.position = "bottom",
+        panel.grid = element_blank(),
+        legend.box.margin=margin(t = -10))+
+  scale_x_symmetric(mid=0)
+
+# ggsave(file=paste0(fig_out_path, 'yn_attrEffects_ParEsts.jpg'), p, height = 5, width = 9.5, units="in")
+
+p
+```
+
+No main effect, no 3-way interaction but all 2-way interactions are significant.
+
+How to interpret the 2-way interactions?  
+It means that when the two attribute values aggree accuracy is higher. When they disaggree accuracy is lower.
+
+Does this change by stim type?  
+No.
+
+```{r}
+fn_draws = paste0(inputs_path, 'yn_attrValByType_cor_draws.csv')
+
+if(file.exists(fn_draws)){
+  yn_attr_cor_draws = read.csv(fn_draws)
+} else{
+  subnums = unique(data_yn_clean$subnum)
+ 
+  yn_attr_cor_draws = tibble()
+  
+  for(cur_sub in subnums){
+  
+    cur_dat = data_yn_clean %>% 
+      ungroup() %>%
+      filter(subnum == cur_sub) %>%
+      mutate(type = as.factor(type))
+    
+    cur_m <- brm(formula = correct ~  valueO * valueF * valueS * type,
                         data= cur_dat,
                         family = bernoulli(link = "logit"),
                         warmup = 500,
@@ -122,20 +176,30 @@ rm(subnums)
 ```
 
 ```{r}
+names(as_tibble(yn_attr_cor_draws))[grepl("b_", names(as_tibble(yn_attr_cor_draws)))]
+```
+```{r}
 yn_par_summary = as.tibble(yn_attr_cor_draws) %>%
-  select(subnum, b_Intercept, b_orientationNorm, b_fillingPos, b_fillingNeg, b_shapeI2, b_shapeI3, b_shapeI4, b_shapeI5, b_shapeI6) %>%
+  select(subnum, b_Intercept, b_valueO, b_valueF, b_valueS, b_type1, b_valueO.valueF, b_valueO.valueS, b_valueF.valueS, b_valueO.type1, b_valueF.type1, b_valueS.type1, b_valueO.valueF.valueS, b_valueO.valueF.type1, b_valueO.valueS.type1, b_valueF.valueS.type1, b_valueO.valueF.valueS.type1) %>%
   gather(key, value, -subnum) %>%
   mutate(key = recode(key,
                       "b_Intercept" = "Intercept",
-                      "b_orientationNorm" = "Orientation [0, 1]", 
-                      "b_fillingPos" = "Fill = Blue", 
-                      "b_fillingNeg" = "Fill = Red", 
-                      "b_shapeI2" = "Shape 2", 
-                      "b_shapeI3" = "Shape 3", 
-                      "b_shapeI4" = "Shape 4", 
-                      "b_shapeI5" = "Shape 5", 
-                      "b_shapeI6" = "Shape 6"),
-         key = factor(key, levels = c("Intercept", "Orientation [0, 1]", "Fill = Blue", "Fill = Red", "Shape 2", "Shape 3", "Shape 4", "Shape 5", "Shape 6"))) %>%
+                      "b_valueO" = "Orientation Value [-1, 1]", 
+                      "b_valueF" = "Filling Value [-1, 1]", 
+                      "b_valueS" = "Shape Value [-1, 1]", 
+                      "b_type1" = "Type (HT = 1, RE = 0)",
+                      "b_valueO.type1" = "Value O x Type",
+                      "b_valueF.type1" = "Value F x Type",
+                      "b_valueS.type1" = "Value S x Type",
+                      "b_valueO.valueF" = "Value O x F", 
+                      "b_valueO.valueS" = "Value O x S", 
+                      "b_valueF.valueS" = "Value F x S", 
+                      "b_valueO.valueF.type1" = "Value O x F x Type", 
+                      "b_valueO.valueS.type1" = "Value O x S x Type", 
+                      "b_valueF.valueS.type1" = "Value F x S x Type",
+                      "b_valueO.valueF.valueS" = "Value O x F x S",
+                      "b_valueO.valueF.valueS.type1" = "Value O x F x S x Type"),
+         key = factor(key, levels = c("Intercept", "Orientation Value [-1, 1]", "Filling Value [-1, 1]", "Shape Value [-1, 1]", "Type (HT = 1, RE = 0)", "Value O x Type", "Value F x Type", "Value S x Type", "Value O x F", "Value O x S", "Value F x S", "Value O x F x Type", "Value O x S x Type", "Value F x S x Type", "Value O x F x S", "Value O x F x S x Type"))) %>%
   group_by(subnum, key) %>%
   summarise(.groups = 'keep',
             m = mean(value),
@@ -145,37 +209,59 @@ yn_par_summary = as.tibble(yn_attr_cor_draws) %>%
 ```
 
 ```{r}
-yn_par_summary %>%
+p = yn_par_summary %>%
   ggplot(aes(m, subnum)) +
   geom_vline(aes(xintercept = 0), color = "gray") + 
   geom_point(position = position_dodge(width=.75))+
   geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
   facet_wrap(~key, scales = 'free_x', nrow = 2) +
-  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - Correct ~ Orientation x Filling x Shape") +
+  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - Correct ~ Orientation x Filling x Shape x Type") +
   theme(legend.position = "bottom",
         panel.grid = element_blank(),
         legend.box.margin=margin(t = -10))+
   scale_x_symmetric(mid=0)
 
+# ggsave(file=paste0(fig_out_path, 'yn_attrEffectsByStimType_ParEsts.jpg'), p, height = 5, width = 12, units="in")
+
+p
+
+```
+## Reference amount effect on accuracy
+
+### Treating reference continously
+
+Though discrete might be more appropriate
+
+```{r}
+names(data_yn_clean)
+
+summary(data_yn_clean$reference)
 ```
 
 ```{r}
-fn_draws = paste0(inputs_path, 'yn_attr_yes_draws.csv')
+fn_draws = paste0(inputs_path, 'yn_refValAcc_draws.csv')
 
 if(file.exists(fn_draws)){
-  yn_attr_yes_draws = read.csv(fn_draws)
+  yn_refval_draws = read.csv(fn_draws)
 } else{
   subnums = unique(data_yn_clean$subnum)
  
-  yn_attr_yes_draws = tibble()
+  yn_refval_draws = tibble()
+  
+  normMax = 1
+  normMin = 0
+  normMinRef = -1
   
   for(cur_sub in subnums){
   
     cur_dat = data_yn_clean %>% 
       ungroup() %>%
-      filter(subnum == cur_sub)
+      filter(subnum == cur_sub) %>%
+      mutate(type = as.factor(type),
+             norm_day = (normMax - normMin) / (max(day) - min(day)) * (day - max(day)) + (normMax),
+             norm_reference = (normMax - normMinRef) / (max(reference) - min(reference)) * (reference - max(reference)) + (normMax))
     
-    cur_m <- brm(formula = yesChosen ~  orientationNorm + fillingPos + fillingNeg + shapeI2 + shapeI3 + shapeI4 + shapeI5 + shapeI6,
+    cur_m <- brm(formula = correct ~  norm_reference * norm_day * type,
                         data= cur_dat,
                         family = bernoulli(link = "logit"),
                         warmup = 500,
@@ -188,31 +274,35 @@ if(file.exists(fn_draws)){
     cur_draws = as_draws_df(cur_m)
     cur_draws$subnum = cur_sub
     
-    yn_attr_yes_draws = rbind(yn_attr_yes_draws, cur_draws)
+    yn_refval_draws = rbind(yn_refval_draws, cur_draws)
   }
-  names(yn_attr_yes_draws) = gsub(":", ".", names(yn_attr_yes_draws))
-  write.csv(yn_attr_yes_draws, fn_draws, row.names = F)
+  names(yn_refval_draws) = gsub(":", ".", names(yn_refval_draws))
+  write.csv(yn_refval_draws, fn_draws, row.names = F)
 
   rm(cur_dat, cur_m, cur_draws, cur_sub)
 }
+rm(subnums)
+```
 
+
+```{r}
+names(as_tibble(yn_refval_draws))[grepl("b_", names(as_tibble(yn_refval_draws)))]
 ```
 
 ```{r}
-yn_par_summary = as.tibble(yn_attr_yes_draws) %>%
-  select(subnum, b_Intercept, b_orientationNorm, b_fillingPos, b_fillingNeg, b_shapeI2, b_shapeI3, b_shapeI4, b_shapeI5, b_shapeI6) %>%
+yn_par_summary = as.tibble(yn_refval_draws) %>%
+  select(subnum, b_Intercept, b_norm_reference, b_norm_day, b_type1, b_norm_reference.norm_day, b_norm_reference.type1, b_norm_day.type1, b_norm_reference.norm_day.type1) %>%
   gather(key, value, -subnum) %>%
   mutate(key = recode(key,
                       "b_Intercept" = "Intercept",
-                      "b_orientationNorm" = "Orientation [0, 1]", 
-                      "b_fillingPos" = "Fill = Blue", 
-                      "b_fillingNeg" = "Fill = Red", 
-                      "b_shapeI2" = "Shape 2", 
-                      "b_shapeI3" = "Shape 3", 
-                      "b_shapeI4" = "Shape 4", 
-                      "b_shapeI5" = "Shape 5", 
-                      "b_shapeI6" = "Shape 6"),
-         key = factor(key, levels = c("Intercept", "Orientation [0, 1]", "Fill = Blue", "Fill = Red", "Shape 2", "Shape 3", "Shape 4", "Shape 5", "Shape 6"))) %>%
+                     "b_norm_reference" = "Reference [-1, 1]",
+                     "b_norm_day" = "Day [0, 1]",
+                     "b_type1" = "Type (HT = 1, RE = 0)",
+                     "b_norm_reference.norm_day" = "Reference x Day",
+                     "b_norm_reference.type1" = "Reference x Type",
+                     "b_norm_day.type1" = "Day x Type",
+                     "b_norm_reference.norm_day.type1" = "Reference x Day x Type"),
+         key = factor(key, levels = c("Intercept", "Reference [-1, 1]", "Day [0, 1]", "Type (HT = 1, RE = 0)","Reference x Day", "Reference x Type","Day x Type","Reference x Day x Type"))) %>%
   group_by(subnum, key) %>%
   summarise(.groups = 'keep',
             m = mean(value),
@@ -222,55 +312,117 @@ yn_par_summary = as.tibble(yn_attr_yes_draws) %>%
 ```
 
 ```{r}
-yn_par_summary %>%
+p = yn_par_summary %>%
   ggplot(aes(m, subnum)) +
   geom_vline(aes(xintercept = 0), color = "gray") + 
   geom_point(position = position_dodge(width=.75))+
   geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
   facet_wrap(~key, scales = 'free_x', nrow = 2) +
-  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - Yes ~ Orientation x Filling x Shape") +
+  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - Correct ~ Reference x Day x Type") +
   theme(legend.position = "bottom",
         panel.grid = element_blank(),
         legend.box.margin=margin(t = -10))+
   scale_x_symmetric(mid=0)
 
+# ggsave(file=paste0(fig_out_path, 'yn_attrEffectsByStimType_ParEsts.jpg'), p, height = 5, width = 12, units="in")
+
+p
+
 ```
 
-How to visualize attribute effects?
+```{r}
+fn_draws = paste0(inputs_path, 'yn_refDiscValAcc_draws.csv')
 
+if(file.exists(fn_draws)){
+  yn_refval_draws = read.csv(fn_draws)
+} else{
+  subnums = unique(data_yn_clean$subnum)
+ 
+  yn_refval_draws = tibble()
+  
+  normMax = 1
+  normMin = 0
+  normMinRef = -1
+  
+  for(cur_sub in subnums){
+  
+    cur_dat = data_yn_clean %>% 
+      ungroup() %>%
+      filter(subnum == cur_sub) %>%
+      mutate(type = as.factor(type),
+             norm_day = (normMax - normMin) / (max(day) - min(day)) * (day - max(day)) + (normMax),
+             disc_reference = factor(reference, levels = c(0, -50, 50)))
+    
+    cur_m <- brm(formula = correct ~  disc_reference * norm_day * type,
+                        data= cur_dat,
+                        family = bernoulli(link = "logit"),
+                        warmup = 500,
+                        iter = 2500,
+                        chains = 4,
+                        init = "0",
+                        cores = 4,
+                        seed = 389253)
+    
+    cur_draws = as_draws_df(cur_m)
+    cur_draws$subnum = cur_sub
+    
+    yn_refval_draws = rbind(yn_refval_draws, cur_draws)
+  }
+  names(yn_refval_draws) = gsub(":", ".", names(yn_refval_draws))
+  write.csv(yn_refval_draws, fn_draws, row.names = F)
+
+  rm(cur_dat, cur_m, cur_draws, cur_sub)
+}
+rm(subnums)
+```
 
 ```{r}
-cur_dat %>%
-  group_by(subnum, shape) %>%
-  summarise(.groups = "keep",
-            mean_acc = mean(correct),
-            sem_acc = sd(correct)/sqrt(n())) %>%
-  mutate(attribute = "shape",
-         shape = as.character(shape)) %>%
-  rename(level = shape) %>%
-  rbind(cur_dat %>%
-          group_by(subnum, fillingCol) %>%
-          summarise(.groups = "keep",
-                    mean_acc = mean(correct),
-                    sem_acc = sd(correct)/sqrt(n())) %>%
-          mutate(attribute = "filling color") %>%
-          rename(level = fillingCol)) %>%
-  rbind(cur_dat %>%
-          group_by(subnum, orientation) %>%
-          summarise(.groups = "keep",
-                    mean_acc = mean(correct),
-                    sem_acc = sd(correct)/sqrt(n())) %>%
-          mutate(attribute = "orientation",
-                 orientation = as.character(orientation)) %>%
-          rename(level = orientation)) %>%
-  mutate(level = factor(level, levels = c("red", "blue", "white", "1", "2", "3", "4", "5", "6", as.character(seq(0,150, 15))))) %>%
-  ggplot(aes(level, mean_acc, color=attribute))+
-  geom_point()+
-  geom_errorbar(aes(ymin = mean_acc - sem_acc, ymax = mean_acc + sem_acc), width = .1)+
-  facet_wrap(~subnum)+
-  theme(legend.position = "bottom", 
-        panel.grid.minor = element_blank())+
-  labs(color = "", x = "")
+names(as_tibble(yn_refval_draws))[grepl("b_", names(as_tibble(yn_refval_draws)))]
+```
+
+```{r}
+yn_par_summary = as.tibble(yn_refval_draws) %>%
+  select(subnum, b_Intercept, b_disc_referenceM50, b_disc_reference50, b_norm_day, b_type1, b_disc_referenceM50.norm_day, b_disc_reference50.norm_day, b_disc_referenceM50.type1, b_disc_reference50.type1, b_norm_day.type1, b_disc_referenceM50.norm_day.type1,b_disc_reference50.norm_day.type1 ) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key = recode(key,
+                      "b_Intercept" = "Intercept",
+                     "b_disc_referenceM50" = "Reference 0 vs -50",
+                     "b_disc_reference50" = "Reference 0 vs 50",
+                     "b_norm_day"= "Day [0, 1]",
+                     "b_type1" = "Type (HT = 1, RE = 0)",
+                     "b_disc_referenceM50.norm_day" = "Reference 0 vs -50 x Day",
+                     "b_disc_reference50.norm_day" = "Reference 0 vs 50 x Day",
+                     "b_disc_referenceM50.type1" = "Reference 0 vs -50 x Type",
+                     "b_disc_reference50.type1" = "Reference 0 vs 50 x Type",
+                     "b_norm_day.type1"  = "Day x Type",
+                     "b_disc_referenceM50.norm_day.type1" = "Reference 0 vs -50 x Day x Type",
+                     "b_disc_reference50.norm_day.type1" = "Reference 0 vs 50 x Day x Type"),
+         key = factor(key, levels = c("Intercept", "Reference 0 vs -50", "Reference 0 vs 50", "Day [0, 1]", "Type (HT = 1, RE = 0)", "Reference 0 vs -50 x Day", "Reference 0 vs 50 x Day", "Reference 0 vs -50 x Type", "Reference 0 vs 50 x Type", "Day x Type", "Reference 0 vs -50 x Day x Type", "Reference 0 vs 50 x Day x Type"))) %>%
+  group_by(subnum, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(subnum = as.factor(subnum))
+```
+
+```{r}
+p = yn_par_summary %>%
+  ggplot(aes(m, subnum)) +
+  geom_vline(aes(xintercept = 0), color = "gray") + 
+  geom_point(position = position_dodge(width=.75))+
+  geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
+  facet_wrap(~key, scales = 'free_x', nrow = 2) +
+  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - Correct ~ Reference x Day x Type") +
+  theme(legend.position = "bottom",
+        panel.grid = element_blank(),
+        legend.box.margin=margin(t = -10))+
+  scale_x_symmetric(mid=0)
+
+# ggsave(file=paste0(fig_out_path, 'yn_attrEffectsByStimType_ParEsts.jpg'), p, height = 5, width = 12, units="in")
+
+p
+
 ```
 
 # Coding closeness to HT
