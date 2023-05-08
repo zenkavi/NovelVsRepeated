@@ -1,0 +1,514 @@
+---
+title: "Novel vs. repeated choice project: Effects of closeness to HT"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: 'hide'
+---
+
+Set up environment and load in data
+
+```{r include=FALSE, message=FALSE}
+library(tidyverse)
+library(brms)
+library(here)
+library(lemon)
+theme_set(theme_bw())
+helpers_path = paste0(here(),'/analysis/helpers/')
+inputs_path = paste0(here(),'/inputs/')
+source(paste0(helpers_path, '01_clean_behavioral_data.R'))
+rm(data_bc_clean)
+fig_out_path = paste0(here(), '/outputs/fig/')
+```
+
+Add columns that will be used for plots below.
+
+```{r}
+data_yn_clean = data_yn_clean %>%
+  mutate(correct = ifelse(possiblePayoff>reference & yesChosen == 1, 1, ifelse(possiblePayoff < reference & yesChosen == 0, 1, 0))) %>%
+  mutate(type_chr = ifelse(type == 1, "HT", "RE"),
+         week = ifelse(week == 1, "Week 1", ifelse(week == 2, "Week 2", ifelse(week == 3, "Week 3", NA))),
+         week = factor(week, levels = c("Week 1", "Week 2", "Week 3"))) %>%
+  mutate(val_diff = possiblePayoff - reference,
+         abs_val_diff = abs(possiblePayoff - reference),
+         val_diff_bin = round(val_diff/50),
+         val_diff_bin_str = paste0(val_diff_bin*50-25,":",val_diff_bin*50+25),
+         val_diff_bin_str = factor(val_diff_bin_str, levels = c("-225:-175", "-175:-125", "-125:-75", "-75:-25", "-25:25", "25:75", "75:125", "125:175", "175:225")))
+```
+
+# Definition with shape
+
+Function to get stimnums and attribute levels for HT stims for a given subject
+
+```{r}
+get_sub_ht_stims = function(cur_sub){
+  
+  out = data_yn_clean %>%
+    filter(subnum == cur_sub & type == 1) %>%
+    select(type, stimNum, shape, filling, orientation) %>%
+    distinct() %>%
+    arrange(stimNum)
+  
+  return(out)
+}
+
+```
+
+Test function
+
+```{r}
+get_sub_ht_stims(601)
+```
+
+Function to get stimnums and attribute levels for stims close to a given HT stim num for a given subject
+
+```{r}
+get_sub_cht_stims_for_one_ht_wshape = function(cur_sub, ht_stim){
+  
+  # For each of the HT stims define CHT stims as:
+  # same filling, same orientation, different shape (5 stims)
+  # same shape, same orientation. filling level +/- 1 (2 stims)
+  # same shape, filling, orientation level +/1 (2 stims)
+  # Exclude if any CHT is also an HT stim
+  
+  sub_ht_stim = data_yn_clean %>%
+    filter(subnum == cur_sub & type == 1 & stimNum == ht_stim) %>%
+    select(type, stimNum, shape, filling, orientation) %>%
+    distinct()
+  
+  shape_level = sub_ht_stim$shape[1]
+  orientation_level = sub_ht_stim$orientation[1]
+  filling_level = sub_ht_stim$filling[1]
+  
+  # List all levels of all attributes
+  shape_levels = sort(unique(data_yn_clean$shape))
+  orientation_levels = sort(unique(data_yn_clean$orientation))
+  filling_levels = sort(unique(data_yn_clean$filling))
+  
+  # Get close shape levels
+  close_shape_levels = shape_levels[shape_levels != shape_level]
+  out = tibble(shape = close_shape_levels, filling = filling_level, orientation = orientation_level)
+
+  # Get close orientation levels
+  orientation_level_index = which(orientation_levels == orientation_level)  
+  
+  if(orientation_level_index == 1){  # if o = 0, get o = 15, o = 150
+    close_orientation_levels = c(orientation_levels[2], orientation_levels[length(orientation_levels)])
+  } else if (orientation_level_index == length(orientation_levels)){ #if o = 150, get o = 135, o = 0
+    close_orientation_levels = c(orientation_levels[1], orientation_levels[length(orientation_levels) - 1])  
+  } else{
+    close_orientation_levels = orientation_levels[c(orientation_level_index-1, orientation_level_index+1)]
+  }
+  
+  out = rbind(out, tibble(shape = shape_level, filling = filling_level, orientation = close_orientation_levels))
+  
+  
+  # Get close filling levels
+  filling_level_index = which(filling_levels == filling_level)
+  
+  if(filling_level_index == 1){
+    close_filling_levels = filling_levels[2]
+  } else if(filling_level_index == length(filling_levels)){
+    close_filling_levels = filling_levels[filling_level_index - 1]
+  } else {
+    close_filling_levels = filling_levels[c(filling_level_index - 1, filling_level_index + 1)]
+  }
+  
+  out = rbind(out, tibble(shape = shape_level, filling = close_filling_levels, orientation = orientation_level))
+  
+  # Get stimNums for the CHT 
+  out = data_yn_clean %>%
+    filter(subnum == cur_sub) %>%
+    select(stimNum, type, shape, filling, orientation) %>%
+    right_join(out, by = c("shape", "filling", "orientation")) %>%
+    arrange(stimNum) %>%
+    
+    # Check if any of the CHT are also HT
+    filter(type != 1) %>%
+    distinct()
+  
+  return(out)
+}
+```
+
+Test function
+
+```{r}
+get_sub_cht_stims_for_one_ht_wshape(601, 85)
+```
+
+```{r}
+get_sub_cht_stims_for_one_ht_wshape(601, 670)
+```
+
+```{r}
+get_sub_cht_stims_for_one_ht_wshape(601, 332)
+```
+
+Wrapper to get all close to HT stims for a given subject
+
+```{r}
+get_sub_cht_stims_for_all_ht_wshape = function(cur_sub){
+  
+  sub_ht_stims = get_sub_ht_stims(cur_sub)
+  
+  out = tibble()
+  
+  for(cur_ht_stim in sub_ht_stims$stimNum){
+    out = rbind(out, get_sub_cht_stims_for_one_ht_wshape(cur_sub, cur_ht_stim))
+  }
+  
+  return(out)
+  
+}
+```
+
+```{r}
+get_sub_cht_stims_for_all_ht_wshape(601)
+```
+
+## Assign CHT labels to dataset
+
+```{r}
+
+subnums = unique(data_yn_clean$subnum)
+out = tibble()
+for(cur_sub in subnums){
+  sub_cht_stimnums = get_sub_cht_stims_for_all_ht_wshape(cur_sub)
+  
+  sub_cht_stimnums = sub_cht_stimnums$stimNum
+  
+  cur_out = data_yn_clean %>%
+    filter(subnum == cur_sub) %>%
+    mutate(type_chr = ifelse(stimNum %in% sub_cht_stimnums, "CHT", type_chr))
+  
+  out = rbind(out, cur_out)
+}
+
+data_yn_cht_wshape = out
+rm(out, subnums, sub_cht_stimnums, cur_out)
+
+```
+
+```{r}
+with(data_yn_cht_wshape, table(subnum, type_chr))
+```
+
+## Accuracy for CHT
+
+```{r}
+sub_summary = data_yn_clean %>%
+  group_by(day, subnum, type_chr) %>%
+  summarise(mean_accuracy = mean(correct),
+            sem_accuracy = sd(correct)/sqrt(n()),
+            .groups = 'keep') %>%
+  mutate(task = "Y/N (two stim categories)",
+         sum_type = "sub",
+         type_chr = factor(type_chr, levels = c("HT", "RE", "CHT"))) %>%
+  rbind(data_yn_cht_wshape %>%
+  group_by(day, subnum, type_chr) %>%
+  summarise(mean_accuracy = mean(correct),
+            sem_accuracy = sd(correct)/sqrt(n()),
+            .groups = 'keep') %>%
+  mutate(task = "Y/N (three stim categories w/ shape)",
+         sum_type = "sub",
+         type_chr = factor(type_chr, levels = c("HT", "RE", "CHT")))) %>%
+  mutate(task = factor(task, levels = c("Y/N (two stim categories)", "Y/N (three stim categories w/ shape)")))
+
+group_summary = data_yn_clean %>%
+  group_by(day, type_chr) %>%
+  summarise(mean_accuracy = mean(correct),
+            .groups = 'keep') %>%
+  mutate(task = "Y/N (two stim categories)",
+         sum_type = "group", subnum = 600,
+         type_chr = factor(type_chr, levels = c("HT", "RE", "CHT"))) %>%
+  rbind(data_yn_cht_wshape %>%
+          group_by(day, type_chr) %>%
+          summarise(mean_accuracy = mean(correct),
+                    .groups = 'keep') %>%
+          mutate(task = "Y/N (three stim categories w/ shape)",
+                 sum_type = "group", subnum = 600,
+                 type_chr = factor(type_chr, levels = c("HT", "RE", "CHT")))) %>%
+  mutate(task = factor(task, levels = c("Y/N (two stim categories)", "Y/N (three stim categories w/ shape)")))
+```
+
+
+```{r}
+p = ggplot()+
+  geom_point(data = group_summary, aes(day, mean_accuracy, color = type_chr))+
+
+  geom_line(data = group_summary, aes(day, mean_accuracy, color = type_chr))+
+  
+  geom_line(data = sub_summary, aes(day, mean_accuracy, color = type_chr, linetype = as.factor(subnum)), alpha = .3)+
+
+  facet_wrap(~task)+
+  labs(x = "Day", y = "Accuracy", color="", title = "Three stim types (w/ shape)")+
+  theme(panel.grid.minor.x = element_blank(),
+        panel.grid.major.x = element_blank(),
+        legend.position = "bottom",
+        legend.box.margin=margin(t = -10),
+        legend.spacing.y = unit(-0.25, "cm"),
+        legend.box="vertical")+
+  scale_x_continuous(breaks=seq(1,11,1))+
+  scale_y_continuous(breaks=seq(.7,1,.1), limits = c(.7, 1))+
+  scale_color_brewer(palette = "Dark2")+
+  scale_linetype_manual(values = rep("solid", 6))+
+  guides(linetype = "none")+
+  annotate("rect", xmin = 2.75, xmax = 3.25, ymin = .7, ymax = 1,
+           alpha = .25,fill = "gray")+
+  annotate("rect", xmin = 6.75, xmax = 7.25, ymin = .7, ymax = 1,
+           alpha = .25,fill = "gray")+
+  annotate("rect", xmin = 10.75, xmax = 11.25, ymin = .7, ymax = 1,
+           alpha = .25,fill = "gray")
+
+# ggsave(file=paste0(fig_out_path, 'yn_groupAndSub_accuracyOverDaysCHT.jpg'), p, height = 5, width=12, units="in")
+p
+```
+
+```{r}
+p = sub_summary %>%
+  filter(task =="Y/N (three stim categories w/ shape)") %>%
+  ggplot(aes(day, mean_accuracy, color = type_chr))+
+  geom_point(position = position_dodge(width=.25))+
+  geom_line(alpha =.5)+
+  geom_errorbar(aes(ymin = mean_accuracy - sem_accuracy, ymax = mean_accuracy + sem_accuracy),position = position_dodge(width=.25), width = .2)+
+  facet_wrap(~subnum)+
+  labs(x = "Day", y = "Accuracy", color="", title = "Three stim types (w/ shape)")+
+  theme(panel.grid.minor.x = element_blank(),
+        panel.grid.major.x = element_blank(),
+        legend.position = "bottom",
+        legend.box.margin=margin(t = -10),
+        legend.spacing.y = unit(-0.25, "cm"),
+        legend.box="vertical")+
+  scale_x_continuous(breaks=seq(1,11,1))+
+  scale_y_continuous(breaks=seq(.7,1,.1), limits = c(.6, 1))+
+  scale_color_brewer(palette = "Dark2")+
+ 
+  annotate("rect", xmin = 2.75, xmax = 3.25, ymin = .6, ymax = 1,
+           alpha = .25,fill = "gray")+
+  annotate("rect", xmin = 6.75, xmax = 7.25, ymin = .6, ymax = 1,
+           alpha = .25,fill = "gray")+
+  annotate("rect", xmin = 10.75, xmax = 11.25, ymin = .6, ymax = 1,
+           alpha = .25,fill = "gray")
+
+# ggsave(file=paste0(fig_out_path, 'yn_sub_accuracyOverDaysCHT.jpg'), p, height = 8, width=16, units="in")
+p
+```
+
+# Definition without shape
+
+```{r}
+get_sub_cht_stims_for_one_ht_noshape = function(cur_sub, ht_stim){
+  
+  # For each of the HT stims define CHT stims as:
+  # same shape, same orientation. filling level +/- 1 (2 stims)
+  # same shape, filling, orientation level +/1 (2 stims)
+  # Exclude if any CHT is also an HT stim
+  
+  sub_ht_stim = data_yn_clean %>%
+    filter(subnum == cur_sub & type == 1 & stimNum == ht_stim) %>%
+    select(type, stimNum, shape, filling, orientation) %>%
+    distinct()
+  
+  shape_level = sub_ht_stim$shape[1]
+  orientation_level = sub_ht_stim$orientation[1]
+  filling_level = sub_ht_stim$filling[1]
+  
+  # List all levels of all attributes
+  orientation_levels = sort(unique(data_yn_clean$orientation))
+  filling_levels = sort(unique(data_yn_clean$filling))
+  
+  out = tibble()
+
+  # Get close orientation levels
+  orientation_level_index = which(orientation_levels == orientation_level)  
+  
+  if(orientation_level_index == 1){  # if o = 0, get o = 15, o = 150
+    close_orientation_levels = c(orientation_levels[2], orientation_levels[length(orientation_levels)])
+  } else if (orientation_level_index == length(orientation_levels)){ #if o = 150, get o = 135, o = 0
+    close_orientation_levels = c(orientation_levels[1], orientation_levels[length(orientation_levels) - 1])  
+  } else{
+    close_orientation_levels = orientation_levels[c(orientation_level_index-1, orientation_level_index+1)]
+  }
+  
+  out = rbind(out, tibble(shape = shape_level, filling = filling_level, orientation = close_orientation_levels))
+  
+  
+  # Get close filling levels
+  filling_level_index = which(filling_levels == filling_level)
+  
+  if(filling_level_index == 1){
+    close_filling_levels = filling_levels[2]
+  } else if(filling_level_index == length(filling_levels)){
+    close_filling_levels = filling_levels[filling_level_index - 1]
+  } else {
+    close_filling_levels = filling_levels[c(filling_level_index - 1, filling_level_index + 1)]
+  }
+  
+  out = rbind(out, tibble(shape = shape_level, filling = close_filling_levels, orientation = orientation_level))
+  
+  # Get stimNums for the CHT 
+  out = data_yn_clean %>%
+    filter(subnum == cur_sub) %>%
+    select(stimNum, type, shape, filling, orientation) %>%
+    right_join(out, by = c("shape", "filling", "orientation")) %>%
+    arrange(stimNum) %>%
+    
+    # Check if any of the CHT are also HT
+    filter(type != 1) %>%
+    distinct()
+  
+  return(out)
+}
+```
+
+
+Wrapper to get all close to HT stims for a given subject
+
+```{r}
+get_sub_cht_stims_for_all_ht_noshape = function(cur_sub){
+  
+  sub_ht_stims = get_sub_ht_stims(cur_sub)
+  
+  out = tibble()
+  
+  for(cur_ht_stim in sub_ht_stims$stimNum){
+    out = rbind(out, get_sub_cht_stims_for_one_ht_noshape(cur_sub, cur_ht_stim))
+  }
+  
+  return(out)
+  
+}
+```
+
+```{r}
+get_sub_cht_stims_for_all_ht_noshape(601)
+```
+
+## Assign CHT labels to dataset
+
+```{r}
+
+subnums = unique(data_yn_clean$subnum)
+out = tibble()
+for(cur_sub in subnums){
+  sub_cht_stimnums = get_sub_cht_stims_for_all_ht_noshape(cur_sub)
+  
+  sub_cht_stimnums = sub_cht_stimnums$stimNum
+  
+  cur_out = data_yn_clean %>%
+    filter(subnum == cur_sub) %>%
+    mutate(type_chr = ifelse(stimNum %in% sub_cht_stimnums, "CHT", type_chr))
+  
+  out = rbind(out, cur_out)
+}
+
+data_yn_cht_noshape = out
+rm(out, subnums, sub_cht_stimnums, cur_out)
+
+```
+
+```{r}
+with(data_yn_cht_noshape, table(subnum, type_chr))
+```
+## Accuracy for CHT
+
+```{r}
+sub_summary = data_yn_clean %>%
+  group_by(day, subnum, type_chr) %>%
+  summarise(mean_accuracy = mean(correct),
+            sem_accuracy = sd(correct)/sqrt(n()),
+            .groups = 'keep') %>%
+  mutate(task = "Y/N (two stim categories)",
+         sum_type = "sub",
+         type_chr = factor(type_chr, levels = c("HT", "RE", "CHT"))) %>%
+  rbind(data_yn_cht_noshape %>%
+  group_by(day, subnum, type_chr) %>%
+  summarise(mean_accuracy = mean(correct),
+            sem_accuracy = sd(correct)/sqrt(n()),
+            .groups = 'keep') %>%
+  mutate(task = "Y/N (three stim categories no shape)",
+         sum_type = "sub",
+         type_chr = factor(type_chr, levels = c("HT", "RE", "CHT")))) %>%
+  mutate(task = factor(task, levels = c("Y/N (two stim categories)", "Y/N (three stim categories no shape)")))
+
+group_summary = data_yn_clean %>%
+  group_by(day, type_chr) %>%
+  summarise(mean_accuracy = mean(correct),
+            .groups = 'keep') %>%
+  mutate(task = "Y/N (two stim categories)",
+         sum_type = "group", subnum = 600,
+         type_chr = factor(type_chr, levels = c("HT", "RE", "CHT"))) %>%
+  rbind(data_yn_cht_noshape %>%
+          group_by(day, type_chr) %>%
+          summarise(mean_accuracy = mean(correct),
+                    .groups = 'keep') %>%
+          mutate(task = "Y/N (three stim categories no shape)",
+                 sum_type = "group", subnum = 600,
+                 type_chr = factor(type_chr, levels = c("HT", "RE", "CHT")))) %>%
+  mutate(task = factor(task, levels = c("Y/N (two stim categories)", "Y/N (three stim categories no shape)")))
+```
+
+
+```{r}
+p = ggplot()+
+  geom_point(data = group_summary, aes(day, mean_accuracy, color = type_chr))+
+
+  geom_line(data = group_summary, aes(day, mean_accuracy, color = type_chr))+
+  
+  geom_line(data = sub_summary, aes(day, mean_accuracy, color = type_chr, linetype = as.factor(subnum)), alpha = .3)+
+
+  facet_wrap(~task)+
+  labs(x = "Day", y = "Accuracy", color="", title = "Three stim types (no shape)")+
+  theme(panel.grid.minor.x = element_blank(),
+        panel.grid.major.x = element_blank(),
+        legend.position = "bottom",
+        legend.box.margin=margin(t = -10),
+        legend.spacing.y = unit(-0.25, "cm"),
+        legend.box="vertical")+
+  scale_x_continuous(breaks=seq(1,11,1))+
+  scale_y_continuous(breaks=seq(.7,1,.1), limits = c(.7, 1))+
+  scale_color_brewer(palette = "Dark2")+
+  scale_linetype_manual(values = rep("solid", 6))+
+  guides(linetype = "none")+
+  annotate("rect", xmin = 2.75, xmax = 3.25, ymin = .7, ymax = 1,
+           alpha = .25,fill = "gray")+
+  annotate("rect", xmin = 6.75, xmax = 7.25, ymin = .7, ymax = 1,
+           alpha = .25,fill = "gray")+
+  annotate("rect", xmin = 10.75, xmax = 11.25, ymin = .7, ymax = 1,
+           alpha = .25,fill = "gray")
+
+# ggsave(file=paste0(fig_out_path, 'yn_groupAndSub_accuracyOverDaysCHTnoshape.jpg'), p, height = 5, width=12, units="in")
+p
+```
+
+```{r}
+p = sub_summary %>%
+  filter(task =="Y/N (three stim categories no shape)") %>%
+  ggplot(aes(day, mean_accuracy, color = type_chr))+
+  geom_point(position = position_dodge(width=.25))+
+  geom_line(alpha =.5)+
+  geom_errorbar(aes(ymin = mean_accuracy - sem_accuracy, ymax = mean_accuracy + sem_accuracy),position = position_dodge(width=.25), width = .2)+
+  facet_wrap(~subnum)+
+  labs(x = "Day", y = "Accuracy", color="", title = "Three stim types (no shape)")+
+  theme(panel.grid.minor.x = element_blank(),
+        panel.grid.major.x = element_blank(),
+        legend.position = "bottom",
+        legend.box.margin=margin(t = -10),
+        legend.spacing.y = unit(-0.25, "cm"),
+        legend.box="vertical")+
+  scale_x_continuous(breaks=seq(1,11,1))+
+  scale_y_continuous(breaks=seq(.7,1,.1), limits = c(.6, 1))+
+  scale_color_brewer(palette = "Dark2")+
+ 
+  annotate("rect", xmin = 2.75, xmax = 3.25, ymin = .6, ymax = 1,
+           alpha = .25,fill = "gray")+
+  annotate("rect", xmin = 6.75, xmax = 7.25, ymin = .6, ymax = 1,
+           alpha = .25,fill = "gray")+
+  annotate("rect", xmin = 10.75, xmax = 11.25, ymin = .6, ymax = 1,
+           alpha = .25,fill = "gray")
+
+# ggsave(file=paste0(fig_out_path, 'yn_sub_accuracyOverDaysCHTnoshape.jpg'), p, height = 8, width=16, units="in")
+p
+```

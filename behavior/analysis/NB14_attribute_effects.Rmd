@@ -611,10 +611,6 @@ p = data_yn_clean %>%
 p
 ```
 
-```{r}
-
-```
-
 Does accuracy in hard trials depend on the reference amount? Hard to detect a clear pattern consistent across subjects.
 
 ```{r}
@@ -638,47 +634,4 @@ data_yn_clean %>%
         legend.box="vertical")+
   scale_color_brewer(palette = "Set1")+
   labs(y = "p(Correct) for Value Difference [-25:25]", color = "Reference Amount", x = "Day")
-```
-
-
-# Closeness to HT
-
-## Definition
-
-```{r}
-data_yn_clean %>%
-  filter(subnum == 601 & type == 1) %>%
-  select(type, stimNum, shape, filling, orientation) %>%
-  distinct() %>%
-  arrange(stimNum)
-
-sort(unique(data_yn_clean$filling))
-
-sort(unique(data_yn_clean$orientation))
-
-# For each of the HT stims define CHT stims as:
-  # same filling, same orientation, different shape (5 stims)
-  # same shape, same orientation. filling level +/- 1 (2 stims)
-  # same shape, filling, orientation level +/1 (2 stims)
-
-get_cht_stims = function(shape_level, filling_level, orientation_level){
-  filling_levels = sort(unique(data_yn_clean$filling))
-  
-  orientation_levels = sort(unique(data_yn_clean$orientation))
-  
-  shape_levels = sort(unique(data_yn_clean$shape))
-  
-  close_shape_levels = shape_levels[shape_levels != shape_level]
-
-  orientation_level_index = which(orientation_levels == orientation_level)  
-  
-  if(orientation_level_index == 1){
-    close_orientation_level = orientation_levels[2]
-  } else if (orientation_level_index == length(orientation_levels)){
-    close_orientation_level = orientation_levels[length(orientation_levels) - 1]
-  } else{
-    close_orientation_level = orientation_levels[c(orientation_level_index-1, orientation_level_index+1)]
-  }
-  
-}
 ```
