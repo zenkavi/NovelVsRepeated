@@ -296,6 +296,113 @@ p = sub_summary %>%
 p
 ```
 
+## Model for accuracy difference
+
+Forward difference coding of stim type comparing
+RE to CHT
+CHT to HT
+So level 1: RE, level 2: CHT, level 3: HT
+
+```{r}
+contrasts(as.factor(data_yn_cht_wshape$type_chr))
+```
+
+```{r}
+contrasts(factor(data_yn_cht_wshape$type_chr, levels = c("RE", "CHT", "HT")))
+```
+```{r}
+k = 3
+
+my_fwd_diff = matrix(c(2/k, -1/k, -1/k,
+                       1/k, 1/k, -2/k), ncol = k-1)
+
+my_fwd_diff
+```
+Run model for each subject with the forward difference coding for type
+
+```{r}
+fn_draws = paste0(inputs_path, 'yn_correct_cht_wshape_fwd_diff_draws.csv')
+
+if(file.exists(fn_draws)){
+  yn_acc_draws = read.csv(fn_draws)
+} else{
+  subnums = unique(data_yn_cht_wshape$subnum)
+
+  normMax = 1
+  normMin = 0
+
+  yn_acc_draws = tibble()
+
+  for(cur_sub in subnums){
+    
+    cur_dat = data_yn_cht_wshape %>% 
+      ungroup() %>%
+      filter(subnum == cur_sub) %>%
+      mutate(type_chr = factor(type_chr, levels = c("RE", "CHT", "HT")),
+             norm_day = (normMax - normMin) / (max(day) - min(day)) * (day - max(day)) + (normMax))
+    
+    contrasts(cur_dat$type_chr) = my_fwd_diff
+    
+    cur_m <- brm(formula = correct ~  norm_day * type_chr,
+                        data= cur_dat,
+                        family = bernoulli(link = "logit"),
+                        warmup = 500,
+                        iter = 2500,
+                        chains = 4,
+                        init = "0",
+                        cores = 4,
+                        seed = 389253)
+
+    cur_draws = as_draws_df(cur_m)
+    cur_draws$subnum = cur_sub
+
+    yn_acc_draws = rbind(yn_acc_draws, cur_draws)
+
+  }
+  names(yn_acc_draws) = gsub(":", ".", names(yn_acc_draws))
+  write.csv(yn_acc_draws, fn_draws, row.names = F)
+
+  rm(cur_dat, cur_m, cur_draws, cur_sub)
+}
+```
+
+```{r}
+yn_par_summary = as_tibble(yn_acc_draws) %>%
+  select(b_Intercept, b_norm_day, b_type_chr1, b_type_chr2, b_norm_day.type_chr1, b_norm_day.type_chr2, subnum) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key=recode(key, 
+                    "b_Intercept" = "Intercept", 
+                    "b_norm_day" = "Day [0, 1]",
+                    "b_type_chr1" = "Type (RE vs CHT)",
+                    "b_type_chr2" = "Type (CHT vs HT)",
+                    "b_norm_day.type_chr1" = "Day x Type (RE vs CHT)",
+                    "b_norm_day.type_chr2" = "Day x Type (CHT vs HT)"),
+         key = factor(key, levels = c("Intercept", "Day [0, 1]", "Type (RE vs CHT)", "Type (CHT vs HT)", "Day x Type (RE vs CHT)", "Day x Type (CHT vs HT)"))) %>%
+  group_by(subnum, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(subnum = as.factor(subnum),
+         task = "Y/N") 
+
+p = yn_par_summary %>%
+  ggplot(aes(m, subnum)) +
+  geom_vline(aes(xintercept = 0), color = "gray") + 
+  geom_point(position = position_dodge(width=.75))+
+  geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
+  facet_grid(.~key, scales = 'free_x') +
+  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - Correct ~ Day x Type (3 levels; with shape)") +
+  theme(legend.position = "bottom",
+        panel.grid = element_blank(),
+        legend.box.margin=margin(t = -10))+
+  scale_x_symmetric()
+
+# ggsave(file=paste0(fig_out_path, 'yn_accCHTwshape_ParEsts.jpg'), p, height = 3, width=12, units="in")
+
+p
+```
+
 # Definition without shape
 
 ```{r}
@@ -510,5 +617,90 @@ p = sub_summary %>%
            alpha = .25,fill = "gray")
 
 # ggsave(file=paste0(fig_out_path, 'yn_sub_accuracyOverDaysCHTnoshape.jpg'), p, height = 8, width=16, units="in")
+p
+```
+
+## Model for accuracy difference
+
+```{r}
+fn_draws = paste0(inputs_path, 'yn_correct_cht_noshape_fwd_diff_draws.csv')
+
+if(file.exists(fn_draws)){
+  yn_acc_draws = read.csv(fn_draws)
+} else{
+  subnums = unique(data_yn_cht_noshape$subnum)
+
+  normMax = 1
+  normMin = 0
+
+  yn_acc_draws = tibble()
+
+  for(cur_sub in subnums){
+    
+    cur_dat = data_yn_cht_noshape %>% 
+      ungroup() %>%
+      filter(subnum == cur_sub) %>%
+      mutate(type_chr = factor(type_chr, levels = c("RE", "CHT", "HT")),
+             norm_day = (normMax - normMin) / (max(day) - min(day)) * (day - max(day)) + (normMax))
+    
+    contrasts(cur_dat$type_chr) = my_fwd_diff
+    
+    cur_m <- brm(formula = correct ~  norm_day * type_chr,
+                        data= cur_dat,
+                        family = bernoulli(link = "logit"),
+                        warmup = 500,
+                        iter = 2500,
+                        chains = 4,
+                        init = "0",
+                        cores = 4,
+                        seed = 389253)
+
+    cur_draws = as_draws_df(cur_m)
+    cur_draws$subnum = cur_sub
+
+    yn_acc_draws = rbind(yn_acc_draws, cur_draws)
+
+  }
+  names(yn_acc_draws) = gsub(":", ".", names(yn_acc_draws))
+  write.csv(yn_acc_draws, fn_draws, row.names = F)
+
+  rm(cur_dat, cur_m, cur_draws, cur_sub)
+}
+```
+
+```{r}
+yn_par_summary = as_tibble(yn_acc_draws) %>%
+  select(b_Intercept, b_norm_day, b_type_chr1, b_type_chr2, b_norm_day.type_chr1, b_norm_day.type_chr2, subnum) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key=recode(key, 
+                    "b_Intercept" = "Intercept", 
+                    "b_norm_day" = "Day [0, 1]",
+                    "b_type_chr1" = "Type (RE vs CHT)",
+                    "b_type_chr2" = "Type (CHT vs HT)",
+                    "b_norm_day.type_chr1" = "Day x Type (RE vs CHT)",
+                    "b_norm_day.type_chr2" = "Day x Type (CHT vs HT)"),
+         key = factor(key, levels = c("Intercept", "Day [0, 1]", "Type (RE vs CHT)", "Type (CHT vs HT)", "Day x Type (RE vs CHT)", "Day x Type (CHT vs HT)"))) %>%
+  group_by(subnum, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(subnum = as.factor(subnum),
+         task = "Y/N") 
+
+p = yn_par_summary %>%
+  ggplot(aes(m, subnum)) +
+  geom_vline(aes(xintercept = 0), color = "gray") + 
+  geom_point(position = position_dodge(width=.75))+
+  geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
+  facet_grid(.~key, scales = 'free_x') +
+  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - Correct ~ Day x Type (3 levels; no shape)") +
+  theme(legend.position = "bottom",
+        panel.grid = element_blank(),
+        legend.box.margin=margin(t = -10))+
+  scale_x_symmetric()
+
+ggsave(file=paste0(fig_out_path, 'yn_accCHTnoshape_ParEsts.jpg'), p, height = 3, width=12, units="in")
+
 p
 ```
