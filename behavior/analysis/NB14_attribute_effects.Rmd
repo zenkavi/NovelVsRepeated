@@ -39,11 +39,54 @@ data_yn_clean = data_yn_clean %>%
 
 # Attribute effects 
 
-## On accuracy
+## Correlation between attribtue values
+
+Reminder: Are these regressors correlated?
+
+Heatmaps of correlation of valueF, valueO, valueS, valueStim and valueDiff for each subject (and every run?)
 
 ```{r}
-names(data_yn_clean)
+out = tibble()
+
+for(cur_sub in unique(data_yn_clean$subnum)){
+  
+  # These correlations don't differ by day, session or reference amount
+  # tmp = data_yn_clean %>% filter(subnum == cur_sub & day == cur_day)
+  # tmp = data_yn_clean %>% filter(subnum == cur_sub & session == cur_day)
+  # tmp = data_yn_clean %>% filter(subnum == cur_sub & reference == cur_day)
+  
+  tmp = data_yn_clean %>%
+    filter(subnum == cur_sub) %>% 
+    select(valueF, valueO, valueS, possiblePayoff)
+  
+  out = rbind(out, as_tibble(cor(tmp), rownames = "var1") %>%
+                gather(var2, cor, -var1) %>%
+                mutate(subnum = cur_sub))
+  
+}
+
+
+p = out %>%  
+  mutate(var1 = ifelse(var1 == "possiblePayoff", "valStim", var1),
+         var2 = ifelse(var2 == "possiblePayoff", "valStim", var2)) %>%
+  ggplot(aes(var1, var2, fill=cor, label = round(cor, 2)))+
+  geom_tile()+
+  geom_text()+
+  scale_fill_gradient2(mid="#FBFEF9",low="#0C6291",high="#A63446", limits=c(-1,1))+
+  scale_x_discrete(expand=c(0,0)) + 
+  scale_y_discrete(expand=c(0,0))+
+  labs(x="", y="")+
+  facet_wrap(~subnum)+
+  theme(legend.position = "bottom")
+
+
+# ggsave(file=paste0(fig_out_path, 'yn_attrCors.jpg'), p, height = 5, width = 12, units="in")
+p
+
 ```
+
+## On accuracy
+
 
 ```{r}
 fn_draws = paste0(inputs_path, 'yn_attrVal_cor_draws.csv')
@@ -181,7 +224,7 @@ rm(subnums)
 names(as_tibble(yn_attr_cor_draws))[grepl("b_", names(as_tibble(yn_attr_cor_draws)))]
 ```
 ```{r}
-yn_par_summary = as.tibble(yn_attr_cor_draws) %>%
+yn_par_summary = as_tibble(yn_attr_cor_draws) %>%
   select(subnum, b_Intercept, b_valueO, b_valueF, b_valueS, b_type1, b_valueO.valueF, b_valueO.valueS, b_valueF.valueS, b_valueO.type1, b_valueF.type1, b_valueS.type1, b_valueO.valueF.valueS, b_valueO.valueF.type1, b_valueO.valueS.type1, b_valueF.valueS.type1, b_valueO.valueF.valueS.type1) %>%
   gather(key, value, -subnum) %>%
   mutate(key = recode(key,
@@ -228,6 +271,50 @@ p = yn_par_summary %>%
 p
 
 ```
+
+## On "yes" choice
+
+```{r}
+names(data_yn_clean)
+```
+
+
+```{r}
+fn_draws = paste0(inputs_path, 'yn_attrVal_yes_draws.csv')
+
+if(file.exists(fn_draws)){
+  yn_attr_yes_draws = read.csv(fn_draws)
+} else{
+  yn_attr_yes_draws = tibble()
+  
+  for(cur_sub in unique(data_yn_clean$subnum)){
+  
+    cur_dat = data_yn_clean %>% 
+      ungroup() %>%
+      filter(subnum == cur_sub)
+    
+    cur_m <- brm(formula = yesChosen ~  valueO * valueF * valueS,
+                        data= cur_dat,
+                        family = bernoulli(link = "logit"),
+                        warmup = 500,
+                        iter = 2500,
+                        chains = 4,
+                        init = "0",
+                        cores = 4,
+                        seed = 389253)
+    
+    cur_draws = as_draws_df(cur_m)
+    cur_draws$subnum = cur_sub
+    
+    yn_attr_yes_draws = rbind(yn_attr_yes_draws, cur_draws)
+  }
+  names(yn_attr_yes_draws) = gsub(":", ".", names(yn_attr_yes_draws))
+  write.csv(yn_attr_yes_draws, fn_draws, row.names = F)
+
+  rm(cur_dat, cur_m, cur_draws, cur_sub)
+}
+```
+
 # Reference amount effects 
 
 ## On accuracy

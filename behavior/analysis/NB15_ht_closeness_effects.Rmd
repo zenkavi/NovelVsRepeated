@@ -700,7 +700,7 @@ p = yn_par_summary %>%
         legend.box.margin=margin(t = -10))+
   scale_x_symmetric()
 
-ggsave(file=paste0(fig_out_path, 'yn_accCHTnoshape_ParEsts.jpg'), p, height = 3, width=12, units="in")
+# ggsave(file=paste0(fig_out_path, 'yn_accCHTnoshape_ParEsts.jpg'), p, height = 3, width=12, units="in")
 
 p
 ```
