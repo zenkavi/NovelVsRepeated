@@ -310,6 +310,7 @@ contrasts(as.factor(data_yn_cht_wshape$type_chr))
 ```{r}
 contrasts(factor(data_yn_cht_wshape$type_chr, levels = c("RE", "CHT", "HT")))
 ```
+
 ```{r}
 k = 3
 
@@ -318,6 +319,7 @@ my_fwd_diff = matrix(c(2/k, -1/k, -1/k,
 
 my_fwd_diff
 ```
+
 Run model for each subject with the forward difference coding for type
 
 ```{r}
@@ -483,7 +485,106 @@ p
 ## Logits for CHT
 
 ```{r}
+k = 3
 
+my_fwd_diff = matrix(c(2/k, -1/k, -1/k,
+                       1/k, 1/k, -2/k), ncol = k-1)
+
+my_fwd_diff
+```
+
+```{r}
+fn_draws = paste0(inputs_path, 'yn_logit_norm_cht_wshape_draws.csv')
+
+if(file.exists(fn_draws)){
+  yn_logit_draws = read.csv(fn_draws)
+} else{
+  normMax = 1
+  normMinDay = 0
+  normMinVal = -1
+  
+  yn_logit_draws = tibble()
+  
+  for(cur_sub in unique(data_yn_clean$subnum)){
+  
+    cur_dat = data_yn_cht_wshape %>% 
+      ungroup() %>%
+      filter(subnum == cur_sub) %>%
+      mutate(type_chr = factor(type_chr, levels = c("RE", "CHT", "HT")),
+             norm_day = (normMax - normMinDay) / (max(day) - min(day)) * (day - max(day)) + (normMax)) %>%
+      group_by(day) %>% # Grouping by day to normalize valdiff matters. This makes sure every day ranges [-1,1]
+      mutate(norm_valDiff = (normMax - normMinVal) / (max(val_diff) - min(val_diff)) * (val_diff - max(val_diff)) + (normMax)) %>%
+      select(yesChosen, norm_valDiff, norm_day, type_chr)
+    
+    contrasts(cur_dat$type_chr) = my_fwd_diff
+    
+    cur_m <- brm(formula = yesChosen ~ norm_valDiff * norm_day * type_chr,
+                        data= cur_dat,
+                        family = bernoulli(link = "logit"),
+                        warmup = 500,
+                        iter = 2500,
+                        chains = 4,
+                        init = "0",
+                        cores = 4,
+                        seed = 389253)
+    
+    cur_draws = as_draws_df(cur_m)
+    cur_draws$subnum = cur_sub
+    
+    yn_logit_draws = rbind(yn_logit_draws, cur_draws)
+  }
+  names(yn_logit_draws) = gsub(":", ".", names(yn_logit_draws))
+  write.csv(yn_logit_draws, fn_draws, row.names = F)
+
+  rm(cur_dat, cur_m, cur_draws, cur_sub)
+}
+```
+
+```{r}
+names(as_tibble(yn_logit_draws))
+```
+
+```{r}
+yn_par_summary = as_tibble(yn_logit_draws) %>%
+  select(b_Intercept, b_norm_day, b_norm_valDiff, b_type_chr1, b_type_chr2, b_norm_valDiff.norm_day, b_norm_valDiff.type_chr1, b_norm_valDiff.type_chr2, b_norm_day.type_chr1, b_norm_day.type_chr2, b_norm_valDiff.norm_day.type_chr1, b_norm_valDiff.norm_day.type_chr2, subnum) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key=recode(key, 
+                    "b_Intercept" = "Intercept", 
+                    "b_norm_day" = "Day [0, 1]",
+                    "b_norm_valDiff" = "Value Diff [-1, 1]",
+                    "b_type_chr1" = "Type (RE vs CHT)",
+                    "b_type_chr2" = "Type (CHT vs HT)",
+                    "b_norm_valDiff.norm_day" = "Value Diff x Day",
+                    "b_norm_valDiff.type_chr1" = "Value Diff x Type (RE vs CHT)",
+                    "b_norm_valDiff.type_chr2" = "Value Diff x Type (CHT vs HT)",
+                    "b_norm_day.type_chr1" = "Day x Type (RE vs CHT)",
+                    "b_norm_day.type_chr2" = "Day x Type (CHT vs HT)",
+                    "b_norm_valDiff.norm_day.type_chr1" = "Value Diff x Day x Type (RE vs CHT)",
+                    "b_norm_valDiff.norm_day.type_chr2" = "Value Diff x Day x Type (CHT vs HT)"),
+         key = factor(key, levels = c("Intercept", "Day [0, 1]", "Value Diff [-1, 1]", "Type (RE vs CHT)", "Type (CHT vs HT)", "Value Diff x Day", "Value Diff x Type (RE vs CHT)", "Value Diff x Type (CHT vs HT)", "Day x Type (RE vs CHT)", "Day x Type (CHT vs HT)", "Value Diff x Day x Type (RE vs CHT)", "Value Diff x Day x Type (CHT vs HT)"))) %>%
+  group_by(subnum, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(subnum = as.factor(subnum),
+         task = "Y/N") 
+
+p = yn_par_summary %>%
+  ggplot(aes(m, subnum)) +
+  geom_vline(aes(xintercept = 0), color = "gray") + 
+  geom_point(position = position_dodge(width=.75))+
+  geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
+  facet_grid(.~key, scales = 'free_x', labeller = labeller(key = label_wrap_gen(10))) +
+  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - Yes ~ Value Diff x Day x Type (3 levels; with shape)") +
+  theme(legend.position = "bottom",
+        panel.grid = element_blank(),
+        legend.box.margin=margin(t = -10))+
+  scale_x_symmetric()
+
+# ggsave(file=paste0(fig_out_path, 'yn_logitCHTwshape_ParEsts.jpg'), p, height = 3, width=12, units="in")
+
+p
 ```
 
 # Definition without shape
@@ -866,3 +967,107 @@ p = ggplot() +
 p
 ```
 
+## Logits for CHT
+
+```{r}
+k = 3
+
+my_fwd_diff = matrix(c(2/k, -1/k, -1/k,
+                       1/k, 1/k, -2/k), ncol = k-1)
+
+my_fwd_diff
+```
+
+```{r}
+fn_draws = paste0(inputs_path, 'yn_logit_norm_cht_noshape_draws.csv')
+
+if(file.exists(fn_draws)){
+  yn_logit_draws = read.csv(fn_draws)
+} else{
+  normMax = 1
+  normMinDay = 0
+  normMinVal = -1
+  
+  yn_logit_draws = tibble()
+  
+  for(cur_sub in unique(data_yn_clean$subnum)){
+  
+    cur_dat = data_yn_cht_noshape %>% 
+      ungroup() %>%
+      filter(subnum == cur_sub) %>%
+      mutate(type_chr = factor(type_chr, levels = c("RE", "CHT", "HT")),
+             norm_day = (normMax - normMinDay) / (max(day) - min(day)) * (day - max(day)) + (normMax)) %>%
+      group_by(day) %>% # Grouping by day to normalize valdiff matters. This makes sure every day ranges [-1,1]
+      mutate(norm_valDiff = (normMax - normMinVal) / (max(val_diff) - min(val_diff)) * (val_diff - max(val_diff)) + (normMax)) %>%
+      select(yesChosen, norm_valDiff, norm_day, type_chr)
+    
+    contrasts(cur_dat$type_chr) = my_fwd_diff
+    
+    cur_m <- brm(formula = yesChosen ~ norm_valDiff * norm_day * type_chr,
+                        data= cur_dat,
+                        family = bernoulli(link = "logit"),
+                        warmup = 500,
+                        iter = 2500,
+                        chains = 4,
+                        init = "0",
+                        cores = 4,
+                        seed = 389253)
+    
+    cur_draws = as_draws_df(cur_m)
+    cur_draws$subnum = cur_sub
+    
+    yn_logit_draws = rbind(yn_logit_draws, cur_draws)
+  }
+  names(yn_logit_draws) = gsub(":", ".", names(yn_logit_draws))
+  write.csv(yn_logit_draws, fn_draws, row.names = F)
+
+  rm(cur_dat, cur_m, cur_draws, cur_sub)
+}
+```
+
+```{r}
+names(as_tibble(yn_logit_draws))
+```
+
+```{r}
+yn_par_summary = as_tibble(yn_logit_draws) %>%
+  select(b_Intercept, b_norm_day, b_norm_valDiff, b_type_chr1, b_type_chr2, b_norm_valDiff.norm_day, b_norm_valDiff.type_chr1, b_norm_valDiff.type_chr2, b_norm_day.type_chr1, b_norm_day.type_chr2, b_norm_valDiff.norm_day.type_chr1, b_norm_valDiff.norm_day.type_chr2, subnum) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key=recode(key, 
+                    "b_Intercept" = "Intercept", 
+                    "b_norm_day" = "Day [0, 1]",
+                    "b_norm_valDiff" = "Value Diff [-1, 1]",
+                    "b_type_chr1" = "Type (RE vs CHT)",
+                    "b_type_chr2" = "Type (CHT vs HT)",
+                    "b_norm_valDiff.norm_day" = "Value Diff x Day",
+                    "b_norm_valDiff.type_chr1" = "Value Diff x Type (RE vs CHT)",
+                    "b_norm_valDiff.type_chr2" = "Value Diff x Type (CHT vs HT)",
+                    "b_norm_day.type_chr1" = "Day x Type (RE vs CHT)",
+                    "b_norm_day.type_chr2" = "Day x Type (CHT vs HT)",
+                    "b_norm_valDiff.norm_day.type_chr1" = "Value Diff x Day x Type (RE vs CHT)",
+                    "b_norm_valDiff.norm_day.type_chr2" = "Value Diff x Day x Type (CHT vs HT)"),
+         key = factor(key, levels = c("Intercept", "Day [0, 1]", "Value Diff [-1, 1]", "Type (RE vs CHT)", "Type (CHT vs HT)", "Value Diff x Day", "Value Diff x Type (RE vs CHT)", "Value Diff x Type (CHT vs HT)", "Day x Type (RE vs CHT)", "Day x Type (CHT vs HT)", "Value Diff x Day x Type (RE vs CHT)", "Value Diff x Day x Type (CHT vs HT)"))) %>%
+  group_by(subnum, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(subnum = as.factor(subnum),
+         task = "Y/N") 
+
+p = yn_par_summary %>%
+  ggplot(aes(m, subnum)) +
+  geom_vline(aes(xintercept = 0), color = "gray") + 
+  geom_point(position = position_dodge(width=.75))+
+  geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
+  facet_grid(.~key, scales = 'free_x', labeller = labeller(key = label_wrap_gen(10))) +
+  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - Yes ~ Value Diff x Day x Type (3 levels; no shape)") +
+  theme(legend.position = "bottom",
+        panel.grid = element_blank(),
+        legend.box.margin=margin(t = -10))+
+  scale_x_symmetric()
+
+# ggsave(file=paste0(fig_out_path, 'yn_logitCHTnoshape_ParEsts.jpg'), p, height = 3, width=12, units="in")
+
+p
+```
