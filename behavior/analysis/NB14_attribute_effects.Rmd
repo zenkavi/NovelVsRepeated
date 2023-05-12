@@ -222,6 +222,7 @@ rm(subnums)
 ```{r}
 names(as_tibble(yn_attr_cor_draws))[grepl("b_", names(as_tibble(yn_attr_cor_draws)))]
 ```
+
 ```{r}
 yn_par_summary = as_tibble(yn_attr_cor_draws) %>%
   select(subnum, b_Intercept, b_valueO, b_valueF, b_valueS, b_type1, b_valueO.valueF, b_valueO.valueS, b_valueF.valueS, b_valueO.type1, b_valueF.type1, b_valueS.type1, b_valueO.valueF.valueS, b_valueO.valueF.type1, b_valueO.valueS.type1, b_valueF.valueS.type1, b_valueO.valueF.valueS.type1) %>%
@@ -450,6 +451,174 @@ p
 
 ```
 
+
+## On RT
+
+```{r}
+fn_draws = paste0(inputs_path, 'yn_attrVal_rt_draws.csv')
+
+if(file.exists(fn_draws)){
+  yn_attr_rt_draws = read.csv(fn_draws)
+} else{
+
+  yn_attr_rt_draws = tibble()
+  
+  for(cur_sub in unique(data_yn_clean$subnum)){
+  
+    cur_dat = data_yn_clean %>% 
+      ungroup() %>%
+      filter(subnum == cur_sub) %>%
+      mutate(log_rt = log(rt))
+    
+    cur_m <- brm(formula = log_rt ~  valueO * valueF * valueS,
+                        data= cur_dat,
+                        warmup = 500,
+                        iter = 2500,
+                        chains = 4,
+                        init = "0",
+                        cores = 4,
+                        seed = 389253)
+    
+    cur_draws = as_draws_df(cur_m)
+    cur_draws$subnum = cur_sub
+    
+    yn_attr_rt_draws = rbind(yn_attr_rt_draws, cur_draws)
+  }
+  names(yn_attr_rt_draws) = gsub(":", ".", names(yn_attr_rt_draws))
+  write.csv(yn_attr_rt_draws, fn_draws, row.names = F)
+
+  rm(cur_dat, cur_m, cur_draws, cur_sub)
+}
+
+```
+
+```{r}
+yn_par_summary = as_tibble(yn_attr_rt_draws) %>%
+  select(subnum, b_Intercept, b_valueO, b_valueF, b_valueS, b_valueO.valueF, b_valueO.valueS, b_valueF.valueS, b_valueO.valueF.valueS) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key = recode(key,
+                      "b_Intercept" = "Intercept",
+                      "b_valueO" = "Orientation Value [-1, 1]", 
+                      "b_valueF" = "Filling Value [-1, 1]", 
+                      "b_valueS" = "Shape Value [-1, 1]", 
+                      "b_valueO.valueF" = "Value O x F", 
+                      "b_valueO.valueS" = "Value O x S", 
+                      "b_valueF.valueS" = "Value F x S", 
+                      "b_valueO.valueF.valueS" = "Value O x F x S"),
+         key = factor(key, levels = c("Intercept", "Orientation Value [-1, 1]", "Filling Value [-1, 1]", "Shape Value [-1, 1]", "Value O x F", "Value O x S", "Value F x S", "Value O x F x S"))) %>%
+  group_by(subnum, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(subnum = as.factor(subnum))
+```
+
+```{r}
+p = yn_par_summary %>%
+  ggplot(aes(m, subnum)) +
+  geom_vline(aes(xintercept = 0), color = "gray") + 
+  geom_point(position = position_dodge(width=.75))+
+  geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
+  facet_wrap(~key, scales = 'free_x', nrow = 2) +
+  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - log(RT) ~ Orientation x Filling x Shape") +
+  theme(legend.position = "bottom",
+        panel.grid = element_blank(),
+        legend.box.margin=margin(t = -10))+
+  scale_x_symmetric(mid=0)
+
+# ggsave(file=paste0(fig_out_path, 'yn_attrEffectsonRT_ParEsts.jpg'), p, height = 5, width = 9.5, units="in")
+
+p
+```
+
+```{r}
+fn_draws = paste0(inputs_path, 'yn_attrVal_rtByType_draws.csv')
+
+if(file.exists(fn_draws)){
+  yn_attr_rt_draws = read.csv(fn_draws)
+} else{
+
+  yn_attr_rt_draws = tibble()
+  
+  for(cur_sub in unique(data_yn_clean$subnum)){
+  
+    cur_dat = data_yn_clean %>% 
+      ungroup() %>%
+      filter(subnum == cur_sub) %>%
+      mutate(log_rt = log(rt),
+             type = as.factor(type))
+    
+    cur_m <- brm(formula = log_rt ~  valueO * valueF * valueS*type,
+                        data= cur_dat,
+                        warmup = 500,
+                        iter = 2500,
+                        chains = 4,
+                        init = "0",
+                        cores = 4,
+                        seed = 389253)
+    
+    cur_draws = as_draws_df(cur_m)
+    cur_draws$subnum = cur_sub
+    
+    yn_attr_rt_draws = rbind(yn_attr_rt_draws, cur_draws)
+  }
+  names(yn_attr_rt_draws) = gsub(":", ".", names(yn_attr_rt_draws))
+  write.csv(yn_attr_rt_draws, fn_draws, row.names = F)
+
+  rm(cur_dat, cur_m, cur_draws, cur_sub)
+}
+
+```
+
+```{r}
+yn_par_summary = as_tibble(yn_attr_cor_draws) %>%
+  select(subnum, b_Intercept, b_valueO, b_valueF, b_valueS, b_type1, b_valueO.valueF, b_valueO.valueS, b_valueF.valueS, b_valueO.type1, b_valueF.type1, b_valueS.type1, b_valueO.valueF.valueS, b_valueO.valueF.type1, b_valueO.valueS.type1, b_valueF.valueS.type1, b_valueO.valueF.valueS.type1) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key = recode(key,
+                      "b_Intercept" = "Intercept",
+                      "b_valueO" = "Orientation Value [-1, 1]", 
+                      "b_valueF" = "Filling Value [-1, 1]", 
+                      "b_valueS" = "Shape Value [-1, 1]", 
+                      "b_type1" = "Type (HT = 1, RE = 0)",
+                      "b_valueO.type1" = "Value O x Type",
+                      "b_valueF.type1" = "Value F x Type",
+                      "b_valueS.type1" = "Value S x Type",
+                      "b_valueO.valueF" = "Value O x F", 
+                      "b_valueO.valueS" = "Value O x S", 
+                      "b_valueF.valueS" = "Value F x S", 
+                      "b_valueO.valueF.type1" = "Value O x F x Type", 
+                      "b_valueO.valueS.type1" = "Value O x S x Type", 
+                      "b_valueF.valueS.type1" = "Value F x S x Type",
+                      "b_valueO.valueF.valueS" = "Value O x F x S",
+                      "b_valueO.valueF.valueS.type1" = "Value O x F x S x Type"),
+         key = factor(key, levels = c("Intercept", "Orientation Value [-1, 1]", "Filling Value [-1, 1]", "Shape Value [-1, 1]", "Type (HT = 1, RE = 0)", "Value O x Type", "Value F x Type", "Value S x Type", "Value O x F", "Value O x S", "Value F x S", "Value O x F x Type", "Value O x S x Type", "Value F x S x Type", "Value O x F x S", "Value O x F x S x Type"))) %>%
+  group_by(subnum, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(subnum = as.factor(subnum))
+```
+
+```{r}
+p = yn_par_summary %>%
+  ggplot(aes(m, subnum)) +
+  geom_vline(aes(xintercept = 0), color = "gray") + 
+  geom_point(position = position_dodge(width=.75))+
+  geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
+  facet_wrap(~key, scales = 'free_x', nrow = 2) +
+  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - log(RT) ~ Orientation x Filling x Shape x Type") +
+  theme(legend.position = "bottom",
+        panel.grid = element_blank(),
+        legend.box.margin=margin(t = -10))+
+  scale_x_symmetric(mid=0)
+
+# ggsave(file=paste0(fig_out_path, 'yn_attrEffectsonRTByStimType_ParEsts.jpg'), p, height = 5, width = 12, units="in")
+
+p
+
+```
 
 # Reference amount effects 
 
