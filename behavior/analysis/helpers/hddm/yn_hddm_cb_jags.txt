@@ -50,7 +50,7 @@ model {
 
     ## WIENER model
     # y[i] ~ dwieners(barrier[i], tau[i], bet[i], w[i], alpha.p[idxP[i]] )
-    y[i] ~ dwieners(barrier[i], .3, bet[i], w[i], alpha.p[idxP[i]] ) # fixing ndt
+    y[i] ~ dwieners(barrier[i], .3, bet[i], w[i], alpha.p[idxP[i]] ) # fixing ndt to .3
 
     # generate predictions
     # y_pred[i] ~ dwieners(barrier[i], tau[i], bet[i], w[i], alpha.p[idxP[i]] )

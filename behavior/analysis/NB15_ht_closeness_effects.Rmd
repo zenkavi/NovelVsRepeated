@@ -172,9 +172,8 @@ get_sub_cht_stims_for_all_ht_wshape(601)
 
 ```{r}
 
-subnums = unique(data_yn_clean$subnum)
 out = tibble()
-for(cur_sub in subnums){
+for(cur_sub in unique(data_yn_clean$subnum)){
   sub_cht_stimnums = get_sub_cht_stims_for_all_ht_wshape(cur_sub)
   
   sub_cht_stimnums = sub_cht_stimnums$stimNum
@@ -187,7 +186,7 @@ for(cur_sub in subnums){
 }
 
 data_yn_cht_wshape = out
-rm(out, subnums, sub_cht_stimnums, cur_out)
+rm(out, sub_cht_stimnums, cur_out)
 
 ```
 
@@ -784,7 +783,189 @@ p
 ## RT over value difference
 
 ```{r}
+data_yn_cht_wshape = data_yn_cht_wshape %>%
+  mutate(abs_val_diff_bin_str =  paste0(abs(val_diff_bin)*50-25,":",abs(val_diff_bin)*50+25),
+         abs_val_diff_bin_str = ifelse(abs_val_diff_bin_str ==  "-25:25", "0:25", abs_val_diff_bin_str),
+         abs_val_diff_bin_str = factor(abs_val_diff_bin_str, levels = c("0:25", "25:75", "75:125", "125:175", "175:225", "225:275")))
+```
 
+```{r}
+sub_summary = data_yn_cht_wshape %>%
+  mutate(time_bin = ifelse(day == 1, "Day 1", ifelse(day == 2, "Day 2", ifelse(day == 3, "Day 3", ifelse((day > 3) & (day < 8), "Week 2", "Week 3"))))) %>%
+  group_by(subnum, time_bin, abs_val_diff_bin_str, type_chr) %>%
+  summarise(mean_y = mean(log(rt)),
+            sem_y = sd(log(rt))/sqrt(n()),
+            .groups="keep") %>%
+  mutate(type_chr = factor(type_chr, levels = c("HT", "CHT", "RE")))
+
+group_summary = data_yn_cht_wshape %>%
+  mutate(time_bin = ifelse(day == 1, "Day 1", ifelse(day == 2, "Day 2", ifelse(day == 3, "Day 3", ifelse((day > 3) & (day < 8), "Week 2", "Week 3"))))) %>%
+  group_by(time_bin, abs_val_diff_bin_str, type_chr) %>%
+  summarise(mean_y = mean(log(rt)),
+            .groups="keep") %>%
+  mutate(type_chr = factor(type_chr, levels = c("HT", "CHT", "RE")))
+```
+
+```{r}
+p = ggplot() +
+  geom_point(data = group_summary, aes(abs_val_diff_bin_str, mean_y, color = type_chr, alpha = time_bin, size = time_bin))+
+  geom_line(data = group_summary, aes(abs_val_diff_bin_str, mean_y, color = type_chr, group = time_bin, alpha = time_bin)) +
+  facet_wrap(~type_chr)+
+  labs(x = "|Value Stim - Value Reference|", y = "Mean Log RT", title="Y/N Task (3 levels with shape)", alpha="", size = "")+
+  # labs(x = "|Value Stim - Value Reference|", y = "Mean Log RT", alpha="", size = "")+
+  theme(panel.grid.major.x  = element_blank(),
+        panel.grid.minor.x  = element_blank(),
+        panel.grid.minor.y  = element_blank(),
+        legend.position = "bottom",
+        axis.text.x = element_text(angle = 15, margin = margin(t = 5), size = 14),
+        axis.text.y = element_text(size = 14),
+        strip.text = element_text(size = 14),
+        legend.box.margin=margin(t = -10),
+        legend.spacing.y = unit(-0.25, "cm"),
+        legend.box="vertical",
+        legend.text = element_text(size=14),
+        axis.title = element_text(size = 16))+
+  scale_color_manual(values = c("#1B9E77", "#7570B3", "#D95F02" ))+
+  scale_y_continuous(breaks = seq(-1,1,.5), limits = c(-1, 1))+
+  guides(color = "none")+
+  scale_alpha_manual(values = c(1, .6, .5, .3, .2))+
+  scale_size_manual(values = c(1.5, 2 , 2.5, 3, 3.5))
+
+# ggsave(file=paste0(fig_out_path, 'yn_group_MeanLogRTOverValDiffAcrossTimeCHTwshape.jpg'), p, height = 4, width = 12, units="in")
+
+p
+```
+
+```{r}
+p = ggplot() +
+   geom_point(data = sub_summary, aes(abs_val_diff_bin_str, mean_y, color = type_chr, alpha = time_bin, size = time_bin))+
+  geom_line(data = sub_summary, aes(abs_val_diff_bin_str, mean_y, color = type_chr, group = time_bin, alpha = time_bin)) +
+  geom_errorbar(data = sub_summary, aes(x = abs_val_diff_bin_str, ymin = mean_y-sem_y, ymax = mean_y + sem_y, color = type_chr), width = 0, alpha = .6)+
+  facet_grid(type_chr~subnum)+
+  labs(x = "|Value Stim - Value Reference|", y = "Mean Log RT", title="Y/N Task (3 levels with shape)", alpha="", size = "")+
+  theme(panel.grid.major.x  = element_blank(),
+        panel.grid.minor.x  = element_blank(),
+        panel.grid.minor.y  = element_blank(),
+        legend.position = "bottom",
+        axis.text.x = element_text(angle = 15, margin = margin(t = 5)),
+        legend.box.margin=margin(t = -10),
+        legend.spacing.y = unit(-0.25, "cm"),
+        legend.box="vertical")+
+  scale_color_manual(values = c("#1B9E77", "#7570B3", "#D95F02" ))+  
+  scale_y_continuous(breaks = seq(-1,1,.5), limits = c(-1.3, 1.3))+
+  guides(linetype_chr = "none", color = "none")+
+  scale_alpha_manual(values = c(1, .6, .5, .3, .2))+
+  scale_size_manual(values = c(1.5, 2 , 2.5, 3, 3.5))
+
+# ggsave(file=paste0(fig_out_path, 'yn_subj_MeanLogRTValDiffAcrossTimeCHTwshape.jpg'), p, height = 7, width = 12, units="in")
+p
+```
+
+```{r}
+k = 3
+
+my_fwd_diff = matrix(c(2/k, -1/k, -1/k,
+                       1/k, 1/k, -2/k), ncol = k-1)
+
+my_fwd_diff
+```
+
+```{r}
+fn_draws = paste0(inputs_path, 'yn_rtValDiff_chtwshape_draws.csv')
+
+if(file.exists(fn_draws)){
+  yn_rt_draws = read.csv(fn_draws)
+} else{
+  
+  normMax = 1
+  normMin = 0
+  
+  yn_rt_draws = tibble()
+  
+  for(cur_sub in unique(data_yn_clean$subnum)){
+  
+    cur_dat = data_yn_cht_wshape %>% 
+      ungroup() %>%
+      filter(subnum == cur_sub) %>%
+      mutate(type_chr = factor(type_chr, levels = c("RE", "CHT", "HT")),
+             norm_day = (normMax - normMin) / (max(day) - min(day)) * (day - max(day)) + (normMax),
+             log_rt = log(rt)) %>%
+      group_by(day) %>% # Grouping by day to normalize valdiff matters. This makes sure every day ranges [-1,1]
+      mutate(norm_absValDiff = (normMax - normMin) / (max(abs_val_diff) - min(abs_val_diff)) * (abs_val_diff - max(abs_val_diff)) + (normMax)) %>%
+      ungroup() %>%
+      select(log_rt, norm_absValDiff, norm_day, type_chr)
+    
+    contrasts(cur_dat$type_chr) = my_fwd_diff
+    
+    cur_m <- brm(formula = log_rt ~ norm_absValDiff * norm_day * type_chr,
+                        data= cur_dat,
+                        warmup = 500,
+                        iter = 2500,
+                        chains = 4,
+                        init = "0",
+                        cores = 4,
+                        seed = 389253)
+    
+    cur_draws = as_draws_df(cur_m)
+    cur_draws$subnum = cur_sub
+    
+    yn_rt_draws = rbind(yn_rt_draws, cur_draws)
+  }
+  names(yn_rt_draws) = gsub(":", ".", names(yn_rt_draws))
+  write.csv(yn_rt_draws, fn_draws, row.names = F)
+
+  rm(cur_dat, cur_m, cur_draws, cur_sub)
+}
+
+```
+
+```{r}
+names(as_tibble(yn_rt_draws))[grepl("b_", names(as_tibble(yn_rt_draws)))]
+```
+```{r}
+yn_par_summary = as_tibble(yn_rt_draws) %>%
+  select(b_Intercept, b_norm_absValDiff, b_norm_day, b_type_chr1, b_type_chr2, b_norm_absValDiff.norm_day, b_norm_absValDiff.type_chr1, b_norm_absValDiff.type_chr2, b_norm_day.type_chr1, b_norm_day.type_chr2, b_norm_absValDiff.norm_day.type_chr1, b_norm_absValDiff.norm_day.type_chr2, subnum) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key=recode(key, 
+                    "b_Intercept" = "Intercept", 
+                    "b_norm_absValDiff"  = "|Value Diff| [0, 1]",
+                    "b_norm_day" = "Day [0, 1]",
+                    "b_type_chr1" = "Type (RE vs CHT)",
+                    "b_type_chr2" = "Type (CHT vs HT)",
+                    "b_norm_absValDiff.norm_day" = "|Value Diff| x Day",
+                    "b_norm_absValDiff.type_chr1" = "|Value Diff| x Type (RE vs CHT)",
+                    "b_norm_absValDiff.type_chr2" = "|Value Diff| x Type (CHT vs HT)",
+                    "b_norm_day.type_chr1" = "Day x Type (RE vs CHT)",
+                    "b_norm_day.type_chr2" = "Day x Type (CHT vs HT)",
+                    "b_norm_absValDiff.norm_day.type_chr1" = "|Value Diff| x Day x Type (RE vs CHT)",
+                    "b_norm_absValDiff.norm_day.type_chr2" = "|Value Diff| x Day x Type (CHT vs HT)",),
+         key = factor(key, levels = c("Intercept", "|Value Diff| [0, 1]", "Day [0, 1]", "Type (RE vs CHT)", "Type (CHT vs HT)", "|Value Diff| x Day", "|Value Diff| x Type (RE vs CHT)", "|Value Diff| x Type (CHT vs HT)", "Day x Type (RE vs CHT)", "Day x Type (CHT vs HT)", "|Value Diff| x Day x Type (RE vs CHT)", "|Value Diff| x Day x Type (CHT vs HT)"))) %>%
+  group_by(subnum, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(subnum = as.factor(subnum),
+         task = "Y/N") 
+```
+
+
+```{r}
+p = yn_par_summary %>%
+  ggplot(aes(m, subnum)) +
+  geom_vline(aes(xintercept = 0), color = "gray") + 
+  geom_point(position = position_dodge(width=.75))+
+  geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
+  facet_grid(.~key, scales = 'free_x', labeller = labeller(key = label_wrap_gen(10))) +
+  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - log(RT) ~ Value Diff x Day x Type (3 levels; with shape)") +
+  theme(legend.position = "bottom",
+        panel.grid = element_blank(),
+        legend.box.margin=margin(t = -10))+
+  scale_x_symmetric()
+
+# ggsave(file=paste0(fig_out_path, 'yn_rtvalDiff_chtwshape_ParEsts.jpg'), p, height = 3, width=12, units="in")
+
+p
 ```
 
 # Definition without shape
@@ -1462,6 +1643,192 @@ p = yn_par_summary %>%
   scale_x_symmetric()
 
 # ggsave(file=paste0(fig_out_path, 'yn_RTCHTnoshape_ParEsts.jpg'), p, height = 3, width=12, units="in")
+
+p
+```
+
+## RT over value difference
+
+```{r}
+data_yn_cht_noshape = data_yn_cht_noshape %>%
+  mutate(abs_val_diff_bin_str =  paste0(abs(val_diff_bin)*50-25,":",abs(val_diff_bin)*50+25),
+         abs_val_diff_bin_str = ifelse(abs_val_diff_bin_str ==  "-25:25", "0:25", abs_val_diff_bin_str),
+         abs_val_diff_bin_str = factor(abs_val_diff_bin_str, levels = c("0:25", "25:75", "75:125", "125:175", "175:225", "225:275")))
+```
+
+```{r}
+sub_summary = data_yn_cht_noshape %>%
+  mutate(time_bin = ifelse(day == 1, "Day 1", ifelse(day == 2, "Day 2", ifelse(day == 3, "Day 3", ifelse((day > 3) & (day < 8), "Week 2", "Week 3"))))) %>%
+  group_by(subnum, time_bin, abs_val_diff_bin_str, type_chr) %>%
+  summarise(mean_y = mean(log(rt)),
+            sem_y = sd(log(rt))/sqrt(n()),
+            .groups="keep") %>%
+  mutate(type_chr = factor(type_chr, levels = c("HT", "CHT", "RE")))
+
+group_summary = data_yn_cht_noshape %>%
+  mutate(time_bin = ifelse(day == 1, "Day 1", ifelse(day == 2, "Day 2", ifelse(day == 3, "Day 3", ifelse((day > 3) & (day < 8), "Week 2", "Week 3"))))) %>%
+  group_by(time_bin, abs_val_diff_bin_str, type_chr) %>%
+  summarise(mean_y = mean(log(rt)),
+            .groups="keep") %>%
+  mutate(type_chr = factor(type_chr, levels = c("HT", "CHT", "RE")))
+```
+
+```{r}
+p = ggplot() +
+  geom_point(data = group_summary, aes(abs_val_diff_bin_str, mean_y, color = type_chr, alpha = time_bin, size = time_bin))+
+  geom_line(data = group_summary, aes(abs_val_diff_bin_str, mean_y, color = type_chr, group = time_bin, alpha = time_bin)) +
+  facet_wrap(~type_chr)+
+  labs(x = "|Value Stim - Value Reference|", y = "Mean Log RT", title="Y/N Task (3 levels no shape)", alpha="", size = "")+
+  # labs(x = "|Value Stim - Value Reference|", y = "Mean Log RT", alpha="", size = "")+
+  theme(panel.grid.major.x  = element_blank(),
+        panel.grid.minor.x  = element_blank(),
+        panel.grid.minor.y  = element_blank(),
+        legend.position = "bottom",
+        axis.text.x = element_text(angle = 15, margin = margin(t = 5), size = 14),
+        axis.text.y = element_text(size = 14),
+        strip.text = element_text(size = 14),
+        legend.box.margin=margin(t = -10),
+        legend.spacing.y = unit(-0.25, "cm"),
+        legend.box="vertical",
+        legend.text = element_text(size=14),
+        axis.title = element_text(size = 16))+
+  scale_color_manual(values = c("#1B9E77", "#7570B3", "#D95F02" ))+
+  scale_y_continuous(breaks = seq(-1,1,.5), limits = c(-1, 1))+
+  guides(color = "none")+
+  scale_alpha_manual(values = c(1, .6, .5, .3, .2))+
+  scale_size_manual(values = c(1.5, 2 , 2.5, 3, 3.5))
+
+# ggsave(file=paste0(fig_out_path, 'yn_group_MeanLogRTOverValDiffAcrossTimeCHTnoshape.jpg'), p, height = 4, width = 12, units="in")
+
+p
+```
+
+```{r}
+p = ggplot() +
+   geom_point(data = sub_summary, aes(abs_val_diff_bin_str, mean_y, color = type_chr, alpha = time_bin, size = time_bin))+
+  geom_line(data = sub_summary, aes(abs_val_diff_bin_str, mean_y, color = type_chr, group = time_bin, alpha = time_bin)) +
+  geom_errorbar(data = sub_summary, aes(x = abs_val_diff_bin_str, ymin = mean_y-sem_y, ymax = mean_y + sem_y, color = type_chr), width = 0, alpha = .6)+
+  facet_grid(type_chr~subnum)+
+  labs(x = "|Value Stim - Value Reference|", y = "Mean Log RT", title="Y/N Task (3 levels no shape)", alpha="", size = "")+
+  theme(panel.grid.major.x  = element_blank(),
+        panel.grid.minor.x  = element_blank(),
+        panel.grid.minor.y  = element_blank(),
+        legend.position = "bottom",
+        axis.text.x = element_text(angle = 15, margin = margin(t = 5)),
+        legend.box.margin=margin(t = -10),
+        legend.spacing.y = unit(-0.25, "cm"),
+        legend.box="vertical")+
+  scale_color_manual(values = c("#1B9E77", "#7570B3", "#D95F02" ))+  
+  # scale_y_continuous(breaks = seq(-1,1,.5), limits = c(-1.5, 1.5))+
+  guides(linetype_chr = "none", color = "none")+
+  scale_alpha_manual(values = c(1, .6, .5, .3, .2))+
+  scale_size_manual(values = c(1.5, 2 , 2.5, 3, 3.5))
+
+ggsave(file=paste0(fig_out_path, 'yn_subj_MeanLogRTValDiffAcrossTimeCHTnoshape.jpg'), p, height = 7, width = 12, units="in")
+p
+```
+
+```{r}
+k = 3
+
+my_fwd_diff = matrix(c(2/k, -1/k, -1/k,
+                       1/k, 1/k, -2/k), ncol = k-1)
+
+my_fwd_diff
+```
+
+```{r}
+fn_draws = paste0(inputs_path, 'yn_rtValDiff_chtnoshape_draws.csv')
+
+if(file.exists(fn_draws)){
+  yn_rt_draws = read.csv(fn_draws)
+} else{
+  
+  normMax = 1
+  normMin = 0
+  
+  yn_rt_draws = tibble()
+  
+  for(cur_sub in unique(data_yn_clean$subnum)){
+  
+    cur_dat = data_yn_cht_noshape %>% 
+      ungroup() %>%
+      filter(subnum == cur_sub) %>%
+      mutate(type_chr = factor(type_chr, levels = c("RE", "CHT", "HT")),
+             norm_day = (normMax - normMin) / (max(day) - min(day)) * (day - max(day)) + (normMax),
+             log_rt = log(rt)) %>%
+      group_by(day) %>% # Grouping by day to normalize valdiff matters. This makes sure every day ranges [-1,1]
+      mutate(norm_absValDiff = (normMax - normMin) / (max(abs_val_diff) - min(abs_val_diff)) * (abs_val_diff - max(abs_val_diff)) + (normMax)) %>%
+      ungroup() %>%
+      select(log_rt, norm_absValDiff, norm_day, type_chr)
+    
+    contrasts(cur_dat$type_chr) = my_fwd_diff
+    
+    cur_m <- brm(formula = log_rt ~ norm_absValDiff * norm_day * type_chr,
+                        data= cur_dat,
+                        warmup = 500,
+                        iter = 2500,
+                        chains = 4,
+                        init = "0",
+                        cores = 4,
+                        seed = 389253)
+    
+    cur_draws = as_draws_df(cur_m)
+    cur_draws$subnum = cur_sub
+    
+    yn_rt_draws = rbind(yn_rt_draws, cur_draws)
+  }
+  names(yn_rt_draws) = gsub(":", ".", names(yn_rt_draws))
+  write.csv(yn_rt_draws, fn_draws, row.names = F)
+
+  rm(cur_dat, cur_m, cur_draws, cur_sub)
+}
+
+```
+
+
+```{r}
+yn_par_summary = as_tibble(yn_rt_draws) %>%
+  select(b_Intercept, b_norm_absValDiff, b_norm_day, b_type_chr1, b_type_chr2, b_norm_absValDiff.norm_day, b_norm_absValDiff.type_chr1, b_norm_absValDiff.type_chr2, b_norm_day.type_chr1, b_norm_day.type_chr2, b_norm_absValDiff.norm_day.type_chr1, b_norm_absValDiff.norm_day.type_chr2, subnum) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key=recode(key, 
+                    "b_Intercept" = "Intercept", 
+                    "b_norm_absValDiff"  = "|Value Diff| [0, 1]",
+                    "b_norm_day" = "Day [0, 1]",
+                    "b_type_chr1" = "Type (RE vs CHT)",
+                    "b_type_chr2" = "Type (CHT vs HT)",
+                    "b_norm_absValDiff.norm_day" = "|Value Diff| x Day",
+                    "b_norm_absValDiff.type_chr1" = "|Value Diff| x Type (RE vs CHT)",
+                    "b_norm_absValDiff.type_chr2" = "|Value Diff| x Type (CHT vs HT)",
+                    "b_norm_day.type_chr1" = "Day x Type (RE vs CHT)",
+                    "b_norm_day.type_chr2" = "Day x Type (CHT vs HT)",
+                    "b_norm_absValDiff.norm_day.type_chr1" = "|Value Diff| x Day x Type (RE vs CHT)",
+                    "b_norm_absValDiff.norm_day.type_chr2" = "|Value Diff| x Day x Type (CHT vs HT)",),
+         key = factor(key, levels = c("Intercept", "|Value Diff| [0, 1]", "Day [0, 1]", "Type (RE vs CHT)", "Type (CHT vs HT)", "|Value Diff| x Day", "|Value Diff| x Type (RE vs CHT)", "|Value Diff| x Type (CHT vs HT)", "Day x Type (RE vs CHT)", "Day x Type (CHT vs HT)", "|Value Diff| x Day x Type (RE vs CHT)", "|Value Diff| x Day x Type (CHT vs HT)"))) %>%
+  group_by(subnum, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(subnum = as.factor(subnum),
+         task = "Y/N") 
+```
+
+
+```{r}
+p = yn_par_summary %>%
+  ggplot(aes(m, subnum)) +
+  geom_vline(aes(xintercept = 0), color = "gray") + 
+  geom_point(position = position_dodge(width=.75))+
+  geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
+  facet_grid(.~key, scales = 'free_x', labeller = labeller(key = label_wrap_gen(10))) +
+  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - log(RT) ~ Value Diff x Day x Type (3 levels; no shape)") +
+  theme(legend.position = "bottom",
+        panel.grid = element_blank(),
+        legend.box.margin=margin(t = -10))+
+  scale_x_symmetric()
+
+# ggsave(file=paste0(fig_out_path, 'yn_rtvalDiff_chtnoshape_ParEsts.jpg'), p, height = 3, width=12, units="in")
 
 p
 ```

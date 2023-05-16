@@ -186,9 +186,9 @@ aws s3 sync $OUT_PATH s3://novel-vs-repeated/behavior/analysis/helpers/cluster_s
 ## Download contrasts you want to visualize
 
 ```
-export INPUTS_DIR=/Users/zeynepenkavi/Documents/RangelLab/NovelVsRepeated/behavior/inputs
+export OUT_PATH=/Users/zeynepenkavi/CpuEaters/NovelVsRepeated/behavior/analysis/helpers/cluster_scripts/hddm/jags_out
 
-docker run --rm -it -v ~/.aws:/root/.aws -v $INPUTS_DIR:/inputs amazon/aws-cli s3 sync s3://novel-vs-repeated/behavior/inputs /inputs --exclude '*' --include '*YN_HDDM_FIT*'
+docker run --rm -it -v ~/.aws:/root/.aws -v $OUT_PATH:/jags_out amazon/aws-cli s3 sync s3://novel-vs-repeated/behavior/analysis/helpers/cluster_scripts/hddm/jags_out /jags_out --exclude '*' --include '*YN_HDDM_FIT*'
 ```
 
 ## Delete cluster
