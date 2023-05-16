@@ -587,6 +587,206 @@ p = yn_par_summary %>%
 p
 ```
 
+## RT over days
+
+```{r}
+sub_summary = data_yn_clean %>%
+  group_by(day, subnum, type_chr) %>%
+  summarise(mean_y = mean(log(rt)),
+            sem_y = sd(log(rt))/sqrt(n()),
+            .groups = 'keep') %>%
+  mutate(task = "Y/N (two stim categories)",
+         sum_type = "sub",
+         type_chr = factor(type_chr, levels = c("HT", "RE", "CHT"))) %>%
+  rbind(data_yn_cht_wshape %>%
+  group_by(day, subnum, type_chr) %>%
+  summarise(mean_y = mean(log(rt)),
+            sem_y = sd(log(rt))/sqrt(n()),
+            .groups = 'keep') %>%
+  mutate(task = "Y/N (three stim categories w/ shape)",
+         sum_type = "sub",
+         type_chr = factor(type_chr, levels = c("HT", "RE", "CHT")))) %>%
+  mutate(task = factor(task, levels = c("Y/N (two stim categories)", "Y/N (three stim categories w/ shape)")))
+
+group_summary = data_yn_clean %>%
+  group_by(day, type_chr) %>%
+  summarise(mean_y = mean(log(rt)),
+            .groups = 'keep') %>%
+  mutate(task = "Y/N (two stim categories)",
+         sum_type = "group", subnum = 600,
+         type_chr = factor(type_chr, levels = c("HT", "RE", "CHT"))) %>%
+  rbind(data_yn_cht_wshape %>%
+          group_by(day, type_chr) %>%
+          summarise(mean_y = mean(log(rt)),
+                    .groups = 'keep') %>%
+          mutate(task = "Y/N (three stim categories w/ shape)",
+                 sum_type = "group", subnum = 600,
+                 type_chr = factor(type_chr, levels = c("HT", "RE", "CHT")))) %>%
+  mutate(task = factor(task, levels = c("Y/N (two stim categories)", "Y/N (three stim categories w/ shape)")))
+```
+
+```{r}
+p = ggplot()+
+  geom_point(data = group_summary, aes(day, mean_y, color = type_chr))+
+
+  geom_line(data = group_summary, aes(day, mean_y, color = type_chr))+
+  
+  geom_line(data = sub_summary, aes(day, mean_y, color = type_chr, linetype = as.factor(subnum)), alpha = .3)+
+  
+  facet_wrap(~task)+
+  guides(linetype_chr = "none")+
+  labs(x = "Day", y = "Mean Log RT", color="", shape = "", title = "Three stim types (w/ shape)")+
+  theme(panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.minor.y = element_blank(),
+        legend.position = "bottom",
+        legend.box.margin=margin(t = -10),
+        legend.spacing.y = unit(-0.25, "cm"),
+        legend.box="vertical")+
+  scale_x_continuous(breaks=seq(1,11,1))+
+  scale_color_brewer(palette = "Dark2") +
+  scale_linetype_manual(values = rep("solid", 6))+
+  guides(linetype = "none")+
+  annotate("rect", xmin = 2.75, xmax = 3.25, ymin = -.7, ymax = 1,
+           alpha = .25,fill = "gray")+
+  annotate("rect", xmin = 6.75, xmax = 7.25, ymin = -.7, ymax = 1,
+           alpha = .25,fill = "gray")+
+  annotate("rect", xmin = 10.75, xmax = 11.25, ymin = -.7, ymax = 1,
+           alpha = .25,fill = "gray")
+
+# ggsave(file=paste0(fig_out_path, 'yn_groupAndSub_meanLogRTOverDaysCHTwshape.jpg'), p, height = 5, width=12, units="in")
+p
+```
+
+```{r}
+p = sub_summary %>%
+  filter(task =="Y/N (three stim categories w/ shape)") %>%
+  ggplot(aes(day, mean_y, color = type_chr))+
+  geom_point(position = position_dodge(width=.25))+
+  geom_line(alpha =.5)+
+  geom_errorbar(aes(ymin = mean_y - sem_y, ymax = mean_y + sem_y),position = position_dodge(width=.25), width = .2)+
+  facet_wrap(~subnum)+
+  labs(x = "Day", y = "Mean Log RT", color="", title = "Three stim types (w/ shape)")+
+  theme(panel.grid.minor.x = element_blank(),
+        panel.grid.major.x = element_blank(),
+        legend.position = "bottom",
+        legend.box.margin=margin(t = -10),
+        legend.spacing.y = unit(-0.25, "cm"),
+        legend.box="vertical")+
+  scale_x_continuous(breaks=seq(1,11,1))+
+  scale_color_brewer(palette = "Dark2")+
+  annotate("rect", xmin = 2.75, xmax = 3.25, ymin = -1, ymax = 1,
+           alpha = .25,fill = "gray")+
+  annotate("rect", xmin = 6.75, xmax = 7.25, ymin = -1, ymax = 1,
+           alpha = .25,fill = "gray")+
+  annotate("rect", xmin = 10.75, xmax = 11.25, ymin = -1, ymax = 1,
+           alpha = .25,fill = "gray")
+
+# ggsave(file=paste0(fig_out_path, 'yn_sub_RTOverDaysCHTwshape.jpg'), p, height = 8, width=16, units="in")
+p
+```
+
+```{r}
+k = 3
+
+my_fwd_diff = matrix(c(2/k, -1/k, -1/k,
+                       1/k, 1/k, -2/k), ncol = k-1)
+
+my_fwd_diff
+```
+
+
+```{r}
+fn_draws = paste0(inputs_path, 'yn_rtOverDaysCHTwshape_draws.csv')
+
+if(file.exists(fn_draws)){
+  yn_rt_draws = read.csv(fn_draws)
+} else{
+  normMax = 1
+  normMin = 0
+  
+  yn_rt_draws = tibble()
+  
+  for(cur_sub in unique(data_yn_clean$subnum)){
+  
+    cur_dat = data_yn_cht_wshape %>% 
+      ungroup() %>%
+      filter(subnum == cur_sub) %>%
+      mutate(type_chr = factor(type_chr, levels = c("RE", "CHT", "HT")),
+             norm_day = (normMax - normMin) / (max(day) - min(day)) * (day - max(day)) + (normMax),
+             log_rt = log(rt))
+    
+    contrasts(cur_dat$type_chr) = my_fwd_diff
+    
+    cur_m <- brm(formula = log_rt ~  norm_day * type_chr,
+                        data= cur_dat,
+                        warmup = 500,
+                        iter = 2500,
+                        chains = 4,
+                        init = "0",
+                        cores = 4,
+                        seed = 389253)
+    
+    cur_draws = as_draws_df(cur_m)
+    cur_draws$subnum = cur_sub
+    
+    yn_rt_draws = rbind(yn_rt_draws, cur_draws)
+  }
+  names(yn_rt_draws) = gsub(":", ".", names(yn_rt_draws))
+  write.csv(yn_rt_draws, fn_draws, row.names = F)
+
+  rm(cur_dat, cur_m, cur_draws, cur_sub)
+}
+
+```
+
+```{r}
+names(as_tibble(yn_rt_draws))
+```
+
+```{r}
+yn_par_summary = as_tibble(yn_rt_draws) %>%
+  select(b_Intercept, b_norm_day, b_type_chr1, b_type_chr2, b_norm_day.type_chr1, b_norm_day.type_chr2, subnum) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key=recode(key, 
+                    "b_Intercept" = "Intercept", 
+                    "b_norm_day" = "Day [0, 1]",
+                    "b_type_chr1" = "Type (RE vs CHT)",
+                    "b_type_chr2" = "Type (CHT vs HT)",
+                    "b_norm_day.type_chr1" = "Day x Type (RE vs CHT)",
+                    "b_norm_day.type_chr2" = "Day x Type (CHT vs HT)"),
+         key = factor(key, levels = c("Intercept", "Day [0, 1]", "Type (RE vs CHT)", "Type (CHT vs HT)", "Day x Type (RE vs CHT)", "Day x Type (CHT vs HT)"))) %>%
+  group_by(subnum, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(subnum = as.factor(subnum),
+         task = "Y/N") 
+
+p = yn_par_summary %>%
+  ggplot(aes(m, subnum)) +
+  geom_vline(aes(xintercept = 0), color = "gray") + 
+  geom_point(position = position_dodge(width=.75))+
+  geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
+  facet_grid(.~key, scales = 'free_x') +
+  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - log(RT) ~ Day x Type (3 levels; with shape)") +
+  theme(legend.position = "bottom",
+        panel.grid = element_blank(),
+        legend.box.margin=margin(t = -10))+
+  scale_x_symmetric()
+
+# ggsave(file=paste0(fig_out_path, 'yn_RTCHTwshape_ParEsts.jpg'), p, height = 3, width=12, units="in")
+
+p
+```
+
+## RT over value difference
+
+```{r}
+
+```
+
 # Definition without shape
 
 ```{r}
@@ -1068,6 +1268,200 @@ p = yn_par_summary %>%
   scale_x_symmetric()
 
 # ggsave(file=paste0(fig_out_path, 'yn_logitCHTnoshape_ParEsts.jpg'), p, height = 3, width=12, units="in")
+
+p
+```
+
+## RT over days
+
+```{r}
+sub_summary = data_yn_clean %>%
+  group_by(day, subnum, type_chr) %>%
+  summarise(mean_y = mean(log(rt)),
+            sem_y = sd(log(rt))/sqrt(n()),
+            .groups = 'keep') %>%
+  mutate(task = "Y/N (two stim categories)",
+         sum_type = "sub",
+         type_chr = factor(type_chr, levels = c("HT", "RE", "CHT"))) %>%
+  rbind(data_yn_cht_noshape %>%
+  group_by(day, subnum, type_chr) %>%
+  summarise(mean_y = mean(log(rt)),
+            sem_y = sd(log(rt))/sqrt(n()),
+            .groups = 'keep') %>%
+  mutate(task = "Y/N (three stim categories no shape)",
+         sum_type = "sub",
+         type_chr = factor(type_chr, levels = c("HT", "RE", "CHT")))) %>%
+  mutate(task = factor(task, levels = c("Y/N (two stim categories)", "Y/N (three stim categories no shape)")))
+
+group_summary = data_yn_clean %>%
+  group_by(day, type_chr) %>%
+  summarise(mean_y = mean(log(rt)),
+            .groups = 'keep') %>%
+  mutate(task = "Y/N (two stim categories)",
+         sum_type = "group", subnum = 600,
+         type_chr = factor(type_chr, levels = c("HT", "RE", "CHT"))) %>%
+  rbind(data_yn_cht_noshape %>%
+          group_by(day, type_chr) %>%
+          summarise(mean_y = mean(log(rt)),
+                    .groups = 'keep') %>%
+          mutate(task = "Y/N (three stim categories no shape)",
+                 sum_type = "group", subnum = 600,
+                 type_chr = factor(type_chr, levels = c("HT", "RE", "CHT")))) %>%
+  mutate(task = factor(task, levels = c("Y/N (two stim categories)", "Y/N (three stim categories no shape)")))
+```
+
+```{r}
+p = ggplot()+
+  geom_point(data = group_summary, aes(day, mean_y, color = type_chr))+
+
+  geom_line(data = group_summary, aes(day, mean_y, color = type_chr))+
+  
+  geom_line(data = sub_summary, aes(day, mean_y, color = type_chr, linetype = as.factor(subnum)), alpha = .3)+
+  
+  facet_wrap(~task)+
+  guides(linetype_chr = "none")+
+  labs(x = "Day", y = "Mean Log RT", color="", shape = "", title = "Three stim types (no shape)")+
+  theme(panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.minor.y = element_blank(),
+        legend.position = "bottom",
+        legend.box.margin=margin(t = -10),
+        legend.spacing.y = unit(-0.25, "cm"),
+        legend.box="vertical")+
+  scale_x_continuous(breaks=seq(1,11,1))+
+  scale_color_brewer(palette = "Dark2") +
+  scale_linetype_manual(values = rep("solid", 6))+
+  guides(linetype = "none")+
+  annotate("rect", xmin = 2.75, xmax = 3.25, ymin = -.7, ymax = 1,
+           alpha = .25,fill = "gray")+
+  annotate("rect", xmin = 6.75, xmax = 7.25, ymin = -.7, ymax = 1,
+           alpha = .25,fill = "gray")+
+  annotate("rect", xmin = 10.75, xmax = 11.25, ymin = -.7, ymax = 1,
+           alpha = .25,fill = "gray")
+
+# ggsave(file=paste0(fig_out_path, 'yn_groupAndSub_meanLogRTOverDaysCHTnoshape.jpg'), p, height = 5, width=12, units="in")
+p
+```
+
+```{r}
+p = sub_summary %>%
+  filter(task =="Y/N (three stim categories no shape)") %>%
+  ggplot(aes(day, mean_y, color = type_chr))+
+  geom_point(position = position_dodge(width=.25))+
+  geom_line(alpha =.5)+
+  geom_errorbar(aes(ymin = mean_y - sem_y, ymax = mean_y + sem_y),position = position_dodge(width=.25), width = .2)+
+  facet_wrap(~subnum)+
+  labs(x = "Day", y = "Mean Log RT", color="", title = "Three stim types (no shape)")+
+  theme(panel.grid.minor.x = element_blank(),
+        panel.grid.major.x = element_blank(),
+        legend.position = "bottom",
+        legend.box.margin=margin(t = -10),
+        legend.spacing.y = unit(-0.25, "cm"),
+        legend.box="vertical")+
+  scale_x_continuous(breaks=seq(1,11,1))+
+  scale_color_brewer(palette = "Dark2")+
+  annotate("rect", xmin = 2.75, xmax = 3.25, ymin = -1.5, ymax = 1,
+           alpha = .25,fill = "gray")+
+  annotate("rect", xmin = 6.75, xmax = 7.25, ymin = -1.5, ymax = 1,
+           alpha = .25,fill = "gray")+
+  annotate("rect", xmin = 10.75, xmax = 11.25, ymin = -1.5, ymax = 1,
+           alpha = .25,fill = "gray")
+
+# ggsave(file=paste0(fig_out_path, 'yn_sub_RTOverDaysCHTnoshape.jpg'), p, height = 8, width=16, units="in")
+p
+```
+
+```{r}
+k = 3
+
+my_fwd_diff = matrix(c(2/k, -1/k, -1/k,
+                       1/k, 1/k, -2/k), ncol = k-1)
+
+my_fwd_diff
+```
+
+
+```{r}
+fn_draws = paste0(inputs_path, 'yn_rtOverDaysCHTnoshape_draws.csv')
+
+if(file.exists(fn_draws)){
+  yn_rt_draws = read.csv(fn_draws)
+} else{
+  normMax = 1
+  normMin = 0
+  
+  yn_rt_draws = tibble()
+  
+  for(cur_sub in unique(data_yn_clean$subnum)){
+  
+    cur_dat = data_yn_cht_noshape %>% 
+      ungroup() %>%
+      filter(subnum == cur_sub) %>%
+      mutate(type_chr = factor(type_chr, levels = c("RE", "CHT", "HT")),
+             norm_day = (normMax - normMin) / (max(day) - min(day)) * (day - max(day)) + (normMax),
+             log_rt = log(rt))
+    
+    contrasts(cur_dat$type_chr) = my_fwd_diff
+    
+    cur_m <- brm(formula = log_rt ~  norm_day * type_chr,
+                        data= cur_dat,
+                        warmup = 500,
+                        iter = 2500,
+                        chains = 4,
+                        init = "0",
+                        cores = 4,
+                        seed = 389253)
+    
+    cur_draws = as_draws_df(cur_m)
+    cur_draws$subnum = cur_sub
+    
+    yn_rt_draws = rbind(yn_rt_draws, cur_draws)
+  }
+  names(yn_rt_draws) = gsub(":", ".", names(yn_rt_draws))
+  write.csv(yn_rt_draws, fn_draws, row.names = F)
+
+  rm(cur_dat, cur_m, cur_draws, cur_sub)
+}
+
+```
+
+```{r}
+names(as_tibble(yn_rt_draws))
+```
+
+```{r}
+yn_par_summary = as_tibble(yn_rt_draws) %>%
+  select(b_Intercept, b_norm_day, b_type_chr1, b_type_chr2, b_norm_day.type_chr1, b_norm_day.type_chr2, subnum) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key=recode(key, 
+                    "b_Intercept" = "Intercept", 
+                    "b_norm_day" = "Day [0, 1]",
+                    "b_type_chr1" = "Type (RE vs CHT)",
+                    "b_type_chr2" = "Type (CHT vs HT)",
+                    "b_norm_day.type_chr1" = "Day x Type (RE vs CHT)",
+                    "b_norm_day.type_chr2" = "Day x Type (CHT vs HT)"),
+         key = factor(key, levels = c("Intercept", "Day [0, 1]", "Type (RE vs CHT)", "Type (CHT vs HT)", "Day x Type (RE vs CHT)", "Day x Type (CHT vs HT)"))) %>%
+  group_by(subnum, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(subnum = as.factor(subnum),
+         task = "Y/N") 
+
+p = yn_par_summary %>%
+  ggplot(aes(m, subnum)) +
+  geom_vline(aes(xintercept = 0), color = "gray") + 
+  geom_point(position = position_dodge(width=.75))+
+  geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
+  facet_grid(.~key, scales = 'free_x') +
+  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - log(RT) ~ Day x Type (3 levels; no shape)") +
+  theme(legend.position = "bottom",
+        panel.grid = element_blank(),
+        legend.box.margin=margin(t = -10))+
+  scale_x_symmetric()
+
+# ggsave(file=paste0(fig_out_path, 'yn_RTCHTnoshape_ParEsts.jpg'), p, height = 3, width=12, units="in")
 
 p
 ```
