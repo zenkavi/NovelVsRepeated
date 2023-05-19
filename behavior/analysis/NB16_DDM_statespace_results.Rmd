@@ -1,0 +1,131 @@
+---
+title: "Novel vs. repeated choice project: DDM state space outputs"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: 'hide'
+---
+
+Set up environment and load in data
+
+```{r include=FALSE, message=FALSE}
+library(tidyverse)
+library(here)
+theme_set(theme_bw())
+helpers_path = paste0(here(),'/analysis/helpers/')
+# source(paste0(helpers_path, '01_clean_behavioral_data.R'))
+# rm(data_bc_clean)
+fig_out_path = paste0(here(), '/outputs/fig/')
+cpu_eaters_path = '/Users/zeynepenkavi/CpuEaters/NovelVsRepeated/behavior/analysis/helpers/cluster_scripts/'
+```
+
+# Grid search results
+
+Fit grid search for one subject (601).  
+
+Value was normalized for each job (i.e. each day for each stimulus type) to range between -1 and 1.
+
+Grid from `save_ddm_grid.R`
+
+```
+d = seq(0.01, .1, .01)
+sigma = seq(0.01, .1, .01)
+ndt = seq(200, 400, 100)
+bias = seq(-.1, .1, .1)
+barrierDecay = c(0, .001, .01, .02)
+```
+
+Not parallelized over grid. Parallelized only over day and type. So there were 22 jobs (11 days x 2 types). Each job computed the likelihood of observed data for 3600 parameter combinations (10 x 10 x 3 x 3 x 4) unless anything errored out/job was cancelled for taking too long.  
+
+Boundary separation fixed at 2 (but allowed to decay if `barrierDecay` != 0).  
+
+Using state-space approach with an approximate step size of 0.01.  
+
+Note that there won't be any posterior distributions in this approach.  
+
+Output for a single job looks like:   
+
+```{r}
+grid_search_outputs = list.files(paste0(cpu_eaters_path, 'ddm/grid_search_out'))
+
+tmp = read.csv(paste0(cpu_eaters_path, 'ddm/grid_search_out/', grid_search_outputs[1]))
+
+tmp
+```
+
+How to examine a single job's output/parameter estimates for one day and stim type
+
+The simplest thing is too just get the parameter combination with the highest likelihood/smallest nll.  
+
+```{r}
+tmp %>%
+  arrange(nll) %>%
+  slice(1)
+```
+
+But is this parameter combination obviously better than the others? What does the distribution of the likelihood look like?
+
+The whole distribution shows some very large nll's, i.e. some very bad fits to data.
+
+```{r}
+tmp %>% 
+  ggplot(aes(nll)) +
+  geom_histogram(alpha = .5, bins = 30)
+```
+Half of the data has a nll larger than 3809.
+
+```{r}
+summary(tmp$nll)
+```
+
+So the distribution of likelihoods for the better fitting half of the parameter combination looks like:
+
+```{r}
+tmp %>% 
+  filter(nll < 3809) %>%
+  ggplot(aes(nll)) +
+  geom_histogram(alpha = .5, bins = 30)
+```
+Are there clearly terrible parameter values for the combinations that are in the better fitting half?
+
+```{r}
+tmp %>%
+  filter(nll < 3809) %>%
+  select(-subnum, -day, -type, -model) %>%
+  gather(key, value, -nll) %>%
+  ggplot(aes(as.factor(value), nll))+
+  geom_boxplot()+
+  facet_wrap(~key, scales = 'free')+
+  labs(x = "")
+```
+
+Differences in best fitting parameters across stim types and days
+
+```{r}
+best_pars = tibble()
+
+for(i in grid_search_outputs){
+  cur_out = read.csv(paste0(cpu_eaters_path, 'ddm/grid_search_out/', i))
+  cur_best = cur_out %>%
+    arrange(nll) %>%
+    slice(1)
+  best_pars = rbind(best_pars, cur_best)
+}
+
+rm(cur_out, cur_best, i)
+```
+
+```{r}
+best_pars %>%
+  select(-subnum, -model, -nll) %>%
+  gather(key, value, -day, -type) %>%
+  ggplot(aes(as.factor(day), value, color = type))+
+  geom_point(alpha = .5)+
+  facet_wrap(~key, scales = "free")+
+  scale_color_brewer(palette = "Dark2")+
+  labs(x = "Day")
+```
+
+# Optim out results
+

@@ -1,0 +1,22 @@
+---
+title: "Novel vs. repeated choice project: DDM and HDDM parameter examinations"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: 'hide'
+---
+
+Set up environment and load in data
+
+```{r include=FALSE, message=FALSE}
+library(tidyverse)
+library(here)
+library(grid)
+library(gridExtra)
+theme_set(theme_bw())
+helpers_path = paste0(here(),'/analysis/helpers/')
+# source(paste0(helpers_path, '01_clean_behavioral_data.R'))
+# rm(data_bc_clean)
+fig_out_path = paste0(here(), '/outputs/fig/')
+```

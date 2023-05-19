@@ -40,7 +40,7 @@ rm(normMax, normMin)
 
 # Exploring priors and parameter space
 
-What does a subject prior for drift rates look like in the HDDM
+What does a subject prior for drift rates look like in the HDDM (from Lombardi-Hare toolbox)
 
 ```
 d.mu ~ dunif(.00001, 50)
@@ -588,16 +588,8 @@ cur_out$nll = optim_out$value
 
 cur_out
 ```
+
 ## Test optim on single subject
-
-```{r}
-
-```
-
-```{r}
-rm(annotations, cur_dat, dat, debug_out, sub_stims, tmp, cur_barrierDecay, cur_bias, cur_d, cur_dv, cur_nonDecisionTime, cur_sigma, cur_valDiff, cur_valRef, cur_valStim, decay_vals, i, n, cur_out, optim_out)
-```
-
 
 # Examine optim output for a single subject
 
