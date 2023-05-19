@@ -99,6 +99,120 @@ tmp %>%
   facet_wrap(~key, scales = 'free')+
   labs(x = "")
 ```
+Things to check for each job:
+- Distribution of likelihoods
+- Bad areas of parameter space
+- Number of failed jobs
+
+```{r}
+all_pars = tibble()
+
+for(i in grid_search_outputs){
+  cur_out = read.csv(paste0(cpu_eaters_path, 'ddm/grid_search_out/', i))
+  all_pars = rbind(all_pars, cur_out)
+}
+
+rm(cur_out, i)
+```
+
+There are some failed jobs for HT day 1 and day 2. All others seem to have completed likelihood calculation for all 3600 parameter combinations.
+
+```{r}
+all_pars %>%
+  group_by(day, type) %>%
+  summarise(count = n(), .groups = "keep") %>%
+  arrange(count)
+```
+
+```{r}
+all_pars %>%
+  group_by(day, type) %>%
+  ggplot(aes(nll)) +
+  geom_histogram(alpha = .5, bins = 30) +
+  facet_grid(type ~ day) +
+  labes(title = "Full NLL distributions")
+```
+
+```{r}
+all_pars %>%
+  group_by(day, type) %>%
+  mutate(median_nll = median(nll)) %>%
+  filter(nll > median_nll) %>%
+  ggplot(aes(nll)) +
+  geom_histogram(alpha = .5, bins = 30) +
+  facet_grid(type ~ day, scales = "free") +
+  labs(title = "Lower 50% NLL distributions")
+```
+
+```{r}
+all_pars %>%
+  group_by(day, type) %>%
+  mutate(median_nll = median(nll)) %>%
+  filter(nll > median_nll) %>%
+  select(-subnum, -model) %>%
+  gather(key, value, -nll, -day, -type) %>%
+  filter(key == "d") %>%
+  ggplot(aes(as.factor(value), nll))+
+  geom_violin()+
+  facet_grid(type ~ day, scales = 'free')+
+  labs(x = "", title = "NLL distribution for each d collapsed over other parameters (for 50% best NLLs)")
+```
+```{r}
+all_pars %>%
+  group_by(day, type) %>%
+  mutate(median_nll = median(nll)) %>%
+  filter(nll > median_nll) %>%
+  select(-subnum, -model) %>%
+  gather(key, value, -nll, -day, -type) %>%
+  filter(key == "sigma") %>%
+  ggplot(aes(as.factor(value), nll))+
+  geom_violin()+
+  facet_grid(type ~ day, scales = 'free')+
+  labs(x = "", title = "NLL distribution for each sigma collapsed over other parameters (for 50% best NLLs)")
+```
+
+
+```{r}
+all_pars %>%
+  group_by(day, type) %>%
+  mutate(median_nll = median(nll)) %>%
+  filter(nll > median_nll) %>%
+  select(-subnum, -model) %>%
+  gather(key, value, -nll, -day, -type) %>%
+  filter(key == "nonDecisionTime") %>%
+  ggplot(aes(as.factor(value), nll))+
+  geom_violin()+
+  facet_grid(type ~ day, scales = 'free')+
+  labs(x = "", title = "NLL distribution for each ndt collapsed over other parameters (for 50% best NLLs)")
+```
+
+```{r}
+all_pars %>%
+  group_by(day, type) %>%
+  mutate(median_nll = median(nll)) %>%
+  filter(nll > median_nll) %>%
+  select(-subnum, -model) %>%
+  gather(key, value, -nll, -day, -type) %>%
+  filter(key == "bias") %>%
+  ggplot(aes(as.factor(value), nll))+
+  geom_violin()+
+  facet_grid(type ~ day, scales = 'free')+
+  labs(x = "", title = "NLL distribution for each bias collapsed over other parameters (for 50% best NLLs)")
+```
+
+```{r}
+all_pars %>%
+  group_by(day, type) %>%
+  mutate(median_nll = median(nll)) %>%
+  filter(nll > median_nll) %>%
+  select(-subnum, -model) %>%
+  gather(key, value, -nll, -day, -type) %>%
+  filter(key == "barrierDecay") %>%
+  ggplot(aes(as.factor(value), nll))+
+  geom_violin()+
+  facet_grid(type ~ day, scales = 'free')+
+  labs(x = "", title = "NLL distribution for each barrierDecay collapsed over other parameters (for 50% best NLLs)")
+```
 
 Differences in best fitting parameters across stim types and days
 
@@ -116,6 +230,24 @@ for(i in grid_search_outputs){
 rm(cur_out, cur_best, i)
 ```
 
+Notable things:
+
+- Best fitting parameters have barrierDecay>0
+- Barrier decay is either the same for the two conditions or higher for HT
+- Barrier decay is higher on later days
+
+- Bias is mostly 0 (--> consider fixing it?)
+- When bias is not 0, it's positive for HT (yes) and negative for RE (no)
+
+- Drift rates increase across days
+- Drift rates are higher for HT
+
+- Non decision times are more often higher for HT (unexpected)
+- Generally constant across days (good)
+
+- Noise is higher for HT half the time and higher for RE for the other half
+- No clear pattern of increase or decrease over days
+
 ```{r}
 best_pars %>%
   select(-subnum, -model, -nll) %>%
@@ -129,3 +261,103 @@ best_pars %>%
 
 # Optim out results
 
+Fit for 3 subjects (601, 609 and 611) for both conditions and all days.
+
+Value was normalized for each job (i.e. each day for each stimulus type) to range between -1 and 1.
+
+Ideally, the algorithm should converge on the same/similar parameters for each job (fit for subject, day, type).
+
+But since I'm not sure how robust it is I had planned to have it start from each of the parameter combinations used for the grid search. This would have meant trying 3600 different starting values and then checking if the algorithm converges (after max 500 iterations) to the same place.  
+
+It still doesn't give full posteriors but at least we would have had a little more support for the converged value.  
+I did not parallelize across starting values. So this ended up taking forever and I only have a few outputs for each job (subject, day, type) instead of the full 3600.
+
+```{r}
+optim_outputs = list.files(paste0(cpu_eaters_path, 'ddm/optim_out'))
+
+tmp = read.csv(paste0(cpu_eaters_path, 'ddm/optim_out/', optim_outputs[1]))
+
+tmp
+```
+
+```{r}
+all_optim = tibble()
+
+for(i in optim_outputs){
+  cur_out = read.csv(paste0(cpu_eaters_path, 'ddm/optim_out/', i))
+  all_optim = rbind(all_optim, cur_out)
+}
+
+rm(cur_out, i)
+
+```
+
+```{r}
+all_optim %>%
+  arrange(barrierDecay)
+
+all_optim %>%
+  filter(barrierDecay > 0 & barrierDecay < 1) %>%
+  arrange(-barrierDecay)
+```
+
+How far are the converged parameters from their starting value? 
+
+```{r}
+unique(all_optim$start_barrierDecay)
+unique(all_optim$start_bias)
+unique(all_optim$start_d)
+unique(all_optim$start_nonDecisionTime)
+unique(all_optim$start_sigma)
+```
+Things seem to have moved from their starting values.
+
+```{r}
+all_optim %>%
+  filter(barrierDecay < 1 & barrierDecay > 0) %>%
+  filter(bias < 1) %>%
+  mutate(diff_barrierDecay = start_barrierDecay - barrierDecay,
+         diff_bias = start_bias - bias,
+         diff_d = start_d - d,
+         diff_nonDecisionTime = start_nonDecisionTime - nonDecisionTime,
+         diff_sigma = start_sigma - sigma) %>%
+  # select(d, sigma, nonDecisionTime, bias, barrierDecay) %>%
+  select(diff_d, diff_sigma, diff_nonDecisionTime, diff_bias, diff_barrierDecay) %>%
+  gather(key, value) %>%
+  ggplot(aes(value))+
+  geom_histogram(bins = 20, alpha = .5) + 
+  facet_wrap(~key, scales = "free")
+```
+
+How many iterations did it take to converge per starting value (collapsing across subjects, days, types)
+
+```{r}
+all_optim %>%
+  ggplot(aes(optim_iters)) + 
+  geom_histogram(alpha = .5, bins = 20)
+```
+
+How different are the converged estimates from each other per job?
+
+```{r}
+all_optim %>%
+  select(subnum, day, type, bias, barrierDecay, d, sigma, nonDecisionTime) %>%
+  gather(key, value, -subnum, -day, -type) %>%
+  group_by(subnum, day, type, key) %>%
+  summarise(.groups = "keep",
+            sem_par = sd(value)/sqrt(n()))
+```
+
+Non sensical estimates?
+
+Negative drift rates, sigmas, barrierDecays, ndt's?
+
+```{r}
+
+```
+
+How close are the best estimates from optim to the single subject grid search best parameters?
+
+```{r}
+
+```
