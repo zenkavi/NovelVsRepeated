@@ -13,3 +13,4 @@ figure-html/
 test*
 *.asc
 behavior/outputs/fig/stims/
+.vscode/

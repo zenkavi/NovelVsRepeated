@@ -20,3 +20,6 @@ helpers_path = paste0(here(),'/analysis/helpers/')
 # rm(data_bc_clean)
 fig_out_path = paste0(here(), '/outputs/fig/')
 ```
+
+
+Is the smaller negative likelihoods for RE compared to HT also the case for these fits?

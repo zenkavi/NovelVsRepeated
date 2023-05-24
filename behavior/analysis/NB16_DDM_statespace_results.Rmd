@@ -292,16 +292,54 @@ rm(cur_out, i)
 
 ```
 
+How many converged iterations per job? Max = 12, min 4.
+
 ```{r}
 all_optim %>%
-  arrange(barrierDecay)
-
-all_optim %>%
-  filter(barrierDecay > 0 & barrierDecay < 1) %>%
-  arrange(-barrierDecay)
+  group_by(day, subnum, type) %>%
+  summarise(.groups = "keep",
+            max_iter = max(start_num)) %>%
+  arrange(-max_iter)
 ```
 
-How far are the converged parameters from their starting value? 
+Excluding non-sensical values for each paramter is there a converged parameter combination for each job (subject, day, type combination)? Yes.
+
+```{r}
+all_optim %>%
+  filter(barrierDecay > 0 & barrierDecay < 1) %>%
+  filter(bias < 1) %>%
+  filter(d > 0) %>%
+  filter(sigma > 0) %>%
+  filter(nonDecisionTime > 0) %>%
+    group_by(day, subnum, type) %>%
+  summarise(.groups = "keep",
+            max_iter = max(start_num)) %>%
+  arrange(-max_iter)
+```
+
+```{r}
+all_optim_filtered = all_optim %>%  
+  filter(barrierDecay > 0 & barrierDecay < 1) %>%
+  filter(bias < 1) %>%
+  filter(d > 0) %>%
+  filter(sigma > 0) %>%
+  filter(nonDecisionTime > 0)
+```
+
+
+How far are the converged parameters from their starting value?   
+
+There should have been 10 x 10 x 3 x 3 x 4 starting values.  
+
+```
+d = seq(0.01, .1, .01)
+sigma = seq(0.01, .1, .01)
+ndt = seq(200, 400, 100)
+bias = seq(-.1, .1, .1)
+barrierDecay = c(0, .001, .01, .02)
+```
+
+But instead there is only 1 barrierDecay and bias starting value, 3 drift rate starting values, 2 ndt starting values and 3 noise level starting values.
 
 ```{r}
 unique(all_optim$start_barrierDecay)
@@ -310,18 +348,27 @@ unique(all_optim$start_d)
 unique(all_optim$start_nonDecisionTime)
 unique(all_optim$start_sigma)
 ```
-Things seem to have moved from their starting values.
+Filtering converged jobs with non-sensical values does not remove a specific starting value for any of the parameters.
 
 ```{r}
-all_optim %>%
-  filter(barrierDecay < 1 & barrierDecay > 0) %>%
-  filter(bias < 1) %>%
+unique(all_optim_filtered$start_barrierDecay)
+unique(all_optim_filtered$start_bias)
+unique(all_optim_filtered$start_d)
+unique(all_optim_filtered$start_nonDecisionTime)
+unique(all_optim_filtered$start_sigma)
+```
+
+To check if things have moved from their starting value I plot the histograms for the difference between the converged value and the starting value for each parameter across jobs.  
+
+This only looks at converged jobs that have sensible values for all parameters.
+
+```{r}
+all_optim_filtered %>%
   mutate(diff_barrierDecay = start_barrierDecay - barrierDecay,
          diff_bias = start_bias - bias,
          diff_d = start_d - d,
          diff_nonDecisionTime = start_nonDecisionTime - nonDecisionTime,
          diff_sigma = start_sigma - sigma) %>%
-  # select(d, sigma, nonDecisionTime, bias, barrierDecay) %>%
   select(diff_d, diff_sigma, diff_nonDecisionTime, diff_bias, diff_barrierDecay) %>%
   gather(key, value) %>%
   ggplot(aes(value))+
@@ -332,32 +379,149 @@ all_optim %>%
 How many iterations did it take to converge per starting value (collapsing across subjects, days, types)
 
 ```{r}
-all_optim %>%
+all_optim_filtered %>%
   ggplot(aes(optim_iters)) + 
   geom_histogram(alpha = .5, bins = 20)
 ```
 
-How different are the converged estimates from each other per job?
+How different are the converged estimates from each other for each job (subject, day, type combination) per starting value?
+
+They can be quite different from each other especially when they do move further away from their starting values. The estimates for barrrierDecay and ndt differ less from each other depending on the converged value but they also don't move as far away from their starting values either.
 
 ```{r}
-all_optim %>%
+all_optim_filtered %>%
   select(subnum, day, type, bias, barrierDecay, d, sigma, nonDecisionTime) %>%
   gather(key, value, -subnum, -day, -type) %>%
   group_by(subnum, day, type, key) %>%
-  summarise(.groups = "keep",
-            sem_par = sd(value)/sqrt(n()))
+  ggplot(aes(as.factor(day), value, color = type))+
+  geom_point(position = position_dodge(width=.5))+
+  facet_grid(key~subnum, scales = "free")+
+  theme(legend.position = "bottom")+
+  scale_color_brewer(palette = "Dark2")+
+  labs(color = "", y = "Converged estimate", x = "Day")
 ```
 
-Non sensical estimates?
+```{r}
+all_optim_filtered %>%
+  mutate(diff_barrierDecay = start_barrierDecay - barrierDecay,
+         diff_bias = start_bias - bias,
+         diff_d = start_d - d,
+         diff_nonDecisionTime = start_nonDecisionTime - nonDecisionTime,
+         diff_sigma = start_sigma - sigma) %>%
+  select(subnum, day, type, diff_d, diff_sigma, diff_nonDecisionTime, diff_bias, diff_barrierDecay) %>%
+  gather(key, value, -subnum, -day, -type) %>%
+  group_by(subnum, day, type, key) %>%
+  ggplot(aes(as.factor(day), value, color = type))+
+  geom_point(position = position_dodge(width=.5))+
+  geom_hline(aes(yintercept = 0)) +
+  facet_grid(key~subnum, scales = "free")+
+  theme(legend.position = "bottom")+
+  scale_color_brewer(palette = "Dark2")+
+  labs(color = "", y = "Difference between starting and converged value", x = "Day")
+```
 
-Negative drift rates, sigmas, barrierDecays, ndt's?
+How close are the best estimates from optim to the single subject (601) grid search best parameters?
+
+```{r}
+sub_grid_best = best_pars %>%
+  select(-model) %>%
+  mutate(fit = "grid")
+  
+```
+
+```{r}
+sub_optim_best = all_optim_filtered %>%
+  filter(subnum == 601) %>%
+  group_by(subnum, day, type) %>%
+  filter(nll == min(nll)) %>%
+  select(barrierDecay, bias, d, nonDecisionTime, sigma, nll, subnum, day, type) %>%
+  mutate(fit = "optim")
+```
+
+Compare likelihoods of best fitting parameters from two approaches. 
+
+Notable things:
+
+- Model fits RE better than HT for all days.  
+- Between the two fitting schemes the likelihood of the best fitting parameter combinations is almost identical.
+
+```{r}
+sub_grid_best %>%
+  select(nll, subnum, day, type, fit) %>%
+  rbind(sub_optim_best %>%
+            select(nll, subnum, day, type, fit)) %>%
+  spread(fit, nll) %>%
+  ggplot(aes(grid, optim, color = type))+
+  geom_point()+
+  geom_abline(aes(slope = 1, intercept = 0))+
+  theme(legend.position = "bottom")+
+  scale_color_brewer(palette = "Dark2")+
+  labs(color = "", y = "NLL from optim", x = "NLL from grid search")
+```
+
+For these almost identical nll's are the converged parameters similar? Yes and no. The exact estimates are not identifical but patterns, especially comparing the two conditions are captured.
+
+- The best barrierDecays for RE are often lower than those for HT in both methods.  
+- When grid search converges on a non-zero bias the sign of the bias always matches with optim too. When grid search converges on 0 the biggest difference is still smaller than the other best grid search estimates.  
+- ndt's are where the largest differences are. Optim estimates much faster ndt's compared to grid search.  
+- Drift rates are often larger when using grid search compared to optim. This is possibly somewhat due to the larger ndt's with grid search.  
+- The optim sigma estimates range between the two most frequently converged values with grid search ([0.04 - 0.05]).  
+
+```{r}
+sub_grid_best %>%
+  select(-nll) %>%
+  gather(key, value, -subnum, -day, -type, -fit) %>%
+  rbind(sub_optim_best %>%
+          select(-nll) %>%
+          gather(key, value, -subnum, -day, -type, -fit)) %>%
+  spread(fit, value) %>%
+  ggplot(aes(grid, optim, color = type))+
+  geom_point(alpha = .5)+
+  geom_abline(aes(intercept = 0, slope = 1))+
+    theme(legend.position = "bottom")+
+  scale_color_brewer(palette = "Dark2")+
+  labs(color = "", y = "Estimate from optim", x = "Estimate grid search")+
+  facet_wrap(~key, scales = "free")
+```
+
+How much do the exact values of the point estimates matter?
+
+How different does data generated by the point estimates recovered by the two different methods look from each other AND from true data?
+
+How to do this: 
+
+Source `sim_yn_ddm.R` and `yn_ddm.R`. See `NB12_DDM_statespace_functions.Rmd` for details on how to use these functions. Command will look something like:
+
+```
+sim_task(stimuli = sub_stims, model_name = "model1", sim_trial_list_ = sim_trial_list, d = cur_d, sigma = cur_sigma, nonDecisionTime = cur_nonDecisionTime, bias = cur_bias, barrierDecay = cur_barrierDecay, maxIter = 300, debug = T)
+```
+
+where sub_stims should be the trials for each day and type
 
 ```{r}
 
 ```
 
-How close are the best estimates from optim to the single subject grid search best parameters?
+Is the smaller negative log likelihoods for RE compared HT a thing for all other subjects too? Yes!
+
+But wait. This isn't necessarily better fit. This isn't normalized. There's fewer RE trials so the sum of likelihood for each trial is smaller.
 
 ```{r}
+all_optim_filtered %>%
+  group_by(subnum, day, type) %>%
+  filter(nll == min(nll)) %>%
+  ggplot(aes(nll, fill = type))+
+  geom_histogram(alpha = .5, bins = 30, position = "identity")+
+  theme(legend.position = "bottom")+
+  scale_fill_brewer(palette = "Dark2")+
+  labs(fill = "")+
+  facet_wrap(~subnum)
+```
 
+Where did the best optim estimates start from?
+
+```{r}
+all_optim_filtered %>%
+  group_by(subnum, day, type) %>%
+  filter(nll == min(nll))
 ```
