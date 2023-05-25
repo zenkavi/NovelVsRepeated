@@ -1,5 +1,5 @@
 ---
-title: "Novel vs. repeated choice project: Y/N Task HDDM posterior predictive checks and simulations for tradeoffs"
+title: "Novel vs. repeated choice project: Y/N Task HDDM posterior predictive checks"
 output: 
   html_document:
     toc: true
@@ -1101,6 +1101,3 @@ p
 ```
 
 
--------------------------------------------------------------------------------
-
-Tradeoff simulations?
