@@ -321,7 +321,7 @@ all_optim %>%
   filter(d > 0) %>%
   filter(sigma > 0) %>%
   filter(nonDecisionTime > 0) %>%
-    group_by(day, subnum, type) %>%
+  group_by(day, subnum, type) %>%
   summarise(.groups = "keep",
             max_iter = max(start_num)) %>%
   arrange(-max_iter)
@@ -442,7 +442,7 @@ How close are the best estimates from optim to the single subject (601) grid sea
 sub_grid_best = best_pars %>%
   select(-model) %>%
   mutate(fit = "grid")
-  
+
 ```
 
 ```{r}
@@ -467,7 +467,7 @@ Notable things:
 sub_grid_best %>%
   select(nll, subnum, day, type, fit) %>%
   rbind(sub_optim_best %>%
-            select(nll, subnum, day, type, fit)) %>%
+          select(nll, subnum, day, type, fit)) %>%
   spread(fit, nll) %>%
   ggplot(aes(grid, optim, color = type))+
   geom_point()+
@@ -498,7 +498,7 @@ sub_grid_best %>%
   ggplot(aes(grid, optim, color = type))+
   geom_point(alpha = .5)+
   geom_abline(aes(intercept = 0, slope = 1))+
-    theme(legend.position = "bottom")+
+  theme(legend.position = "bottom")+
   scale_color_brewer(palette = "Dark2")+
   labs(color = "", y = "Estimate from optim", x = "Estimate grid search")+
   facet_wrap(~key, scales = "free")
@@ -603,7 +603,7 @@ sim_optim_best
 
 #### Plot simulated data
 
-Whether they are in the same or different layers doesn't matter BUT make sure to use the same geom for both true and simulated data! Otherwise you'll plot kernel density estimates (smoothed continuous "estimates")  over rescaled histograms bin values and they won't be normalized by the same process so would not be comparable!
+Whether the true and simulated data are plotted in the same or different layers doesn't matter BUT make sure to use the same geom for both true and simulated data! Otherwise you'll plot kernel density estimates (smoothed continuous "estimates")  over rescaled histograms bin values and they won't be normalized by the same process so would not be comparable!
 
 Useful threads:  
 
@@ -611,20 +611,19 @@ https://stackoverflow.com/questions/46734555/ggplot2-histogram-why-do-y-density-
 
 https://stackoverflow.com/questions/65631194/scale-density-curve-made-with-geom-density-to-similar-height-of-geom-histogram
 
-##### Single layer
 
 ```{r}
-sim_optim_best %>%
+p = sim_optim_best %>%
   select(true_rt, true_yesChosen, reactionTime, choice, type, day) %>%
   mutate(optim_rt = ifelse(choice == "no", (-1)*reactionTime, reactionTime),
          true_rt = ifelse(true_yesChosen == 0, (-1)*true_rt, true_rt)) %>%
   select(-true_yesChosen, -reactionTime, -choice) %>%
   gather(key, value, -type, -day) %>%
   rbind(sim_grid_best %>%
-  select(reactionTime, choice, type, day) %>%
-  mutate(grid_rt = ifelse(choice == "no", (-1)*reactionTime, reactionTime)) %>%
-  select(-reactionTime, -choice) %>%
-  gather(key, value, -type, -day)) %>%
+          select(reactionTime, choice, type, day) %>%
+          mutate(grid_rt = ifelse(choice == "no", (-1)*reactionTime, reactionTime)) %>%
+          select(-reactionTime, -choice) %>%
+          gather(key, value, -type, -day)) %>%
   mutate(day = paste0("Day ", day),
          day = factor(day, levels = paste0("Day ", seq(1,11, 1))),
          type = ifelse(type == 1, "HT", "RE"),
@@ -634,43 +633,44 @@ sim_optim_best %>%
   facet_grid(type ~ day)+
   scale_color_manual(values = c("gray", "#7570b3", "#e7298a"))+
   scale_fill_manual(values = c("gray", NA, NA))+
-    theme(panel.grid.major.x = element_blank(),
+  theme(panel.grid.major.x = element_blank(),
         panel.grid.minor.x = element_blank(),
         legend.position = "bottom")+
-  labs(y = "", x = "", fill = "", color = "", title = "Single layers, same geom, stat=density")+
+  labs(y = "", x = "", fill = "", color = "")+
   ylim(0, 1.5)
 
-
+p
 ```
 
 ```{r}
-sim_optim_best %>%
+p2 = sim_optim_best %>%
   select(true_rt, true_yesChosen, reactionTime, choice, type, day) %>%
   mutate(optim_rt = ifelse(choice == "no", (-1)*reactionTime, reactionTime),
          true_rt = ifelse(true_yesChosen == 0, (-1)*true_rt, true_rt)) %>%
   select(-true_yesChosen, -reactionTime, -choice) %>%
   gather(key, value, -type, -day) %>%
   rbind(sim_grid_best %>%
-  select(reactionTime, choice, type, day) %>%
-  mutate(grid_rt = ifelse(choice == "no", (-1)*reactionTime, reactionTime)) %>%
-  select(-reactionTime, -choice) %>%
-  gather(key, value, -type, -day)) %>%
+          select(reactionTime, choice, type, day) %>%
+          mutate(grid_rt = ifelse(choice == "no", (-1)*reactionTime, reactionTime)) %>%
+          select(-reactionTime, -choice) %>%
+          gather(key, value, -type, -day)) %>%
   mutate(day = paste0("Day ", day),
          day = factor(day, levels = paste0("Day ", seq(1,11, 1))),
          type = ifelse(type == 1, "HT", "RE"),
          key = factor(key, levels = c("true_rt", "grid_rt", "optim_rt"))) %>%
   ggplot(aes(value, color = key, fill = key))+
   # geom_step(aes(y=..density..), stat="bin", binwidth=0.2)+
-    geom_step(aes(y=..density..), stat="bin", bins=30)+
+  geom_step(aes(y=..density..), stat="bin", bins = 30, linewidth = .75)+
   facet_grid(type ~ day)+
   scale_color_manual(values = c("gray", "#7570b3", "#e7298a"))+
   scale_fill_manual(values = c("gray", NA, NA))+
-    theme(panel.grid.major.x = element_blank(),
+  theme(panel.grid.major.x = element_blank(),
         panel.grid.minor.x = element_blank(),
         legend.position = "bottom")+
-  labs(y = "", x = "", fill = "", color = "", title = "Single layers, same geom, stat=density")+
-  ylim(0, 1.5)
+  labs(y = "", x = "", fill = "", color = "")+
+ylim(0, 1.5)
 
+p2
 ```
 
 ##### KL divergence
@@ -679,34 +679,65 @@ To compute e.g. KL divergence between true and simulated RT distributions you co
 
 ```{r}
 pg = ggplot_build(p)
-
-# Density layer data (simulated)
-pg$data[[1]]
 ```
 
 ```{r}
-# Histogram layer data (true)
-hist_data = pg$data[[2]]
+prob_data = pg$data[[1]] %>%
+  select(count, colour, PANEL) %>%
+  group_by(colour, PANEL) %>%
+  mutate(p_count = count/sum(count),
+         group = ifelse(colour == "gray", "true_rt", ifelse(colour == "#7570b3", "grid_rt", "optim_rt"))) %>%
+  # summarise(sum_p_count = sum(p_count), .groups = "keep") # Check to make sure p's add up to 1 for each case
+  left_join(pg$layout$layout %>% select(PANEL, type, day), by = "PANEL") 
 
-# ncount and ndensity are the same
-sum(round(hist_data$ncount, 5) == round(hist_data$ndensity, 5)) == nrow(hist_data)
+f_labels = tibble()
 
-# y, density and ymax are the same
-sum(round(hist_data$y, 5) == round(hist_data$density, 5)) == nrow(hist_data)
-sum(round(hist_data$y, 5) == round(hist_data$ymax, 5)) == nrow(hist_data)
+for(cur_panel in unique(prob_data$PANEL)){
+  panel_data = prob_data %>% filter(PANEL == cur_panel)
+  true_probs = panel_data %>% filter(group == "true_rt")
+  true_probs = true_probs$p_count
+  
+  grid_probs = panel_data %>% filter(group == "grid_rt")
+  grid_probs = grid_probs$p_count
+  x = rbind(true_probs, grid_probs)
+  y1 = philentropy::KL(x, unit='log2')
+  
+  optim_probs = panel_data %>% filter(group == "optim_rt")
+  optim_probs = optim_probs$p_count
+  x = rbind(true_probs, optim_probs)
+  y2 = philentropy::KL(x, unit='log2')
+  
+  cur_label = paste0("KL(tg) = ", format(round(y1, 3), nsmall = 3), " KL(to) = ",  format(round(y2, 3), nsmall = 3))
+  
+  cur_row = tibble(type = unique(panel_data$type), day = unique(panel_data$day),
+                   label = cur_label, kl_tg = y1, kl_to = y2)
+  f_labels = rbind(f_labels, cur_row)
+}
 
-# is ndensity normalized density?
-sort(unique( round(hist_data$density/ hist_data$ndensity, 10)))
+f_labels$key = "true_rt"
+f_labels$label = stringr::str_wrap(f_labels$label, 15)
 
-length(unique( round(hist_data$density/ hist_data$ndensity, 10)))
+rm(panel_data, true_probs, grid_probs, optim_probs, cur_label, cur_row, x, y1, y2)
+```
 
-hist_data %>%
-  group_by(PANEL) %>%
-  summarise(sum_ndens = sum(ndensity))
 
-unique(hist_data$PANEL)
+```{r}
+p +
+  geom_text(x = 0, y = 1.2, aes(label = label), data = f_labels, color = "black", size = 2.5)+
+  labs(title = "True vs simulated RTs using best parameters from different fitting methods")+
+  theme(axis.ticks.y = element_blank(),
+        axis.text.y = element_blank())+
+  lemon::scale_x_symmetric()
 
-unique(hist_data$group)
+```
+
+```{r}
+p2+
+  geom_text(x = 0, y = 1.2, aes(label = label), data = f_labels, color = "black", size = 2.5)+
+  labs(title = "True vs simulated RTs using best parameters from different fitting methods")+
+  theme(axis.ticks.y = element_blank(),
+        axis.text.y = element_blank())+
+  lemon::scale_x_symmetric()
 ```
 
 # Other checks
