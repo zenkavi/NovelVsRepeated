@@ -85,3 +85,5 @@ sim_task = function(stimuli, model_name, sim_trial_list_ = sim_trial_list, ...){
 
   return(out)
 }
+
+print("Make sure data has normVDiff column")
