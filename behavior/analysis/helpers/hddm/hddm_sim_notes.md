@@ -64,7 +64,7 @@ pcluster ssh --cluster-name rjagswiener-cluster -i $KEYS_PATH/rjagswiener-cluste
 ```
 export DATA_PATH=/shared/behavior/inputs
 
-aws s3 sync s3://novel-vs-repeated/behavior/inputs $DATA_PATH --exclude '*' --include 'data_choiceYN.csv' --include 'data_choiceBC.csv' --include 'yn_hddm_mcmc_draws.csv'
+aws s3 sync s3://novel-vs-repeated/behavior/inputs $DATA_PATH --exclude '*' --include 'data_choiceYN.csv' --include 'data_choiceBC.csv' --include 'yn_hddm_mcmc_draws.csv' --include 'yn_sub_hddm_mcmc_draws.csv'
 ```
 ## Copy model fitting code from s3 to cluster
 
@@ -72,7 +72,7 @@ aws s3 sync s3://novel-vs-repeated/behavior/inputs $DATA_PATH --exclude '*' --in
 export CODE_PATH=/shared/behavior/analysis/helpers
 
 aws s3 sync s3://novel-vs-repeated/behavior/analysis/helpers/hddm $CODE_PATH/hddm
-aws s3 sync s3://novel-vs-repeated/behavior/analysis/helpers/cluster_scripts $CODE_PATH/cluster_scripts
+aws s3 sync s3://novel-vs-repeated/behavior/analysis/helpers/cluster_scripts $CODE_PATH/cluster_scripts --exclude '*.RData' --exclude '*.csv' --exclude '*.out' --exclude '*.err'
 ```
 
 ## Test simulating on single subject on head node
@@ -94,19 +94,34 @@ sh run_sim_yn_hddm.sh -s 611 -c HT -d 4
 sh run_sim_yn_hddm.sh -s 629 -c RE -d 8
 ```
 
+For all jobs
+
+``` 
+for subnum in 601 609 611 619 621 629
+do
+    for cond in HT RE
+    do
+        for day in 1 2 3 4 5 6 7 8 9 10 11
+        do
+            sh run_sim_yn_hddm.sh -s $subnum -c $cond -d $day
+        done
+    done
+done
+```
+
 ## Push outputs back to s3
 
 ```
-export OUT_PATH=/shared/behavior/inputs
-aws s3 sync $OUT_PATH s3://novel-vs-repeated/behavior/inputs
+export OUT_PATH=/shared/behavior/analysis/helpers/cluster_scripts/hddm/sim_out
+aws s3 sync $OUT_PATH s3://novel-vs-repeated/behavior/analysis/helpers/cluster_scripts/hddm/sim_out
 ```
 
 ## Download simulated data
 
 ```
-export INPUTS_DIR=/Users/zeynepenkavi/CpuEaters/NovelVsRepeated/behavior/inputs
+export OUTPUTS_DIR=/Users/zeynepenkavi/CpuEaters/NovelVsRepeated/behavior/analysis/helpers/cluster_scripts/hddm/sim_out
 
-docker run --rm -it -v ~/.aws:/root/.aws -v $INPUTS_DIR:/inputs amazon/aws-cli s3 sync s3://novel-vs-repeated/behavior/inputs /inputs --exclude "*" --include "yn_sim_ddm_*.csv"
+docker run --rm -it -v ~/.aws:/root/.aws -v $OUTPUTS_DIR:/sim_out amazon/aws-cli s3 sync s3://novel-vs-repeated/behavior/analysis/helpers/cluster_scripts/hddm/sim_out /sim_out --exclude "*" --include "yn_sub_hddm_sim_sub*.csv"
 ```
 
 ## Delete cluster
