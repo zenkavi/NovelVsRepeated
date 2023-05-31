@@ -1,8 +1,17 @@
 # Steps for hddm fitting with JAGS
 
+## Test simulation functions locally
+
+```
+export STUDY_DIR=/Users/zeynepenkavi/Documents/RangelLab/NovelVsRepeated
+export DATA_PATH=$STUDY_DIR/behavior
+
+docker run --rm -it -v $DATA_PATH:/behavior -w /behavior zenkavi/rjagswiener:0.0.3 Rscript --vanilla /behavior/analysis/helpers/hddm/sim_yn_hddm.R --subnum 611 --cond HT --day 2 --n_samples 4
+```
+
 ## Push behavior files to S3
 
-Make sure parameter posteriors are pushed
+Make sure parameter posteriors (`yn_sub_hddm_mcmc_draws.csv` and `yn_hddm_mcmc_draws.csv`) are pushed
 
 ```
 export INPUTS_DIR=/Users/zeynepenkavi/Documents/RangelLab/NovelVsRepeated/behavior/inputs
@@ -62,7 +71,8 @@ aws s3 sync s3://novel-vs-repeated/behavior/inputs $DATA_PATH --exclude '*' --in
 ```
 export CODE_PATH=/shared/behavior/analysis/helpers
 
-aws s3 sync s3://novel-vs-repeated/behavior/analysis/helpers $CODE_PATH
+aws s3 sync s3://novel-vs-repeated/behavior/analysis/helpers/hddm $CODE_PATH/hddm
+aws s3 sync s3://novel-vs-repeated/behavior/analysis/helpers/cluster_scripts $CODE_PATH/cluster_scripts
 ```
 
 ## Test simulating on single subject on head node
@@ -73,7 +83,7 @@ export DATA_PATH=/shared/behavior
 docker run --rm -it -v $DATA_PATH:/behavior -w /behavior zenkavi/rjagswiener:0.0.3 Rscript --vanilla /behavior/analysis/helpers/hddm/sim_yn_hddm.R --subnum 611 --cond HT --day 2 --n_samples 10
 ```
 
-## Submit jobs for levels 1s of all subjects and sessions for both tasks
+## Submit jobs for all subjects and sessions for both tasks
 
 Only a few examples listed below
 

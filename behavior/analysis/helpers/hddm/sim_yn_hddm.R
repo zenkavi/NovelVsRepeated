@@ -17,10 +17,11 @@ set.seed(38992)
 # Parse input arguments
 #######################
 option_list = list(
-  make_option("--cond", type="character"),
-  make_option("--day", type="character"),
-  make_option("--subnum", type="character"),
-  make_option("--n_samples", default = 1000)
+  make_option("--cond", type = "character"),
+  make_option("--day", type = "character"),
+  make_option("--subnum", type = "character"),
+  make_option("--n_samples", default = 1000),
+  make_option("--par_ests", default = "yn_sub_hddm_mcmc_draws.csv", help = "Valid options: yn_sub_hddm_mcmc_draws.csv or yn_hddm_mcmc_draws.csv")
 )
 
 opt_parser = OptionParser(option_list=option_list)
@@ -30,14 +31,13 @@ cur_sub = as.numeric(opt$subnum)
 cur_cond = opt$cond
 cur_day = as.numeric(opt$day)
 n_samples = as.numeric(opt$n_samples)
+par_ests = opt$par_ests
 
 #########################
 # Read in stimuli and estimated parameter posteriors
 #########################
 
-helpers_path = here()
-
-data_yn = read.csv(paste0(helpers_path, '/inputs/data_choiceYN.csv'))
+data_yn = read.csv(paste0(here(), '/inputs/data_choiceYN.csv'))
 
 data_yn_clean = data_yn %>%
   filter(session != -99) %>%
@@ -46,8 +46,9 @@ data_yn_clean = data_yn %>%
 
 rm(data_yn)
 
-fn = file.path(here(), "inputs",'yn_hddm_mcmc_draws.csv')
+fn = file.path(here(), "inputs", par_ests)
 
+print("Reading in parameter estimates. This might take a moment.")
 all_results_df = read.csv(fn)
 
 #########################
@@ -63,6 +64,7 @@ sim_trial = function(trial_vdiff, sampled_sigma, sampled_d, sampled_ndt, sampled
   # cur_pred = brms::rwiener(1, 2*sampled_sigma, sampled_ndt, sampled_bias, trial_drift)
   # RWiener::rwiener response levels: upper == 1; lower == 2
 
+  # Drift rates are much larger now but this threshold should still work bc normVDiff is proportionally smaller
   if(abs(trial_drift) < 10){
     cur_pred = RWiener::rwiener(1, 2*sampled_sigma, sampled_ndt, sampled_bias, trial_drift)
   } else {
@@ -80,6 +82,14 @@ sim_trial = function(trial_vdiff, sampled_sigma, sampled_d, sampled_ndt, sampled
 sim_subj_cond_day_once = function(cur_stims, sampled_sigma, sampled_d, sampled_ndt, sampled_bias){
 
   pred_data = cur_stims
+
+  normMax = 1
+  normMin = -1
+  # Already filtered for sub, day and stim type so don't need to group to make sure vdiff ranges between [-1,1]
+  pred_data = pred_data %>%
+    mutate(rawVDiff = possiblePayoff - reference,
+           normVDiff =  (normMax - normMin) / (max(rawVDiff) - min(rawVDiff)) * (rawVDiff - max(rawVDiff)) + (normMax) )
+
   pred_data$sampled_sigma = sampled_sigma
   pred_data$sampled_d = sampled_d
   pred_data$sampled_ndt = sampled_ndt
@@ -89,7 +99,8 @@ sim_subj_cond_day_once = function(cur_stims, sampled_sigma, sampled_d, sampled_n
 
   for(i in 1:nrow(cur_stims)){
 
-    trial_vdiff = cur_stims$possiblePayoff[i] - cur_stims$reference[i]
+    trial_vdiff = pred_data$normVDiff[i]
+
     cur_pred = sim_trial(trial_vdiff, sampled_sigma, sampled_d, sampled_ndt, sampled_bias)
 
     pred_data$pred_rt[i] = cur_pred$q
@@ -100,17 +111,17 @@ sim_subj_cond_day_once = function(cur_stims, sampled_sigma, sampled_d, sampled_n
   return(pred_data)
 }
 
-sim_subj_cond_day_nsamples = function(n_samples, cur_sub, cur_type, cur_day){
+sim_subj_cond_day_nsamples = function(n_samples, cur_sub, cur_cond, cur_day){
 
   cur_cond_pars = all_results_df %>%
-    filter(subnum == cur_sub & day == cur_day & type == cur_type)
+    filter(subnum == cur_sub & day == cur_day & type == cur_cond)
 
   if(nrow(cur_cond_pars)/30000 != 4){
     print("Parameters not filtered correctly. Aborting...")
   } else {
 
     cur_stims = data_yn_clean %>%
-      filter(subnum == cur_sub & day == cur_day & type == cur_type) %>%
+      filter(subnum == cur_sub & day == cur_day & type == cur_cond) %>%
       select(subnum, day, type, possiblePayoff, reference, yesChosen, rt)
 
     i = 0
@@ -160,5 +171,16 @@ pred_data = sim_subj_cond_day_nsamples(n_samples, cur_sub, cur_cond, cur_day)
 # Save output
 #########################
 
-fn = file.path(here(), "inputs", paste0('yn_sim_hddm_sub-', cur_sub,'_', cur_cond, '_day-', cur_day, '.csv'))
+if(par_ests == "yn_sub_hddm_mcmc_draws.csv"){
+  output_prefix = "yn_sub_hddm_sim_"
+} else{
+  output_prefix = "yn_hddm_sim_"
+}
+
+# Remote/local testing location analysis/helpers/cluster_scripts/hddm/sim_out
+# Later local import location is equivalent path in CpuEaters
+out_path = file.path(here(), "analysis", "helpers", "cluster_scripts", "hddm", "sim_out")
+dir.create(out_path, showWarnings = FALSE)
+
+fn = file.path(out_path, paste0(output_prefix, 'sub-', cur_sub,'_', cur_cond, '_day-', cur_day, '.csv'))
 write.csv(pred_data, fn, row.names = F)
