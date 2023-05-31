@@ -37,31 +37,34 @@ data_yn_clean = data_yn_clean %>%
          val_diff_bin_str = factor(val_diff_bin_str, levels = c("-225:-175", "-175:-125", "-125:-75", "-75:-25", "-25:25", "25:75", "75:125", "125:175", "175:225")))
 ```
 
-# Hierarchy over subjects
+# Hierarchy over days
 
-Read in parameter estimates. This contains all 30000 samples per parameter for each subject and day. Takes a while to read in.
+Previous version of this nb had all these analyses using estimates with a hierarchy over subjects. Since this makes less sense for this experiment I changed it all to use estimates with a hierarchy over days instead.
+
+Read in parameter estimates. This contains all 30000 samples per parameter for each subject and stim type across days. Takes a while to read in.
 
 ```{r eval = FALSE}
-fn = file.path(here(), "inputs",'yn_hddm_mcmc_draws.csv')
+fn = file.path(here(), "inputs",'yn_sub_hddm_mcmc_draws.csv')
 
 if(file.exists(fn)){
   all_results_df = read.csv(fn)
   
 } else{
   stim_types = c("HT", "RE")
-  days = as.character(seq(1,11,1))
+  subnums = c(601, 609, 611, 619, 621, 629)
   
-  in_path = file.path(here(), "inputs")
+  in_path = '/Users/zeynepenkavi/CpuEaters/NovelVsRepeated/behavior/analysis/helpers/cluster_scripts/hddm/jags_out'
   
   all_results_df = data.frame()
   
   for(i in 1:length(stim_types)) {
-    for(j in 1:length(days)) {
+    for(j in 1:length(subnums)) {
       
       cur_stim_type = stim_types[i]
-      cur_day = days[j]
+      cur_sub = subnums[j]
       
-      fn = file.path(in_path, paste0('results_YN_HDDM_FIT_', cur_stim_type,'_day_', cur_day,'.RData'))
+      # fn = file.path(in_path, paste0('results_YN_HDDM_FIT_', cur_stim_type,'_day_', cur_day,'.RData'))
+      fn = file.path(in_path, paste0('results_YN_HDDM_FIT_', cur_stim_type,'_sub-', cur_sub,'.RData'))
       
       if(file.exists(fn)) {
         
@@ -77,7 +80,7 @@ if(file.exists(fn)){
           gather(par, estimate) %>%
           filter(grepl("\\[", par)) %>%
           mutate(type = cur_stim_type,
-                 day = cur_day)
+                 subnum = cur_sub)
         
         cur_results_df = cur_results_df %>%
           separate(par, c("a", "b"), sep = '\\.', remove = F, fill = "right") %>%
@@ -86,9 +89,15 @@ if(file.exists(fn)){
           mutate(d = paste0('p[',d)) %>%
           mutate(b = ifelse(is.na(b), d, b)) %>%
           select(-d, -par) %>%
-          rename(par_name = c, subnum = b) %>%
-          mutate(par_name = ifelse(par_name == "theta", "ndt", ifelse(par_name == "b", "d", ifelse(par_name == "alpha", "sigma", par_name))),
-                 subnum = ifelse(subnum == 'p[1]', "601", ifelse(subnum == "p[2]", "609", ifelse(subnum == 'p[3]', "611", ifelse(subnum == "p[4]", "619", ifelse(subnum == "p[5]", "621", ifelse(subnum == "p[6]", "629", subnum)))))),
+          rename(par_name = c, par_group = b) %>%
+          mutate(par_group = gsub("p\\[", "", par_group),
+                 par_group = gsub("\\]", "", par_group)) %>%
+          filter(par_name != "deviance") %>%
+          filter(par_group != "kappa" & par_group != "pr") %>%
+          filter(par_group != "mu") %>% #Not showing group estimates in this plot
+          rename(day = par_group) %>%
+          mutate(par_name = ifelse(par_name == "theta", "ndt", ifelse(par_name == "b", "d", ifelse(par_name == "alpha", "sigma", par_name)))) %>%
+          mutate(par_name = factor(par_name, levels = c("d", "sigma", "bias", "ndt")),
                  day = as.numeric(day))
         
         all_results_df = rbind(all_results_df, cur_results_df)
@@ -98,9 +107,9 @@ if(file.exists(fn)){
       }
     }
   }
-  fn = file.path(here(), "inputs",'yn_hddm_mcmc_draws.csv')
+  fn = file.path(here(), "inputs",'yn_sub_hddm_mcmc_draws.csv')
   write.csv(all_results_df, fn, row.names = F)
-  rm(cur_chain, cur_results_df, results, cur_day, cur_stim_type, days, fn, i, j, k, stim_types)
+  rm(cur_chain, cur_results_df, results, cur_sub, cur_stim_type, subnums, fn, i, j, k, stim_types)
 }
 
 
@@ -164,7 +173,8 @@ p = d_sigma_cors %>%
   scale_fill_brewer(palette = "Dark2")+
   labs(x = "", fill = "", y = "Correlation between d and sigma estimates")
 
-# ggsave(file=paste0(fig_out_path, 'yn_ddm_d_sigma_cor.jpg'), p, height = 5, width = 5, units="in")
+ggsave(file=paste0(fig_out_path, 'yn_ddm_sub_d_sigma_cor.jpg'), p, height = 5, width = 5, units="in")
+p
 ```
 
 ## Posterior predictive checks
@@ -296,10 +306,10 @@ Simulation helper functions
 
 ```{r}
 sim_trial = function(trial_vdiff, sampled_sigma, sampled_d, sampled_ndt, sampled_bias){
-
+  
   # Multiplying boundary separation and drift rate my sigma to account for that parameter
   trial_drift = sampled_sigma * (sampled_d * trial_vdiff)
-
+  
   if(abs(trial_drift) < 10){
     cur_pred = RWiener::rwiener(1, 2*sampled_sigma, sampled_ndt, sampled_bias, trial_drift)
   } else {
@@ -309,11 +319,11 @@ sim_trial = function(trial_vdiff, sampled_sigma, sampled_d, sampled_ndt, sampled
     cur_pred = data.frame(q = pq, resp = pr)
   }
   return(cur_pred)
-
+  
 }
 
 sim_subj_cond_day_once = function(cur_stims, sampled_sigma, sampled_d, sampled_ndt, sampled_bias){
-
+  
   pred_data = cur_stims
   pred_data$sampled_sigma = sampled_sigma
   pred_data$sampled_d = sampled_d
@@ -321,17 +331,17 @@ sim_subj_cond_day_once = function(cur_stims, sampled_sigma, sampled_d, sampled_n
   pred_data$sampled_bias = sampled_bias
   pred_data$pred_rt = NA
   pred_data$pred_yesChosen = NA
-
+  
   for(i in 1:nrow(cur_stims)){
-
+    
     trial_vdiff = cur_stims$possiblePayoff[i] - cur_stims$reference[i]
     cur_pred = sim_trial(trial_vdiff, sampled_sigma, sampled_d, sampled_ndt, sampled_bias)
-
+    
     pred_data$pred_rt[i] = cur_pred$q
     pred_data$pred_yesChosen[i] = cur_pred$resp
-
+    
   }
-
+  
   return(pred_data)
 }
 ```
@@ -389,7 +399,7 @@ sim_yn_map = sim_yn_map %>%
          abs_val_diff_std = (abs_val_diff - mean(abs_val_diff))/sd(abs_val_diff))
 
 sim_yn_map = sim_yn_map %>%
-   mutate(val_diff_bin = round(val_diff/50),
+  mutate(val_diff_bin = round(val_diff/50),
          val_diff_bin_str = paste0(val_diff_bin*50-25,":",val_diff_bin*50+25),
          val_diff_bin_str = factor(val_diff_bin_str, levels = c("-225:-175", "-175:-125", "-125:-75", "-75:-25", "-25:25", "25:75", "75:125", "125:175", "175:225")),
          abs_val_diff_bin_str =  paste0(abs(val_diff_bin)*50-25,":",abs(val_diff_bin)*50+25),
@@ -557,15 +567,15 @@ if(file.exists(fn_draws) & file.exists(fn_ppc)){
     
     
     cur_sim_yn_logit <- brm(formula = pred_yesChosen ~ val_diff_std * day_std * type,
-                        data= cur_yn_data,
-                        family = bernoulli(link = "logit"),
-                        warmup = 500,
-                        iter = 2500,
-                        chains = 4,
-                        init = "0",
-                        cores = 4,
-                        seed = 389253)
-
+                            data= cur_yn_data,
+                            family = bernoulli(link = "logit"),
+                            warmup = 500,
+                            iter = 2500,
+                            chains = 4,
+                            init = "0",
+                            cores = 4,
+                            seed = 389253)
+    
     cur_draws = as_draws_df(cur_sim_yn_logit)
     cur_draws$subnum = cur_sub
     
@@ -685,14 +695,14 @@ if(file.exists(fn_draws) & file.exists(fn_ppc)){
       
       
       cur_sim_yn_logit <- brm(formula = pred_yesChosen ~ val_diff_std * type,
-                          data= cur_yn_data,
-                          family = bernoulli(link = "logit"),
-                          warmup = 500,
-                          iter = 2500,
-                          chains = 4,
-                          init = "0",
-                          cores = 4,
-                          seed = 389253)
+                              data= cur_yn_data,
+                              family = bernoulli(link = "logit"),
+                              warmup = 500,
+                              iter = 2500,
+                              chains = 4,
+                              init = "0",
+                              cores = 4,
+                              seed = 389253)
       
       cur_draws = as_draws_df(cur_sim_yn_logit)
       cur_draws$subnum = cur_sub
@@ -935,13 +945,13 @@ if(file.exists(fn_draws) & file.exists(fn_ppc)){
     
     
     cur_sim_yn_rt <- brm(formula = log_pred_rt ~ abs_val_diff_std * day_std * type,
-                     data= cur_yn_data,
-                     warmup = 500,
-                     iter = 2500,
-                     chains = 4,
-                     init = "0",
-                     cores = 4,
-                     seed = 389253)
+                         data= cur_yn_data,
+                         warmup = 500,
+                         iter = 2500,
+                         chains = 4,
+                         init = "0",
+                         cores = 4,
+                         seed = 389253)
     
     cur_draws = as_draws_df(cur_sim_yn_rt)
     cur_draws$subnum = cur_sub
