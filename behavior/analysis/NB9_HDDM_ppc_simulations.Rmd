@@ -118,12 +118,16 @@ if(file.exists(fn)){
 
 ## Correlations between estimates
 
+From all parameters from all chains extract only the drift rates and sigmas
+
 ```{r}
 all_d_sigma = all_results_df %>%
   filter(par_name %in% c("d", "sigma"))
 
 rm(all_results_df)
 ```
+
+Compute correlation between the 30000 d and sigmas for each subject, day and stim type
 
 ```{r}
 subs = c('601', '609', '611', '619', '621', '629')
@@ -173,7 +177,7 @@ p = d_sigma_cors %>%
   scale_fill_brewer(palette = "Dark2")+
   labs(x = "", fill = "", y = "Correlation between d and sigma estimates")
 
-ggsave(file=paste0(fig_out_path, 'yn_ddm_sub_d_sigma_cor.jpg'), p, height = 5, width = 5, units="in")
+# ggsave(file=paste0(fig_out_path, 'yn_ddm_sub_d_sigma_cor.jpg'), p, height = 5, width = 5, units="in")
 p
 ```
 
@@ -186,13 +190,13 @@ With 1000 samples from posteriors to account for uncertainty in estimates.
 ```{r eval=FALSE}
 
 # Takes a while
-inpath = '/Users/zeynepenkavi/CpuEaters/NovelVsRepeated/behavior/inputs'
+inpath = '/Users/zeynepenkavi/CpuEaters/NovelVsRepeated/behavior/analysis/helpers/cluster_scripts/hddm/sim_out'
 
-conds = c('HT')
-subs = c('609','621')
+# conds = c('HT')
+# subs = c('609','621')
 
-# conds = c('HT', 'RE')
-# subs = c('601', '609','611', '619', '621', '629')
+conds = c('HT', 'RE')
+subs = c('601', '609','611', '619', '621', '629')
 days = seq(1, 11, 1)
 
 
@@ -204,7 +208,8 @@ for (k in 1:length(conds)){
     
     for (i in 1:length(days)){
       cur_day = days[i]
-      fn = file.path(inpath, paste0("yn_sim_ddm_sub-", cur_sub, "_", cur_cond, "_day-", cur_day, ".csv"))
+      
+      fn = file.path(inpath, paste0("yn_sub_hddm_sim_sub-", cur_sub, "_", cur_cond, "_day-", cur_day, ".csv"))
       
       if(!file.exists(fn)){
         next
@@ -237,9 +242,9 @@ for (k in 1:length(conds)){
       geom_vline(aes(xintercept = 0), color = "gray") +
       labs(y = "", x = "")
     
-    fn = paste0(fig_out_path,'yn_ddm_sim_rt_ppc_sub-',cur_sub, '_cond-',cur_cond, '.jpg')
+    fn = paste0(fig_out_path,'yn_sub_hddm_sim_rt_ppc_sub-',cur_sub, '_cond-',cur_cond, '.jpg')
     print(paste("Saving", fn))
-    # ggsave(file = fn, p, height = 2, width = 18, units="in") 
+    ggsave(file = fn, p, height = 2, width = 18, units="in")
     
   }
 }
@@ -255,25 +260,27 @@ Read in parameter posterior summaries and organize them
 
 ```{r}
 stim_types = c("HT", "RE")
-days = as.character(seq(1,11,1))
+subnums = c(601, 609, 611, 619, 621, 629)
 
-# in_path = file.path(here(), "inputs")
 in_path = '/Users/zeynepenkavi/CpuEaters/NovelVsRepeated/behavior/analysis/helpers/cluster_scripts/hddm/jags_out'
 
 yn_ddm_summary = data.frame()
 
 for(i in 1:length(stim_types)){
-  for(j in 1:length(days)){
+  for(j in 1:length(subnums)){
     
     cur_stim_type = stim_types[i]
-    cur_day = days[j]
+    cur_sub = subnums[j]
+    # summary_YN_HDDM_FIT_RE_sub-611.csv
     
-    if(file.exists(file.path(in_path, paste0('summary_YN_HDDM_FIT_', cur_stim_type,'_day_', cur_day,'.csv')))){
-      cur_summary = read.csv(file.path(in_path, paste0('summary_YN_HDDM_FIT_', cur_stim_type,'_day_', cur_day,'.csv')))
+    fn = file.path(in_path, paste0('summary_YN_HDDM_FIT_', cur_stim_type,'_sub-', cur_sub,'.csv'))
+    
+    if(file.exists(fn)){
+      cur_summary = read.csv(fn)
       cur_summary = cur_summary %>%
         rename(par = X) %>%
         mutate(stim_type = cur_stim_type,
-               day = cur_day)
+               subnum = cur_sub)
       
       yn_ddm_summary = rbind(yn_ddm_summary, cur_summary)
     } else {
@@ -285,7 +292,7 @@ for(i in 1:length(stim_types)){
 
 ```{r}
 yn_ddm_summary = yn_ddm_summary %>%
-  select(par, Mean, day, stim_type ) %>%
+  select(par, Lower95, Upper95, Mean, subnum, stim_type ) %>%
   separate(par, c("a", "b"), sep = '\\.', remove = F, fill = "right") %>%
   separate(a, c("c", "d"), sep = "\\[", remove = F, fill = "right") %>%
   select(-a) %>%
@@ -293,13 +300,15 @@ yn_ddm_summary = yn_ddm_summary %>%
   mutate(b = ifelse(is.na(b), d, b)) %>%
   select(-d, -par) %>%
   rename(par_name = c, par_group = b) %>%
-  mutate(par_name = ifelse(par_name == "theta", "ndt", ifelse(par_name == "b", "d", ifelse(par_name == "alpha", "sigma", par_name))),
-         par_group = ifelse(par_group == 'p[1]', "601", ifelse(par_group == "p[2]", "609", ifelse(par_group == 'p[3]', "611", ifelse(par_group == "p[4]", "619", ifelse(par_group == "p[5]", "621", ifelse(par_group == "p[6]", "629", par_group)))))),
-         day = as.numeric(day)) %>%
+  mutate(par_group = gsub("p\\[", "", par_group),
+         par_group = gsub("\\]", "", par_group)) %>%
   filter(par_name != "deviance") %>%
   filter(par_group != "kappa" & par_group != "pr") %>%
   filter(par_group != "mu") %>% #Not showing group estimates in this plot
-  mutate(par_name = factor(par_name, levels = c("d", "sigma", "bias", "ndt")))
+  rename(day = par_group) %>%
+  mutate(par_name = ifelse(par_name == "theta", "ndt", ifelse(par_name == "b", "d", ifelse(par_name == "alpha", "sigma", par_name)))) %>%
+  mutate(par_name = factor(par_name, levels = c("d", "sigma", "bias", "ndt")),
+         day = as.numeric(day))
 ```
 
 Simulation helper functions
@@ -325,6 +334,14 @@ sim_trial = function(trial_vdiff, sampled_sigma, sampled_d, sampled_ndt, sampled
 sim_subj_cond_day_once = function(cur_stims, sampled_sigma, sampled_d, sampled_ndt, sampled_bias){
   
   pred_data = cur_stims
+  
+  normMax = 1
+  normMin = -1
+  # Already filtered for sub, day and stim type so don't need to group to make sure vdiff ranges between [-1,1]
+  pred_data = pred_data %>%
+    mutate(rawVDiff = possiblePayoff - reference,
+           normVDiff =  (normMax - normMin) / (max(rawVDiff) - min(rawVDiff)) * (rawVDiff - max(rawVDiff)) + (normMax) )
+  
   pred_data$sampled_sigma = sampled_sigma
   pred_data$sampled_d = sampled_d
   pred_data$sampled_ndt = sampled_ndt
@@ -334,7 +351,7 @@ sim_subj_cond_day_once = function(cur_stims, sampled_sigma, sampled_d, sampled_n
   
   for(i in 1:nrow(cur_stims)){
     
-    trial_vdiff = cur_stims$possiblePayoff[i] - cur_stims$reference[i]
+    trial_vdiff = pred_data$normVDiff[i]
     cur_pred = sim_trial(trial_vdiff, sampled_sigma, sampled_d, sampled_ndt, sampled_bias)
     
     pred_data$pred_rt[i] = cur_pred$q
@@ -365,7 +382,7 @@ for(i in 1:length(conds)){
         select(subnum, day, type, possiblePayoff, reference, yesChosen, rt)
       
       cur_pars = yn_ddm_summary %>%
-        filter(par_group == cur_sub & day == cur_day & stim_type == cur_type) %>%
+        filter(subnum == cur_sub & day == cur_day & stim_type == cur_type) %>%
         select(par_name, Mean) %>%
         spread(par_name, Mean)
       
@@ -532,7 +549,7 @@ p = ggplot() +
   scale_size_manual(values = c(1.5, 2 , 2.5, 3, 3.5))
 
 
-# ggsave(file=paste0(fig_out_path, 'simyn_group_pYesOverValDiffAcrossTime.jpg'), p, height = 4, width = 8, units="in")
+# ggsave(file=paste0(fig_out_path, 'simsubyn_group_pYesOverValDiffAcrossTime.jpg'), p, height = 4, width = 8, units="in")
 
 p
 ```
@@ -546,8 +563,8 @@ Choice:
 
 ```{r}
 
-fn_draws = paste0(helpers_path, '/inputs/sim_yn_logit_draws.csv')
-fn_ppc = paste0(helpers_path, '/inputs/sim_yn_logit_ppc.csv')
+fn_draws = paste0(helpers_path, '/inputs/sim_sub_yn_logit_draws.csv')
+fn_ppc = paste0(helpers_path, '/inputs/sim_sub_yn_logit_ppc.csv')
 
 if(file.exists(fn_draws) & file.exists(fn_ppc)){
   sim_yn_logit_draws = read.csv(fn_draws)
