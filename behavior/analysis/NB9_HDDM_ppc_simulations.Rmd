@@ -561,85 +561,77 @@ Choice:
 - Slope of value difference on choice logit increases with days?
 - Slope of value difference on choice logit increases less for RE than HT with days?
 
+
 ```{r}
+sim_yn_map = sim_yn_map %>% mutate(type = ifelse(type == "HT", 1, 0)) 
+```
 
-fn_draws = paste0(helpers_path, '/inputs/sim_sub_yn_logit_draws.csv')
-fn_ppc = paste0(helpers_path, '/inputs/sim_sub_yn_logit_ppc.csv')
+```{r}
+fn_draws = paste0(here(), '/inputs/sim_sub_yn_logit_draws.csv')
 
-if(file.exists(fn_draws) & file.exists(fn_ppc)){
-  sim_yn_logit_draws = read.csv(fn_draws)
-  sim_yn_logit_ppc = read.csv(fn_ppc)
+if(file.exists(fn_draws)){
+ sim_yn_logit_draws = read.csv(fn_draws)
 } else{
   subnums = unique(sim_yn_map$subnum)
+  normMax = 1
+  normMinDay = 0
+  normMinVal = -1
   
-  sim_yn_logit_draws = data_frame()
-  sim_yn_logit_ppc = data_frame()
+  sim_yn_logit_draws = tibble()
   
-  for(i in 1:length(subnums)){
-    cur_sub = subnums[i]
-    
-    cur_yn_data = sim_yn_map %>% 
+  for(cur_sub in subnums){
+  
+    cur_dat = sim_yn_map %>% 
       ungroup() %>%
-      filter(subnum == cur_sub)
+      filter(subnum == cur_sub) %>%
+      mutate(type = as.factor(type),# Coding of type: doesn't matter if it's a factor vs 0/1
+             norm_day = (normMax - normMinDay) / (max(day) - min(day)) * (day - max(day)) + (normMax)) %>%
+      group_by(day) %>% # Grouping by day to normalize valdiff matters. This makes sure every day ranges [-1,1]
+      mutate(norm_valDiff = (normMax - normMinVal) / (max(val_diff) - min(val_diff)) * (val_diff - max(val_diff)) + (normMax)) %>%
+      select(pred_yesChosen, norm_valDiff, norm_day, type)
     
+    cur_m <- brm(formula = pred_yesChosen ~ norm_valDiff * norm_day * type,
+                        data= cur_dat,
+                        family = bernoulli(link = "logit"),
+                        warmup = 500,
+                        iter = 2500,
+                        chains = 4,
+                        init = "0",
+                        cores = 4,
+                        seed = 389253)
     
-    cur_sim_yn_logit <- brm(formula = pred_yesChosen ~ val_diff_std * day_std * type,
-                            data= cur_yn_data,
-                            family = bernoulli(link = "logit"),
-                            warmup = 500,
-                            iter = 2500,
-                            chains = 4,
-                            init = "0",
-                            cores = 4,
-                            seed = 389253)
-    
-    cur_draws = as_draws_df(cur_sim_yn_logit)
+    cur_draws = as_draws_df(cur_m)
     cur_draws$subnum = cur_sub
     
     sim_yn_logit_draws = rbind(sim_yn_logit_draws, cur_draws)
-    
-    cur_pred = fitted(cur_sim_yn_logit, newdata = cur_yn_data %>%
-                        select(-val_diff, -day, -yesChosen), scale = "linear") %>%
-      as_tibble() %>%
-      transmute(prob = Estimate %>% inv_logit_scaled()) %>%
-      bind_cols(cur_yn_data) %>%
-      mutate(subnum = cur_sub)
-    
-    sim_yn_logit_ppc = rbind(sim_yn_logit_ppc, cur_pred)
   }
   names(sim_yn_logit_draws) = gsub(":", ".", names(sim_yn_logit_draws))
   write.csv(sim_yn_logit_draws, fn_draws, row.names = F)
-  write.csv(sim_yn_logit_ppc, fn_ppc, row.names = F)
-  
-  rm(cur_yn_data, cur_sim_yn_logit, cur_draws, cur_pred)
+
+  rm(cur_dat, cur_m, cur_draws, cur_sub)
 }
-
 ```
 
-```{r}
-as.data.frame(sim_yn_logit_draws) %>%
-  select("b_val_diff_std", "b_val_diff_std.day_std", "b_val_diff_std.typeRE", "b_val_diff_std.day_std.typeRE", subnum,) %>%
-  gather(key, value, -subnum) %>%
-  mutate(key = ifelse(key == "b_val_diff_std.day_std", "Value Diff * Day", ifelse(key == "b_val_diff_std.typeRE", "Value Diff * Type (RE)", ifelse(key == "b_val_diff_std.day_std.typeRE", "Value Diff * Day * Type (RE)", ifelse(key == "b_val_diff_std", "Value Diff", NA)))),
-         key = factor(key, levels = c("Value Diff","Value Diff * Type (RE)", "Value Diff * Day", "Value Diff * Day * Type (RE)"))) %>%
-  group_by(key) %>%
-  summarise(.groups = 'keep',
-            m = mean(value),
-            l95 = HDInterval::hdi(value)[1],
-            h95 = HDInterval::hdi(value)[2]) 
-```
 
 ```{r}
-fn_draws = paste0(helpers_path, '/inputs/yn_logit_draws.csv')
+fn_draws = paste0(here(), '/inputs/yn_logit_norm_draws.csv')
 if(!exists("yn_logit_draws")){
   yn_logit_draws = read.csv(fn_draws)
 }
 
-yn_par_summary = as.data.frame(yn_logit_draws) %>%
-  select("b_val_diff_std", "b_val_diff_std.day_std", "b_val_diff_std.typeRE", "b_val_diff_std.day_std.typeRE", subnum,) %>%
+yn_par_summary = as_tibble(yn_logit_draws) %>%
+  select(b_Intercept, b_norm_valDiff, b_norm_day, b_type1, b_norm_valDiff.norm_day, b_norm_valDiff.type1, b_norm_day.type1, b_norm_valDiff.norm_day.type1, subnum) %>%
   gather(key, value, -subnum) %>%
-  mutate(key = ifelse(key == "b_val_diff_std.day_std", "Value Diff * Day", ifelse(key == "b_val_diff_std.typeRE", "Value Diff * Type (RE)", ifelse(key == "b_val_diff_std.day_std.typeRE", "Value Diff * Day * Type (RE)", ifelse(key == "b_val_diff_std", "Value Diff", NA)))),
-         key = factor(key, levels = c("Value Diff","Value Diff * Type (RE)", "Value Diff * Day", "Value Diff * Day * Type (RE)"))) %>%
+  mutate(key=recode(key, 
+                    "b_Intercept" = "Intercept", 
+                    "b_norm_valDiff"  = "Value Diff [-1, 1]",
+                    "b_norm_day" = "Day [0, 1]",
+                    "b_type1" = "Type (RE = 0, HT = 1)",
+                    "b_norm_valDiff.norm_day" = "Value Diff x Day",
+                    "b_norm_valDiff.type1" = "Value Diff x Type",
+                    "b_norm_day.type1" = "Day x Type",
+                    "b_norm_valDiff.norm_day.type1" = "Value Diff x Day x Type"),
+         key = factor(key, levels = c("Intercept", "Value Diff [-1, 1]", "Day [0, 1]", "Type (RE = 0, HT = 1)", "Value Diff x Day", "Value Diff x Type", "Day x Type", "Value Diff x Day x Type"))) %>%
   group_by(subnum, key) %>%
   summarise(.groups = 'keep',
             m = mean(value),
@@ -648,116 +640,128 @@ yn_par_summary = as.data.frame(yn_logit_draws) %>%
   mutate(subnum = as.factor(subnum),
          task = "Y/N (true)") 
 
-sim_yn_par_summary = as.data.frame(sim_yn_logit_draws) %>%
-  select("b_val_diff_std", "b_val_diff_std.day_std", "b_val_diff_std.typeRE", "b_val_diff_std.day_std.typeRE", subnum,) %>%
+sim_yn_par_summary = as_tibble(sim_yn_logit_draws) %>%
+  select(b_Intercept, b_norm_valDiff, b_norm_day, b_type1, b_norm_valDiff.norm_day, b_norm_valDiff.type1, b_norm_day.type1, b_norm_valDiff.norm_day.type1, subnum) %>%
   gather(key, value, -subnum) %>%
-  mutate(key = ifelse(key == "b_val_diff_std.day_std", "Value Diff * Day", ifelse(key == "b_val_diff_std.typeRE", "Value Diff * Type (RE)", ifelse(key == "b_val_diff_std.day_std.typeRE", "Value Diff * Day * Type (RE)", ifelse(key == "b_val_diff_std", "Value Diff", NA)))),
-         key = factor(key, levels = c("Value Diff","Value Diff * Type (RE)", "Value Diff * Day", "Value Diff * Day * Type (RE)"))) %>%
+  mutate(key=recode(key, 
+                    "b_Intercept" = "Intercept", 
+                    "b_norm_valDiff"  = "Value Diff [-1, 1]",
+                    "b_norm_day" = "Day [0, 1]",
+                    "b_type1" = "Type (RE = 0, HT = 1)",
+                    "b_norm_valDiff.norm_day" = "Value Diff x Day",
+                    "b_norm_valDiff.type1" = "Value Diff x Type",
+                    "b_norm_day.type1" = "Day x Type",
+                    "b_norm_valDiff.norm_day.type1" = "Value Diff x Day x Type"),
+         key = factor(key, levels = c("Intercept", "Value Diff [-1, 1]", "Day [0, 1]", "Type (RE = 0, HT = 1)", "Value Diff x Day", "Value Diff x Type", "Day x Type", "Value Diff x Day x Type"))) %>%
   group_by(subnum, key) %>%
   summarise(.groups = 'keep',
             m = mean(value),
             l95 = HDInterval::hdi(value)[1],
             h95 = HDInterval::hdi(value)[2]) %>%
   mutate(subnum = as.factor(subnum),
-         task = "Y/N (sim)")
+         task = "Y/N (sim)") 
 
-# plim = max(abs(sim_yn_par_summary$l95), abs(yn_par_summary$l95), sim_yn_par_summary$h95, yn_par_summary$h95)
-plim = 19.78073 # to be on the same scale as the previous plot
+```
 
+```{r}
 p = yn_par_summary %>%
   rbind(sim_yn_par_summary) %>%
   ggplot(aes(m, subnum, linetype = task, shape = task)) +
-  geom_vline(aes(xintercept = 0), color = "light gray") + 
+  geom_vline(aes(xintercept = 0), color = "gray") + 
   geom_point(position = position_dodge(width=.75), color = "blue")+
   geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75), color = "blue")+
-  facet_grid(.~key) +
-  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - Yes/Left ~ Value Diff * Day * Type", linetype = "", shape = "") +
+  facet_wrap(~key, scales = 'free_x', nrow = 2) +
+  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - Yes/Left ~ Value Diff x Day x Type", shape = "", linetype = "") +
   theme(legend.position = "bottom",
         panel.grid = element_blank(),
         legend.box.margin=margin(t = -10))+
-  scale_x_continuous(breaks = c(0), limits = c(-plim, plim))+
+  lemon::scale_x_symmetric(mid=0)+
   scale_linetype_manual(values = c("dashed", "solid"))+
   scale_shape_manual(values = c(5, 19))
 
-# ggsave(file=paste0(fig_out_path, 'simyn_logit_interactionParEsts.jpg'), p, height = 3, width = 9, units="in")
+
+# ggsave(file=paste0(fig_out_path, 'simsubyn_logit_ParEsts.jpg'), p, height = 5, width = 9, units="in")
 p
+```
+
+```{r}
 rm(yn_logit_draws, yn_par_summary)
 ```
 
-- Is the value difference effect nonlinear in predicted data?
-
+- Is the value difference effect smallest on day 1 in predicted data?
 
 ```{r}
-fn_draws = paste0(helpers_path, '/inputs/sim_yn_logit_bydays_draws.csv')
-fn_ppc = paste0(helpers_path, '/inputs/sim_yn_logit_bydays_ppc.csv')
+fn_draws = paste0(here(), '/inputs/sim_sub_yn_logit_norm_bydays_draws.csv')
 
-if(file.exists(fn_draws) & file.exists(fn_ppc)){
+if(file.exists(fn_draws)){
   sim_yn_logit_draws = read.csv(fn_draws)
-  sim_yn_logit_ppc = read.csv(fn_ppc)
 } else{
-  subnums = unique(data_yn_clean$subnum)
+  subnums = unique(sim_yn_map$subnum)
   days = list("day 1" = c(1), "day 2" = c(2), "day 3" = c(3), "week 2" = c(4, 5, 6, 7, 8), "week 3" = c(9, 10, 11))
   
-  sim_yn_logit_draws = data_frame()
-  sim_yn_logit_ppc = data_frame()
+  normMax = 1
+  normMinDay = 0
+  normMinVal = -1
   
-  for(i in 1:length(subnums)){
-    for(j in 1:length(days)){
-      cur_sub = subnums[i]
+  sim_yn_logit_draws = tibble()
+  
+  for(cur_sub in subnums){
+    for (j in 1:length(days)){
       cur_days = days[[j]]
-      
-      cur_yn_data = sim_yn_map %>% 
+     
+       cur_dat = sim_yn_map %>% 
         ungroup() %>%
-        filter(subnum == cur_sub & day %in% cur_days)
+        filter(subnum == cur_sub) %>%
+        mutate(type = as.factor(type), # Coding of type: doesn't matter if it's a factor vs 0/1 integer
+               norm_day = (normMax - normMinDay) / (max(day) - min(day)) * (day - max(day)) + (normMax)) %>%
+        group_by(day) %>% # Grouping by day to normalize valdiff matters. This makes sure every day ranges [-1,1]
+        mutate(norm_valDiff = (normMax - normMinVal) / (max(val_diff) - min(val_diff)) * (val_diff - max(val_diff)) + (normMax)) %>%
+        filter(day %in% cur_days) %>%
+        ungroup() %>%
+        select(pred_yesChosen, norm_valDiff, norm_day, type)
       
+      cur_m <- brm(formula = pred_yesChosen ~ norm_valDiff * type,
+                   data= cur_dat,
+                   family = bernoulli(link = "logit"),
+                   warmup = 500,
+                   iter = 2500,
+                   chains = 4,
+                   init = "0",
+                   cores = 4,
+                   seed = 389253)
       
-      cur_sim_yn_logit <- brm(formula = pred_yesChosen ~ val_diff_std * type,
-                              data= cur_yn_data,
-                              family = bernoulli(link = "logit"),
-                              warmup = 500,
-                              iter = 2500,
-                              chains = 4,
-                              init = "0",
-                              cores = 4,
-                              seed = 389253)
-      
-      cur_draws = as_draws_df(cur_sim_yn_logit)
+      cur_draws = as_draws_df(cur_m)
       cur_draws$subnum = cur_sub
       cur_draws$day = names(days)[j]
       
       sim_yn_logit_draws = rbind(sim_yn_logit_draws, cur_draws)
-      
-      cur_pred = fitted(cur_sim_yn_logit, newdata = cur_yn_data %>%
-                          select(-val_diff, -day, -yesChosen), scale = "linear") %>%
-        as_tibble() %>%
-        transmute(prob = Estimate %>% inv_logit_scaled()) %>%
-        bind_cols(cur_yn_data) %>%
-        mutate(subnum = cur_sub)
-      
-      sim_yn_logit_ppc = rbind(sim_yn_logit_ppc, cur_pred)
     }
+  
   }
   names(sim_yn_logit_draws) = gsub(":", ".", names(sim_yn_logit_draws))
   write.csv(sim_yn_logit_draws, fn_draws, row.names = F)
-  write.csv(sim_yn_logit_ppc, fn_ppc, row.names = F)
-  
-  rm(cur_yn_data, cur_sim_yn_logit, cur_draws, cur_pred)
+
+  rm(cur_dat, cur_m, cur_draws, cur_sub)
 }
 
 ```
 
 ```{r}
 if(!exists("yn_logit_draws")){
-  fn_draws = paste0(helpers_path, '/inputs/yn_logit_bydays_draws.csv')
+  fn_draws = paste0(here(), '/inputs/yn_logit_norm_bydays_draws.csv')
   yn_logit_draws = read.csv(fn_draws)
 }
 
 yn_par_summary = as_tibble(yn_logit_draws) %>%
-  select(subnum, day, b_val_diff_std, b_typeRE, b_val_diff_std.typeRE) %>%
+  select(subnum, day, b_Intercept, b_norm_valDiff, b_type1, b_norm_valDiff.type1) %>%
   mutate(day = factor(day, levels = c("day 1", "day 2", "day 3", "week 2", "week 3"))) %>%
   gather(key, value, -subnum, -day) %>%
-  mutate(key = ifelse(key == "b_typeRE", "Type (RE)", ifelse(key == "b_val_diff_std", "Value Diff", ifelse(key == "b_val_diff_std.typeRE", "Value Diff * Type (RE)", NA))),
-         key = factor(key, levels = c("Type (RE)", "Value Diff", "Value Diff * Type (RE)"))) %>%
+  mutate(key=recode(key, 
+                    "b_Intercept" = "Intercept", 
+                    "b_norm_valDiff"  = "Value Diff [-1, 1]",
+                    "b_type1" = "Type (RE = 0, HT = 1)",
+                    "b_norm_valDiff.type1" = "Value Diff x Type"),
+         key = factor(key, levels = c("Intercept", "Value Diff [-1, 1]", "Type (RE = 0, HT = 1)", "Value Diff x Type"))) %>%
   group_by(subnum, day, key) %>%
   summarise(.groups = 'keep',
             m = mean(value),
@@ -766,73 +770,48 @@ yn_par_summary = as_tibble(yn_logit_draws) %>%
   mutate(task = "Y/N (true)")
 
 sim_yn_par_summary = as_tibble(sim_yn_logit_draws) %>%
-  select(subnum, day, b_val_diff_std, b_typeRE, b_val_diff_std.typeRE) %>%
+  select(subnum, day, b_Intercept, b_norm_valDiff, b_type1, b_norm_valDiff.type1) %>%
   mutate(day = factor(day, levels = c("day 1", "day 2", "day 3", "week 2", "week 3"))) %>%
   gather(key, value, -subnum, -day) %>%
-  mutate(key = ifelse(key == "b_typeRE", "Type (RE)", ifelse(key == "b_val_diff_std", "Value Diff", ifelse(key == "b_val_diff_std.typeRE", "Value Diff * Type (RE)", NA))),
-         key = factor(key, levels = c("Type (RE)", "Value Diff", "Value Diff * Type (RE)"))) %>%
+  mutate(key=recode(key, 
+                    "b_Intercept" = "Intercept", 
+                    "b_norm_valDiff"  = "Value Diff [-1, 1]",
+                    "b_type1" = "Type (RE = 0, HT = 1)",
+                    "b_norm_valDiff.type1" = "Value Diff x Type"),
+         key = factor(key, levels = c("Intercept", "Value Diff [-1, 1]", "Type (RE = 0, HT = 1)", "Value Diff x Type"))) %>%
   group_by(subnum, day, key) %>%
   summarise(.groups = 'keep',
             m = mean(value),
             l95 = HDInterval::hdi(value)[1],
             h95 = HDInterval::hdi(value)[2]) %>%
   mutate(task = "Y/N (sim)")
+```
 
+
+```{r}
 p = yn_par_summary %>%
   rbind(sim_yn_par_summary) %>%
-  ggplot(aes(day, m, shape = task, linetype = task, alpha = task))+
+  ggplot(aes(day, m, shape = task, linetype = task,))+
   geom_point(position = position_dodge(width=.75), color="blue")+
   geom_errorbar(aes(ymin = l95, ymax = h95), width=.2, position = position_dodge(width=.75), color="blue")+
   facet_grid(key~subnum, scales="free")+
-  theme(panel.grid = element_blank(),
+  theme(panel.grid.major.x = element_blank(),
+        panel.grid.minor = element_blank(),
         axis.text.x = element_text(angle = 15, margin = margin(t = 5)),
         legend.position = "bottom",
         legend.box.margin=margin(t = -10))+
-  labs(x="", y="Parameter Estimate", title="95% HDI for posterior slopes - Y/N Task", linetype = "", shape = "") +
+  labs(x="", y="Parameter Estimate", title="95% HDI for posterior slopes - Yes/Left ~ Value Diff x Type", shape = "", linetype = "")+
   scale_linetype_manual(values = c("dashed", "solid"))+
   scale_shape_manual(values = c(5, 19))+
-  scale_alpha_manual(values = c(1, 1))+
-  guides(alpha = "none")
+  scale_alpha_manual(values = c(1, 1))
 
 # ggsave(file=paste0(fig_out_path, 'simyn_logit_valdiff_slope.jpg'), p, height = 7, width = 10, units="in")
 p
 ```
 
 ```{r}
-as_tibble(sim_yn_logit_draws) %>%
-  select(subnum, day, b_val_diff_std, b_typeRE, b_val_diff_std.typeRE) %>%
-  mutate(day = factor(day, levels = c("day 1", "day 2", "day 3", "week 2", "week 3"))) %>%
-  gather(key, value, -subnum, -day) %>%
-  mutate(key = ifelse(key == "b_typeRE", "Type (RE)", ifelse(key == "b_val_diff_std", "Value Diff", ifelse(key == "b_val_diff_std.typeRE", "Value Diff * Type (RE)", NA))),
-         key = factor(key, levels = c("Type (RE)", "Value Diff", "Value Diff * Type (RE)"))) %>%
-  group_by(day, key) %>%
-  filter(day == "day 1") %>%
-  summarise(.groups = 'keep',
-            m = mean(value),
-            l95 = HDInterval::hdi(value)[1],
-            h95 = HDInterval::hdi(value)[2]) %>%
-  mutate(task = "Y/N (sim)")
-```
-
-```{r}
-as_tibble(sim_yn_logit_draws) %>%
-  select(subnum, day, b_val_diff_std, b_typeRE, b_val_diff_std.typeRE) %>%
-  mutate(day = factor(day, levels = c("day 1", "day 2", "day 3", "week 2", "week 3"))) %>%
-  gather(key, value, -subnum, -day) %>%
-  mutate(key = ifelse(key == "b_typeRE", "Type (RE)", ifelse(key == "b_val_diff_std", "Value Diff", ifelse(key == "b_val_diff_std.typeRE", "Value Diff * Type (RE)", NA))),
-         key = factor(key, levels = c("Type (RE)", "Value Diff", "Value Diff * Type (RE)"))) %>%
-  filter(day != "day 1") %>%
-  group_by(key) %>%
-  summarise(.groups = 'keep',
-            m = mean(value),
-            l95 = HDInterval::hdi(value)[1],
-            h95 = HDInterval::hdi(value)[2]) %>%
-  mutate(task = "Y/N (sim)")
-```
-
-```{r}
-rm(p, sim_yn_logit_draws, sim_yn_logit_ppc, sim_yn_par_summary, yn_ddm_summary, yn_logit_draws, yn_par_summary)
-rm(conds, days, fn_draws, fn_ppc, plm, stim_types, subs, types)
+rm(p, sim_yn_logit_draws, sim_yn_par_summary, yn_ddm_summary, yn_logit_draws, yn_par_summary)
+rm(conds, days, fn_draws, stim_types, subs, types)
 ```
 
 ### Value difference on RT
@@ -842,8 +821,9 @@ RT:
 
 ```{r}
 sim_group_summary = sim_yn_map %>%
-  mutate(time_bin = ifelse(day == 1, "Day 1", ifelse(day == 2, "Day 2", ifelse(day == 3, "Day 3", ifelse((day > 3) & (day < 8), "Week 2", "Week 3"))))) %>%
-  group_by(time_bin, abs_val_diff_bin_str, type) %>%
+  mutate(type_chr = ifelse(type == 1, "HT", "RE"),
+         time_bin = ifelse(day == 1, "Day 1", ifelse(day == 2, "Day 2", ifelse(day == 3, "Day 3", ifelse((day > 3) & (day < 8), "Week 2", "Week 3"))))) %>%
+  group_by(time_bin, abs_val_diff_bin_str, type_chr) %>%
   summarise(mean_y = mean(log(pred_rt)),
             .groups="keep") %>%
   mutate(data = "Sim")
@@ -862,7 +842,9 @@ p = ggplot() +
   geom_line(data = true_group_summary, aes(abs_val_diff_bin_str, mean_y, color = type, group = time_bin, alpha = time_bin)) +
   facet_wrap(~type)+
   labs(x = "|Value Stim - Value Reference|", y = "Mean Log RT", title="Y/N Task (True)", alpha="", size = "")+
-  theme(panel.grid = element_blank(),
+  theme(panel.grid.major.x  = element_blank(),
+        panel.grid.minor.x  = element_blank(),
+        panel.grid.minor.y  = element_blank(),
         legend.position = "bottom",
         axis.text.x = element_text(angle = 15, margin = margin(t = 5), size = 12),
         axis.text.y = element_text(size = 12),
@@ -883,11 +865,13 @@ p
 
 ```{r}
 p = ggplot() +
-  geom_point(data = sim_group_summary, aes(abs_val_diff_bin_str, mean_y, color = type, alpha = time_bin, size = time_bin))+
-  geom_line(data = sim_group_summary, aes(abs_val_diff_bin_str, mean_y, color = type, group = time_bin, alpha = time_bin)) +
-  facet_wrap(~type)+
-  labs(x = "|Value Stim - Value Reference|", y = "Mean Log RT", title="Y/N Task (Sim)", color="", shape="")+
-  theme(panel.grid = element_blank(),
+  geom_point(data = sim_group_summary, aes(abs_val_diff_bin_str, mean_y, color = type_chr, alpha = time_bin, size = time_bin))+
+  geom_line(data = sim_group_summary, aes(abs_val_diff_bin_str, mean_y, color = type_chr, group = time_bin, alpha = time_bin)) +
+  facet_wrap(~type_chr)+
+  labs(x = "|Value Stim - Value Reference|", y = "Mean Log RT", title="Y/N Task (Sim)", color="", shape="", alpha = "", size = "")+
+  theme(panel.grid.major.x  = element_blank(),
+        panel.grid.minor.x  = element_blank(),
+        panel.grid.minor.y  = element_blank(),
         legend.position = "bottom",
         axis.text.x = element_text(angle = 15, margin = margin(t = 5), size = 12),
         axis.text.y = element_text(size = 12),
@@ -901,26 +885,29 @@ p = ggplot() +
   scale_alpha_manual(values = c(1, .6, .5, .3, .2))+
   scale_size_manual(values = c(1.5, 2 , 2.5, 3, 3.5))
 
-# ggsave(file=paste0(fig_out_path, 'simyn_group_MeanLogRTOverValDiffAcrossTime.jpg'), p, height = 4, width = 8, units="in")
+# ggsave(file=paste0(fig_out_path, 'simsubyn_group_MeanLogRTOverValDiffAcrossTime.jpg'), p, height = 4, width = 8, units="in")
 
 p
 ```
 
 ```{r}
 sim_sub_summary = sim_yn_map %>%
-  mutate(time_bin = ifelse(day == 1, "Day 1", ifelse(day == 2, "Day 2", ifelse(day == 3, "Day 3", ifelse((day > 3) & (day < 8), "Week 2", "Week 3"))))) %>%
-  group_by(subnum, time_bin, abs_val_diff_bin_str, type) %>%
+  mutate(type_chr = ifelse(type == 1, "HT", "RE"),
+         time_bin = ifelse(day == 1, "Day 1", ifelse(day == 2, "Day 2", ifelse(day == 3, "Day 3", ifelse((day > 3) & (day < 8), "Week 2", "Week 3"))))) %>%
+  group_by(subnum, time_bin, abs_val_diff_bin_str, type_chr) %>%
   summarise(mean_y = mean(log(pred_rt)),
             .groups="keep") %>%
   mutate(data = "Sim")
 
 
 ggplot() +
-  geom_point(data = sim_sub_summary, aes(abs_val_diff_bin_str, mean_y, color = type, shape = time_bin), size = 2.5)+
-  geom_line(data = sim_sub_summary, aes(abs_val_diff_bin_str, mean_y, color = type, group = time_bin, linetype = time_bin)) +
-  facet_grid(type~subnum)+
-  labs(x = "|Value Stim - Value Reference|", y = "Mean Log RT", title="Y/N Task (Sim)", color="", shape="")+
-  theme(panel.grid = element_blank(),
+  geom_point(data = sim_sub_summary, aes(abs_val_diff_bin_str, mean_y, color = type_chr, size = time_bin, alpha = time_bin))+
+  geom_line(data = sim_sub_summary, aes(abs_val_diff_bin_str, mean_y, color = type_chr, group = time_bin, alpha = time_bin)) +
+  facet_grid(type_chr~subnum)+
+  labs(x = "|Value Stim - Value Reference|", y = "Mean Log RT", title = "Y/N Task (Sim)", color="", size = "", alpha = "")+
+  theme(panel.grid.major.x  = element_blank(),
+        panel.grid.minor.x  = element_blank(),
+        panel.grid.minor.y  = element_blank(),
         legend.position = "bottom",
         axis.text.x = element_text(angle = 15, margin = margin(t = 5), size = 12),
         axis.text.y = element_text(size = 12),
@@ -930,7 +917,9 @@ ggplot() +
         legend.box="vertical")+
   scale_color_brewer(palette = "Dark2")+
   scale_y_continuous(breaks = seq(-1,0.25,.25))+
-  guides(linetype = "none")
+  guides(linetype = "none", color = "none")+
+  scale_alpha_manual(values = c(1, .6, .5, .3, .2))+
+  scale_size_manual(values = c(1.5, 2 , 2.5, 3, 3.5))
 
 ```
 
@@ -939,70 +928,71 @@ ggplot() +
 - Slope of absolute value difference on RT smaller for RE than HT?
 
 ```{r}
+fn_draws = paste0(here(), '/inputs/sim_yn_rt_norm_draws.csv')
 
-fn_draws = paste0(helpers_path, '/inputs/sim_yn_rt_draws.csv')
-fn_ppc = paste0(helpers_path, '/inputs/sim_yn_rt_ppc.csv')
-
-if(file.exists(fn_draws) & file.exists(fn_ppc)){
+if(file.exists(fn_draws)){
   sim_yn_rt_draws = read.csv(fn_draws)
-  sim_yn_rt_ppc = read.csv(fn_ppc)
 } else{
-  subnums = unique(data_yn_clean$subnum)
+  subnums = unique(sim_yn_map$subnum)
+  normMax = 1
+  normMin = 0
   
-  sim_yn_rt_draws = data_frame()
-  sim_yn_rt_ppc = data_frame()
+  sim_yn_rt_draws = tibble()
   
-  for(i in 1:length(subnums)){
-    cur_sub = subnums[i]
-    
-    cur_yn_data = sim_yn_map %>% 
+  for(cur_sub in subnums){
+  
+    cur_dat = sim_yn_map %>% 
       ungroup() %>%
       filter(subnum == cur_sub) %>%
-      mutate(log_pred_rt = log(pred_rt))
+      mutate(type = as.factor(type), # Coding of type: doesn't matter if it's a factor vs 0/1 integer
+             norm_day = (normMax - normMin) / (max(day) - min(day)) * (day - max(day)) + (normMax),
+             log_pred_rt = log(pred_rt)) %>%
+      group_by(day) %>% # Grouping by day to normalize valdiff matters. This makes sure every day ranges [-1,1]
+      mutate(norm_absValDiff = (normMax - normMin) / (max(abs_val_diff) - min(abs_val_diff)) * (abs_val_diff - max(abs_val_diff)) + (normMax)) %>%
+      ungroup() %>%
+      select(log_pred_rt, norm_absValDiff, norm_day, type)
     
+    cur_m <- brm(formula = log_pred_rt ~ norm_absValDiff * norm_day * type,
+                        data= cur_dat,
+                        warmup = 500,
+                        iter = 2500,
+                        chains = 4,
+                        init = "0",
+                        cores = 4,
+                        seed = 389253)
     
-    cur_sim_yn_rt <- brm(formula = log_pred_rt ~ abs_val_diff_std * day_std * type,
-                         data= cur_yn_data,
-                         warmup = 500,
-                         iter = 2500,
-                         chains = 4,
-                         init = "0",
-                         cores = 4,
-                         seed = 389253)
-    
-    cur_draws = as_draws_df(cur_sim_yn_rt)
+    cur_draws = as_draws_df(cur_m)
     cur_draws$subnum = cur_sub
     
     sim_yn_rt_draws = rbind(sim_yn_rt_draws, cur_draws)
-    
-    cur_pred = fitted(cur_sim_yn_rt, newdata = cur_yn_data) %>% 
-      as_tibble() %>%
-      transmute(pred_log_rt = Estimate) %>% #same as mean brms::posterior_epred values not brms::posterior_predict
-      bind_cols(cur_yn_data) %>%
-      mutate(subnum = cur_sub)
-    
-    sim_yn_rt_ppc = rbind(sim_yn_rt_ppc, cur_pred)
   }
   names(sim_yn_rt_draws) = gsub(":", ".", names(sim_yn_rt_draws))
   write.csv(sim_yn_rt_draws, fn_draws, row.names = F)
-  write.csv(sim_yn_rt_ppc, fn_ppc, row.names = F)
-  
-  rm(cur_yn_data, cur_sim_yn_rt, cur_draws, cur_pred)
+
+  rm(cur_dat, cur_m, cur_draws, cur_sub)
 }
 
 ```
 
 ```{r}
-fn_draws = paste0(helpers_path, '/inputs/yn_rt_draws.csv')
+fn_draws = paste0(here(), '/inputs/yn_rt_norm_draws.csv')
 if(!exists("yn_rt_draws")){
-  yn_logit_draws = read.csv(fn_draws)
+  yn_rt_draws = read.csv(fn_draws)
 }
 
-yn_par_summary = yn_par_summary = as.data.frame(yn_rt_draws) %>%
-  select("b_abs_val_diff_std" ,"b_abs_val_diff_std.day_std", "b_abs_val_diff_std.typeRE", "b_abs_val_diff_std.day_std.typeRE", subnum, .chain, .iteration) %>%
-  gather(key, value, -subnum, -.chain, -.iteration) %>%
-  mutate(key = ifelse(key == "b_abs_val_diff_std.day_std", "|Value Diff| * Day", ifelse(key == "b_abs_val_diff_std.typeRE", "|Value Diff| * Type (RE)", ifelse(key == "b_abs_val_diff_std.day_std.typeRE", "|Value Diff| * Day * Type (RE)", ifelse(key == "b_abs_val_diff_std", "|Value Diff|", NA)))),
-         key = factor(key, levels = c("|Value Diff|","|Value Diff| * Type (RE)", "|Value Diff| * Day", "|Value Diff| * Day * Type (RE)"))) %>%
+yn_par_summary = as_tibble(yn_rt_draws) %>%
+  select(b_Intercept, b_norm_absValDiff, b_norm_day, b_type1, b_norm_absValDiff.norm_day, b_norm_absValDiff.type1, b_norm_day.type1, b_norm_absValDiff.norm_day.type1, subnum) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key=recode(key, 
+                    "b_Intercept" = "Intercept", 
+                    "b_norm_absValDiff"  = "|Value Diff| [0, 1]",
+                    "b_norm_day" = "Day [0, 1]",
+                    "b_type1" = "Type (RE = 0, HT = 1)",
+                    "b_norm_absValDiff.norm_day" = "|Value Diff| x Day",
+                    "b_norm_absValDiff.type1" = "|Value Diff| x Type",
+                    "b_norm_day.type1" = "Day x Type",
+                    "b_norm_absValDiff.norm_day.type1" = "|Value Diff| x Day x Type"),
+         key = factor(key, levels = c("Intercept", "|Value Diff| [0, 1]", "Day [0, 1]", "Type (RE = 0, HT = 1)", "|Value Diff| x Day", "|Value Diff| x Type", "Day x Type", "|Value Diff| x Day x Type"))) %>%
   group_by(subnum, key) %>%
   summarise(.groups = 'keep',
             m = mean(value),
@@ -1011,21 +1001,32 @@ yn_par_summary = yn_par_summary = as.data.frame(yn_rt_draws) %>%
   mutate(subnum = as.factor(subnum),
          task = "Y/N (true)") 
 
-sim_yn_par_summary = as.data.frame(sim_yn_rt_draws) %>%
-  select("b_abs_val_diff_std" ,"b_abs_val_diff_std.day_std", "b_abs_val_diff_std.typeRE", "b_abs_val_diff_std.day_std.typeRE", subnum, .chain, .iteration) %>%
-  gather(key, value, -subnum, -.chain, -.iteration) %>%
-  mutate(key = ifelse(key == "b_abs_val_diff_std.day_std", "|Value Diff| * Day", ifelse(key == "b_abs_val_diff_std.typeRE", "|Value Diff| * Type (RE)", ifelse(key == "b_abs_val_diff_std.day_std.typeRE", "|Value Diff| * Day * Type (RE)", ifelse(key == "b_abs_val_diff_std", "|Value Diff|", NA)))),
-         key = factor(key, levels = c("|Value Diff|","|Value Diff| * Type (RE)", "|Value Diff| * Day", "|Value Diff| * Day * Type (RE)"))) %>%
+sim_yn_par_summary = as_tibble(sim_yn_rt_draws) %>%
+  select(b_Intercept, b_norm_absValDiff, b_norm_day, b_type1, b_norm_absValDiff.norm_day, b_norm_absValDiff.type1, b_norm_day.type1, b_norm_absValDiff.norm_day.type1, subnum) %>%
+  gather(key, value, -subnum) %>%
+  mutate(key=recode(key, 
+                    "b_Intercept" = "Intercept", 
+                    "b_norm_absValDiff"  = "|Value Diff| [0, 1]",
+                    "b_norm_day" = "Day [0, 1]",
+                    "b_type1" = "Type (RE = 0, HT = 1)",
+                    "b_norm_absValDiff.norm_day" = "|Value Diff| x Day",
+                    "b_norm_absValDiff.type1" = "|Value Diff| x Type",
+                    "b_norm_day.type1" = "Day x Type",
+                    "b_norm_absValDiff.norm_day.type1" = "|Value Diff| x Day x Type"),
+         key = factor(key, levels = c("Intercept", "|Value Diff| [0, 1]", "Day [0, 1]", "Type (RE = 0, HT = 1)", "|Value Diff| x Day", "|Value Diff| x Type", "Day x Type", "|Value Diff| x Day x Type"))) %>%
   group_by(subnum, key) %>%
   summarise(.groups = 'keep',
             m = mean(value),
             l95 = HDInterval::hdi(value)[1],
             h95 = HDInterval::hdi(value)[2]) %>%
   mutate(subnum = as.factor(subnum),
-         task = "Y/N (sim)") 
+         task = "Y/N (sim)")
 
-plim = max(abs(sim_yn_par_summary$l95), abs(yn_par_summary$l95), sim_yn_par_summary$h95, yn_par_summary$h95)
-# plim = 0.2740341 # to be on the same scale as the previous plot
+```
+
+
+```{r}
+plim = max(abs(sim_yn_par_summary$l95), abs(yn_par_summary$l95) ,sim_yn_par_summary$h95, yn_par_summary$h95)
 
 p = yn_par_summary %>%
   rbind(sim_yn_par_summary) %>%
@@ -1033,23 +1034,26 @@ p = yn_par_summary %>%
   geom_vline(aes(xintercept = 0), color = "light gray") + 
   geom_point(position = position_dodge(width=.75), color = "blue")+
   geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75), color = "blue")+
-  facet_grid(.~key) +
-  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - RT ~ |Value Diff| * Day * Type", linetype = "", shape = "") +
+  facet_wrap(~key, scales = 'free_x', nrow = 2) +
+  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - log(RT) ~ |Value Diff| x Day x Type", linetype = "", shape = "") +
   theme(legend.position = "bottom",
         panel.grid = element_blank(),
         legend.box.margin=margin(t = -10))+
-  scale_x_continuous(breaks = c(0), limits = c(-plim, plim))+
+  scale_x_continuous(limits = c(-plim, plim))+
   scale_linetype_manual(values = c("dashed", "solid"))+
   scale_shape_manual(values = c(5, 19))+
   scale_alpha_manual(values = c(1, 1))+
   guides(alpha = "none")
 
-# ggsave(file=paste0(fig_out_path, 'simyn_rt_interactionParEsts.jpg'), p, height = 3, width = 9, units="in")
+# ggsave(file=paste0(fig_out_path, 'simyn_rt_ParEsts.jpg'), p, height = 5, width = 9, units="in")
 p
-rm(yn_logit_draws, yn_par_summary)
 ```
 
-# Hierarchy over days
+```{r}
+rm(yn_rt_draws, yn_par_summary)
+```
+
+## Parameter changes across days
 
 ```{r}
 stim_types = c("HT", "RE")
@@ -1083,9 +1087,6 @@ for(i in 1:length(stim_types)){
 }
 ```
 
-```{r}
-yn_ddm_summary
-```
 
 ```{r}
 yn_ddm_summary = yn_ddm_summary %>%
