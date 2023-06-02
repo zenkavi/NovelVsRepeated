@@ -58,7 +58,7 @@ tmp
 
 How to examine a single job's output/parameter estimates for one day and stim type
 
-The simplest thing is too just get the parameter combination with the highest likelihood/smallest nll.  
+The simplest thing is to just get the parameter combination with the highest likelihood/smallest nll.  
 
 ```{r}
 tmp %>%
@@ -152,7 +152,7 @@ all_pars %>%
 ```
 
 ```{r}
-all_pars %>%
+p = all_pars %>%
   group_by(day, type) %>%
   mutate(median_nll = median(nll)) %>%
   filter(nll > median_nll) %>%
@@ -162,25 +162,39 @@ all_pars %>%
   ggplot(aes(as.factor(value), nll))+
   geom_violin()+
   facet_grid(type ~ day, scales = 'free')+
-  labs(x = "", title = "NLL distribution for each d collapsed over other parameters (for 50% best NLLs)")
+  labs(x = "d", title = "NLL distribution for each d collapsed over other parameters (for 50% best NLLs)") +
+  theme(panel.grid.minor = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.x = element_blank())
+
+# ggsave(file=paste0(fig_out_path, 'sub601_gridSearch_NLLforD.jpg'), p, height = 4.5, width=12, units="in")
+p
 ```
+
 ```{r}
-all_pars %>%
+p = all_pars %>%
   group_by(day, type) %>%
   mutate(median_nll = median(nll)) %>%
   filter(nll > median_nll) %>%
   select(-subnum, -model) %>%
   gather(key, value, -nll, -day, -type) %>%
   filter(key == "sigma") %>%
+         # value > .05) %>%
   ggplot(aes(as.factor(value), nll))+
   geom_violin()+
   facet_grid(type ~ day, scales = 'free')+
-  labs(x = "", title = "NLL distribution for each sigma collapsed over other parameters (for 50% best NLLs)")
+  labs(x = "sigma", title = "NLL distribution for each sigma collapsed over other parameters (for 50% best NLLs)")+
+  theme(panel.grid.minor = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.x = element_blank())
+
+# ggsave(file=paste0(fig_out_path, 'sub601_gridSearch_NLLforSigma.jpg'), p, height = 4.5, width=12, units="in")
+p
 ```
 
 
 ```{r}
-all_pars %>%
+p = all_pars %>%
   group_by(day, type) %>%
   mutate(median_nll = median(nll)) %>%
   filter(nll > median_nll) %>%
@@ -190,11 +204,17 @@ all_pars %>%
   ggplot(aes(as.factor(value), nll))+
   geom_violin()+
   facet_grid(type ~ day, scales = 'free')+
-  labs(x = "", title = "NLL distribution for each ndt collapsed over other parameters (for 50% best NLLs)")
+  labs(x = "NDT", title = "NLL distribution for each ndt collapsed over other parameters (for 50% best NLLs)")+
+  theme(panel.grid.minor = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.x = element_blank())
+
+# ggsave(file=paste0(fig_out_path, 'sub601_gridSearch_NLLforNDT.jpg'), p, height = 4.5, width=12, units="in")
+p
 ```
 
 ```{r}
-all_pars %>%
+p = all_pars %>%
   group_by(day, type) %>%
   mutate(median_nll = median(nll)) %>%
   filter(nll > median_nll) %>%
@@ -204,11 +224,17 @@ all_pars %>%
   ggplot(aes(as.factor(value), nll))+
   geom_violin()+
   facet_grid(type ~ day, scales = 'free')+
-  labs(x = "", title = "NLL distribution for each bias collapsed over other parameters (for 50% best NLLs)")
+  labs(x = "Bias", title = "NLL distribution for each bias collapsed over other parameters (for 50% best NLLs)") +
+  theme(panel.grid.minor = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.x = element_blank())
+
+# ggsave(file=paste0(fig_out_path, 'sub601_gridSearch_NLLforbias.jpg'), p, height = 4.5, width=12, units="in")
+p
 ```
 
 ```{r}
-all_pars %>%
+p = all_pars %>%
   group_by(day, type) %>%
   mutate(median_nll = median(nll)) %>%
   filter(nll > median_nll) %>%
@@ -218,7 +244,13 @@ all_pars %>%
   ggplot(aes(as.factor(value), nll))+
   geom_violin()+
   facet_grid(type ~ day, scales = 'free')+
-  labs(x = "", title = "NLL distribution for each barrierDecay collapsed over other parameters (for 50% best NLLs)")
+  labs(x = "Barrier Decay", title = "NLL distribution for each barrierDecay collapsed over other parameters (for 50% best NLLs)")+
+  theme(panel.grid.minor = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.x = element_blank())
+
+# ggsave(file=paste0(fig_out_path, 'sub601_gridSearch_NLLforBarrierDecay.jpg'), p, height = 4.5, width=12, units="in")
+p
 ```
 ### Best fitting parameters
 
@@ -257,14 +289,18 @@ Notable things:
 - No clear pattern of increase or decrease over days
 
 ```{r}
-best_pars %>%
+p = best_pars %>%
   select(-subnum, -model, -nll) %>%
   gather(key, value, -day, -type) %>%
   ggplot(aes(as.factor(day), value, color = type))+
   geom_point(alpha = .5)+
   facet_wrap(~key, scales = "free")+
   scale_color_brewer(palette = "Dark2")+
-  labs(x = "Day")
+  labs(x = "Day", y = "", color = "")+
+  theme(legend.position = "bottom")
+
+# ggsave(file=paste0(fig_out_path, 'sub601_gridSearch_best pars.jpg'), p, height = 4.5, width=9, units="in")
+p
 ```
 
 # Optim out results
@@ -407,6 +443,7 @@ all_optim_filtered %>%
   select(subnum, day, type, bias, barrierDecay, d, sigma, nonDecisionTime) %>%
   gather(key, value, -subnum, -day, -type) %>%
   group_by(subnum, day, type, key) %>%
+  mutate(key = ifelse(key == "nonDecisionTime", "NDT", ifelse(key == "barrierDecay", "decay", key))) %>%
   ggplot(aes(as.factor(day), value, color = type))+
   geom_point(position = position_dodge(width=.5))+
   facet_grid(key~subnum, scales = "free")+
@@ -432,6 +469,18 @@ all_optim_filtered %>%
   theme(legend.position = "bottom")+
   scale_color_brewer(palette = "Dark2")+
   labs(color = "", y = "Difference between starting and converged value", x = "Day")
+```
+
+Are these converged estimates similiar in fit (i.e. nll)?
+
+```{r}
+all_optim_filtered %>%
+  ggplot(aes(as.factor(day), nll, fill = type))+
+  geom_boxplot(position = position_dodge(width = .25))+
+  facet_grid(type~subnum, scales = "free")+
+  labs(x = "Day", fill = "")+
+  theme(legend.position = "none")+
+  scale_fill_brewer(palette = "Dark2")
 ```
 
 ## Single subject optim and grid search comparison
