@@ -483,7 +483,7 @@ all_optim_filtered %>%
   scale_fill_brewer(palette = "Dark2")
 ```
 
-## Single subject optim and grid search comparison
+# Single subject optim and grid search comparison
 
 How close are the best estimates from optim to the single subject (601) grid search best parameters?
 
@@ -787,8 +787,365 @@ p2+
   theme(axis.ticks.y = element_blank(),
         axis.text.y = element_blank())+
   lemon::scale_x_symmetric()
+
+# ggsave(file=paste0(fig_out_path, 'sub601_barrierDecay_simData.jpg'), height = 6, width=12, units="in")
 ```
 
+### Comparison to model without bounds
+
+```{r}
+stim_types = c("HT", "RE")
+subnums = c(601)
+
+in_path = '/Users/zeynepenkavi/CpuEaters/NovelVsRepeated/behavior/analysis/helpers/cluster_scripts/hddm/jags_out'
+
+yn_ddm_summary = data.frame()
+
+for(i in 1:length(stim_types)){
+  for(j in 1:length(subnums)){
+    
+    cur_stim_type = stim_types[i]
+    cur_sub = subnums[j]
+    # summary_YN_HDDM_FIT_RE_sub-611.csv
+    
+    fn = file.path(in_path, paste0('summary_YN_HDDM_FIT_', cur_stim_type,'_sub-', cur_sub,'.csv'))
+    
+    if(file.exists(fn)){
+      cur_summary = read.csv(fn)
+      cur_summary = cur_summary %>%
+        rename(par = X) %>%
+        mutate(stim_type = cur_stim_type,
+               subnum = cur_sub)
+      
+      yn_ddm_summary = rbind(yn_ddm_summary, cur_summary)
+    } else {
+      next
+    }
+  }
+}
+```
+
+```{r}
+yn_ddm_summary = yn_ddm_summary %>%
+  select(par, Lower95, Upper95, Mean, subnum, stim_type ) %>%
+  separate(par, c("a", "b"), sep = '\\.', remove = F, fill = "right") %>%
+  separate(a, c("c", "d"), sep = "\\[", remove = F, fill = "right") %>%
+  select(-a) %>%
+  mutate(d = paste0('p[',d)) %>%
+  mutate(b = ifelse(is.na(b), d, b)) %>%
+  select(-d, -par) %>%
+  rename(par_name = c, par_group = b) %>%
+  mutate(par_group = gsub("p\\[", "", par_group),
+         par_group = gsub("\\]", "", par_group)) %>%
+  filter(par_name != "deviance") %>%
+  filter(par_group != "kappa" & par_group != "pr") %>%
+  filter(par_group != "mu") %>% #Not showing group estimates in this plot
+  rename(day = par_group) %>%
+  mutate(par_name = ifelse(par_name == "theta", "ndt", ifelse(par_name == "b", "d", ifelse(par_name == "alpha", "sigma", par_name)))) %>%
+  mutate(par_name = factor(par_name, levels = c("d", "sigma", "bias", "ndt")),
+         day = as.numeric(day))
+```
+
+Simulation helper functions
+
+```{r}
+sim_trial = function(trial_vdiff, sampled_sigma, sampled_d, sampled_ndt, sampled_bias){
+  
+  # Multiplying boundary separation and drift rate my sigma to account for that parameter
+  trial_drift = sampled_sigma * (sampled_d * trial_vdiff)
+  
+  if(abs(trial_drift) < 10){
+    cur_pred = RWiener::rwiener(1, 2*sampled_sigma, sampled_ndt, sampled_bias, trial_drift)
+  } else {
+    print("d too large. Sampling RT.")
+    pq = sampled_ndt + abs(rnorm(1, mean = 0, sd = 0.01))
+    pr = ifelse(trial_drift>10, factor("upper", levels = c("upper", "lower")), factor("lower", levels = c("upper", "lower")))
+    cur_pred = data.frame(q = pq, resp = pr)
+  }
+  return(cur_pred)
+  
+}
+
+sim_subj_cond_day_once = function(cur_stims, sampled_sigma, sampled_d, sampled_ndt, sampled_bias){
+  
+  pred_data = cur_stims
+  
+  normMax = 1
+  normMin = -1
+  # Already filtered for sub, day and stim type so don't need to group to make sure vdiff ranges between [-1,1]
+  pred_data = pred_data %>%
+    mutate(rawVDiff = possiblePayoff - reference,
+           normVDiff =  (normMax - normMin) / (max(rawVDiff) - min(rawVDiff)) * (rawVDiff - max(rawVDiff)) + (normMax) )
+  
+  pred_data$sampled_sigma = sampled_sigma
+  pred_data$sampled_d = sampled_d
+  pred_data$sampled_ndt = sampled_ndt
+  pred_data$sampled_bias = sampled_bias
+  pred_data$pred_rt = NA
+  pred_data$pred_yesChosen = NA
+  
+  for(i in 1:nrow(cur_stims)){
+    
+    trial_vdiff = pred_data$normVDiff[i]
+    cur_pred = sim_trial(trial_vdiff, sampled_sigma, sampled_d, sampled_ndt, sampled_bias)
+    
+    pred_data$pred_rt[i] = cur_pred$q
+    pred_data$pred_yesChosen[i] = cur_pred$resp
+    
+  }
+  
+  return(pred_data)
+}
+```
+
+```{r}
+conds = c('HT', 'RE')
+subs = c('601')
+days = seq(1, 11, 1)
+
+for(i in 1:length(conds)){
+  cur_type = conds[i]
+  
+  for (j in 1:length(subs)){
+    cur_sub = subs[j]
+    
+    for (k in 1:length(days)){
+      cur_day = days[k]
+      
+      cur_stims = data_yn_clean %>%
+        mutate(type_chr = ifelse(type == 1, "HT", "RE")) %>%
+        filter(subnum == cur_sub & day == cur_day & type_chr == cur_type) %>%
+        select(subnum, day, type, possiblePayoff, reference, yesChosen, rt)
+      
+      cur_pars = yn_ddm_summary %>%
+        filter(subnum == cur_sub & day == cur_day & stim_type == cur_type) %>%
+        select(par_name, Mean) %>%
+        spread(par_name, Mean)
+      
+      cur_pred = sim_subj_cond_day_once(cur_stims, cur_pars$sigma, cur_pars$d, cur_pars$ndt, cur_pars$bias)
+      
+      if(!exists("sim_yn_map")){
+        sim_yn_map = cur_pred
+      } else{
+        sim_yn_map = rbind(sim_yn_map, cur_pred)
+      }
+    }
+  }
+}
+```
+
+```{r}
+rm(cur_pars, cur_pred, cur_stims, cur_summary, cur_day, cur_stim_type, cur_sub, cur_type)
+rm(i, j, k)
+```
+
+```{r}
+sim_yn_map = sim_yn_map %>%
+  mutate(pred_yesChosen = ifelse(pred_yesChosen == 1, pred_yesChosen, 0),
+         val_diff = possiblePayoff - reference,
+         day_std = (day - mean(day))/sd(day)) %>%
+  group_by(subnum) %>%
+  mutate(val_diff_std = (val_diff - mean(val_diff))/sd(val_diff),
+         abs_val_diff = abs(val_diff),
+         abs_val_diff_std = (abs_val_diff - mean(abs_val_diff))/sd(abs_val_diff))
+
+sim_yn_map = sim_yn_map %>%
+  mutate(val_diff_bin = round(val_diff/50),
+         val_diff_bin_str = paste0(val_diff_bin*50-25,":",val_diff_bin*50+25),
+         val_diff_bin_str = factor(val_diff_bin_str, levels = c("-225:-175", "-175:-125", "-125:-75", "-75:-25", "-25:25", "25:75", "75:125", "125:175", "175:225")),
+         abs_val_diff_bin_str =  paste0(abs(val_diff_bin)*50-25,":",abs(val_diff_bin)*50+25),
+         abs_val_diff_bin_str = ifelse(abs_val_diff_bin_str ==  "-25:25", "0:25", abs_val_diff_bin_str),
+         abs_val_diff_bin_str = factor(abs_val_diff_bin_str, levels = c("0:25", "25:75", "75:125", "125:175", "175:225", "225:275")))
+```
+
+Check for effect of thresholding the drift rate: Not a big difference.
+
+```{r}
+sim_yn_map$drift_threshold = NA
+sim_yn_map$drift_threshold[1: (nrow(sim_yn_map)/2) ] = 1
+sim_yn_map$drift_threshold[ ((nrow(sim_yn_map)/2) + 1) : (nrow(sim_yn_map))] = 0
+table(sim_yn_map$drift_threshold)
+sim_yn_map
+```
+
+```{r}
+sim_yn_map %>%
+  mutate(type_chr = ifelse(type == 1, "HT", "RE")) %>%
+  filter(rt < 3 & pred_rt < 3) %>%
+  mutate(rt = ifelse(yesChosen == 1, rt, rt*(-1)),
+         pred_rt = ifelse(pred_yesChosen == 1, pred_rt, pred_rt*(-1)), 
+         day = paste0("Day ", day),
+         day = factor(day, levels = paste0("Day ", seq(1,11, 1)))) %>%
+  ggplot()+
+  geom_density(aes(x = pred_rt, linetype = as.factor(drift_threshold)), position = "identity", alpha = .5) +
+  geom_histogram(aes(x = rt, y = ..density.., fill = type_chr), bins = 30,  position = "identity", alpha = .5, color = NA)+
+  facet_grid(type_chr ~ day)+
+  theme(panel.grid = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        legend.position = "bottom")+
+  geom_vline(aes(xintercept = 0), color = "gray") +
+  labs(y = "", x = "")+
+  scale_fill_brewer(palette = "Dark2")+
+  guides(fill = "none")
+```
+
+```{r}
+sim_yn_map %>%
+  filter(drift_threshold == 1) %>%
+  ungroup() %>%
+  mutate(hddm_rt = ifelse(pred_yesChosen == 1, pred_rt, pred_rt*(-1))) %>%
+  select(type, day, hddm_rt) %>%
+  gather(key, value, -type, -day)
+```
+
+Compare to optim and grid search simulations
+
+```{r}
+sub_all_sim_data_long = sim_optim_best %>%
+  select(true_rt, true_yesChosen, reactionTime, choice, type, day) %>%
+  mutate(optim_rt = ifelse(choice == "no", (-1)*reactionTime, reactionTime),
+         true_rt = ifelse(true_yesChosen == 0, (-1)*true_rt, true_rt)) %>%
+  select(-true_yesChosen, -reactionTime, -choice) %>%
+  gather(key, value, -type, -day) %>%
+  
+  rbind(sim_grid_best %>%
+          select(reactionTime, choice, type, day) %>%
+          mutate(grid_rt = ifelse(choice == "no", (-1)*reactionTime, reactionTime)) %>%
+          select(-reactionTime, -choice) %>%
+          gather(key, value, -type, -day)) %>%
+  
+  rbind(sim_yn_map %>%
+          filter(drift_threshold == 1) %>%
+          ungroup() %>%
+          mutate(hddm_rt = ifelse(pred_yesChosen == 1, pred_rt, pred_rt*(-1))) %>%
+          select(type, day, hddm_rt) %>%
+          gather(key, value, -type, -day)) %>%
+  
+  mutate(day = paste0("Day ", day),
+         day = factor(day, levels = paste0("Day ", seq(1,11, 1))),
+         type = ifelse(type == 1, "HT", "RE"),
+         key = factor(key, levels = c("true_rt", "grid_rt", "optim_rt", "hddm_rt")))
+```
+
+```{r}
+sub_all_sim_data_long
+```
+First attempt. Not great.
+
+```{r}
+sub_all_sim_data %>%
+  ggplot(aes(value, color = key, fill = key))+
+  # geom_step(aes(y=..density..), stat="bin", binwidth=0.2)+
+  geom_step(aes(y=..density..), stat="bin", bins = 30, linewidth = .75)+
+  facet_grid(type ~ day)+
+  scale_color_manual(values = c("gray", "#7570b3", "#e7298a", "#66a61e"))+
+  scale_fill_manual(values = c("gray", NA, NA, NA))+
+  theme(panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        legend.position = "bottom")+
+  labs(y = "", x = "", fill = "", color = "")+
+ylim(0, 1.5)
+```
+```{r}
+sub_all_sim_data_wide = sim_optim_best %>%
+  select(true_rt, true_yesChosen, reactionTime, choice, type, day) %>%
+  mutate(optim_rt = ifelse(choice == "no", (-1)*reactionTime, reactionTime),
+         true_rt = ifelse(true_yesChosen == 0, (-1)*true_rt, true_rt)) %>%
+  select(-true_yesChosen, -reactionTime, -choice) %>%
+  gather(key, value, -type, -day, -true_rt) %>%
+
+rbind(sim_grid_best %>%
+          select(true_rt, true_yesChosen, reactionTime, choice, type, day) %>%
+          mutate(grid_rt = ifelse(choice == "no", (-1)*reactionTime, reactionTime),
+                 true_rt = ifelse(true_yesChosen == 0, (-1)*true_rt, true_rt)) %>%
+          select(-true_yesChosen,-reactionTime, -choice) %>%
+          gather(key, value, -type, -day, -true_rt)) %>%
+
+rbind(sim_yn_map %>%
+          filter(drift_threshold == 1) %>%
+          ungroup() %>%
+          mutate(hddm_rt = ifelse(pred_yesChosen == 1, pred_rt, pred_rt*(-1)),
+                 true_rt = ifelse(yesChosen == 1, rt, rt*(-1))) %>%
+          select(type, day, hddm_rt, true_rt) %>%
+          gather(key, value, -type, -day, -true_rt )) %>%
+  mutate(day = paste0("Day ", day),
+         day = factor(day, levels = paste0("Day ", seq(1,11, 1))),
+         # type = ifelse(type == 1, "HT", "RE"),
+         key = factor(key, levels = c("grid_rt", "optim_rt", "hddm_rt")))
+
+```
+
+```{r}  
+sub_all_sim_data_wide %>%
+  filter(type == 1) %>%
+  ggplot()+
+  geom_histogram(aes(x = true_rt, y=..density..), stat="bin", bins = 30, linewidth = .75, fill = "#1b9e77", alpha = .75)+
+  geom_density(aes(x = value))+
+  facet_grid(key ~ day)+
+  theme(legend.position = "none",
+        axis.ticks = element_blank(),
+        axis.text = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.text = element_text(size = 14))+
+  labs(x = "", y = "", title = "Comparison of true and simulated for HT stimuli (sub-601)")
+
+ggsave(file=paste0(fig_out_path, 'sub601_simDataComparisonHT1.jpg'), height = 9, width=20, units="in")
+  
+```
+
+```{r}  
+sub_all_sim_data_wide %>%
+  filter(type == 1) %>%
+  ggplot()+
+  geom_step(aes(x = true_rt, y=..density..), stat="bin", bins = 30, linewidth = .75, color = "#1b9e77")+
+  geom_step(aes(x = value, y=..density..), stat="bin", bins = 30, linewidth = .75)+
+  facet_grid(key ~ day)+
+  theme(legend.position = "none",
+        axis.ticks = element_blank(),
+        axis.text = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.text = element_text(size = 14))+
+  labs(x = "", y = "", title = "Comparison of true and simulated for HT stimuli (sub-601)")
+
+ggsave(file=paste0(fig_out_path, 'sub601_simDataComparisonHT2.jpg'), height = 9, width=20, units="in")
+  
+```
+```{r}  
+sub_all_sim_data_wide %>%
+  filter(type == 0) %>%
+  ggplot()+
+  geom_histogram(aes(x = true_rt, y=..density..), stat="bin", bins = 30, linewidth = .75, fill = "#d95f02", alpha = .75)+
+  geom_density(aes(x = value))+
+  facet_grid(key ~ day)+
+  theme(legend.position = "none",
+        axis.ticks = element_blank(),
+        axis.text = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.text = element_text(size = 14))+
+  labs(x = "", y = "", title = "Comparison of true and simulated for RE stimuli (sub-601)")
+
+ggsave(file=paste0(fig_out_path, 'sub601_simDataComparisonRE1.jpg'), height = 9, width=20, units="in")
+  
+```
+
+```{r}  
+sub_all_sim_data_wide %>%
+  filter(type == 0) %>%
+  ggplot()+
+  geom_step(aes(x = true_rt, y=..density..), stat="bin", bins = 30, linewidth = .75, color = "#d95f02")+
+  geom_step(aes(x = value, y=..density..), stat="bin", bins = 30, linewidth = .75)+
+  facet_grid(key ~ day)+
+  theme(legend.position = "none",
+        axis.ticks = element_blank(),
+        axis.text = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.text = element_text(size = 14))+
+  labs(x = "", y = "", title = "Comparison of true and simulated for RE stimuli (sub-601)")
+
+ggsave(file=paste0(fig_out_path, 'sub601_simDataComparisonRE2.jpg'), height = 9, width=20, units="in")
+  
+```
 # Other checks
 
 Is the smaller negative log likelihoods for RE compared HT a thing for all other subjects too? Yes!
