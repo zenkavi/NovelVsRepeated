@@ -1,5 +1,5 @@
 #! /bin/zsh
-alias aws='docker run --rm -it -v ~/.aws:/root/.aws amazon/aws-cli'
+alias aws='docker run --rm -it -v ~/.aws:/root/.aws amazon/aws-cli:2.11.26'
 export REGION=`aws configure get region`
 export SUBNET_ID=`aws ec2 describe-subnets | jq -j '.Subnets[0].SubnetId'`
 export VPC_ID=`aws ec2 describe-vpcs | jq -j '.Vpcs[0].VpcId'`

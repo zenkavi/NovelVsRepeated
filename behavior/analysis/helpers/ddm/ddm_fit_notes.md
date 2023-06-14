@@ -87,6 +87,8 @@ docker run --rm -it -v ~/.aws:/root/.aws -v $(pwd)/behavior/analysis/helpers/clu
 ```
 export KEYS_PATH=/Users/zeynepenkavi/aws_keys
 
+alias aws='docker run --rm -it -v ~/.aws:/root/.aws amazon/aws-cli:2.11:26'
+
 aws ec2 create-key-pair --key-name rddmstatespace-cluster --query 'KeyMaterial' --output text > $KEYS_PATH/rddmstatespace-cluster.pem
 
 chmod 400 $KEYS_PATH/rddmstatespace-cluster.pem
