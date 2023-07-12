@@ -1,0 +1,387 @@
+---
+title: "Novel vs. repeated choice project: ISDN talk"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: 'hide'
+---
+
+Set up environment and load in data
+
+```{r include=FALSE, message=FALSE}
+library(tidyverse)
+library(brms)
+library(here)
+library(grid)
+library(gridExtra)
+library(lemon)
+theme_set(theme_bw())
+helpers_path = paste0(here(),'/analysis/helpers/')
+inputs_path = paste0(here(),'/inputs/')
+source(paste0(helpers_path, '01_clean_behavioral_data.R'))
+fig_out_path = paste0(here(), '/outputs/fig/')
+rm(data_bc_clean)
+```
+
+# Wrangling
+
+```{r}
+data_yn_clean = data_yn_clean %>%
+  mutate(correct = ifelse(possiblePayoff>reference & yesChosen == 1, 1, ifelse(possiblePayoff < reference & yesChosen == 0, 1, 0))) %>%
+  mutate(type_chr = ifelse(type == 1, "Over Exposure", "Regular Exposure"),
+         week = ifelse(week == 1, "Week 1", ifelse(week == 2, "Week 2", ifelse(week == 3, "Week 3", NA))),
+         week = factor(week, levels = c("Week 1", "Week 2", "Week 3"))) %>%
+  mutate(val_diff = possiblePayoff - reference,
+         abs_val_diff = abs(possiblePayoff - reference),
+         val_diff_bin = round(val_diff/50),
+         val_diff_bin_str = paste0(val_diff_bin*50-25,":",val_diff_bin*50+25),
+         val_diff_bin_str = factor(val_diff_bin_str, levels = c("-225:-175", "-175:-125", "-125:-75", "-75:-25", "-25:25", "25:75", "75:125", "125:175", "175:225")),
+         time_bin = ifelse(day == 1, "Day 1", ifelse(day == 2, "Day 2", ifelse(day == 3, "Day 3", ifelse((day > 3) & (day < 8), "Week 2", "Week 3"))))) %>%
+  mutate(subject = recode(subnum, 
+                    `601` = "Subject 1", 
+                    `609` = "Subject 2",
+                    `611` = "Subject 3",
+                    `619` = "Subject 4",
+                    `621` = "Subject 5",
+                    `629` = "Subject 6"))
+```
+
+```{r}
+data_yn_clean %>%
+  filter(subnum == 611 & type == 1) %>%
+  mutate(trueVal = 100 * (valueO + valueF + valueS)/2) %>%
+  ggplot(aes(possiblePayoff))+
+  geom_histogram(bins = 30)+
+  geom_vline(aes(xintercept = trueVal))+
+  facet_wrap(~stimNum, scales = "free")
+```
+
+```{r}
+data_yn_clean %>%
+  mutate(trueVal = round(100 * (valueO + valueF + valueS)/2) )%>%
+  select(trueVal, possiblePayoff, val_diff, val_diff_bin_str)
+```
+
+# Psychometrics
+
+```{r}
+sub_summary = data_yn_clean %>%
+  mutate(time_bin = ifelse(day == 1, "Day 1", ifelse(day == 2, "Day 2", ifelse(day == 3, "Day 3", ifelse((day > 3) & (day < 8), "Week 2", "Week 3")))),
+         time_bin = factor(time_bin, levels = c("Week 3", "Week 2", "Week 1", "Day 3", "Day 2", "Day 1"))) %>%
+  group_by(subject, time_bin, val_diff_bin_str, val_diff_bin, type_chr) %>%
+  summarise(mean_y = mean(yesChosen),
+            sem_y = sd(yesChosen)/sqrt(n()),
+            .groups="keep") %>%
+  mutate(val_diff_bin = val_diff_bin * 50) 
+
+sub_summary
+```
+```{r warning=FALSE}
+data_yn_clean%>%
+  mutate(time_bin = factor(time_bin, levels = c("Week 3", "Week 2", "Week 1", "Day 3", "Day 2", "Day 1"))) %>%
+  ggplot() +
+  geom_hline(aes(yintercept =.5), color="gray")+
+  geom_vline(aes(xintercept = 0), color="gray")+
+  geom_line(aes(val_diff, yesChosen, color = time_bin, alpha = time_bin), stat="smooth", method = "glm", method.args = list(family = "binomial"), formula = "y ~ x", se = FALSE, size = 1.5)+
+  geom_point(data = sub_summary, aes(val_diff_bin, mean_y, color = time_bin), size = 2)+
+  facet_grid(type_chr ~ subject)+
+  labs(x = "Value Stim - Value Reference", y = "p(Yes)", title="", color = "")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text = element_text(size = 14),
+        strip.text = element_text(size = 14),
+        axis.title = element_text(size = 16),
+        legend.text = element_text(size = 14),
+        legend.box.margin=margin(t = -10),
+        legend.spacing.y = unit(-0.25, "cm"),
+        legend.box="vertical")+
+  scale_color_manual(values = c("#6e016b", "#238b45", "#41ae76", "#66c2a4", "#99d8c9"),
+                     breaks = c("Day 1", "Day 2", "Day 3", "Week 2", "Week 3"))+
+  scale_alpha_manual(values = c(1, .7, .7, .7, .7))+
+  scale_y_continuous(breaks = seq(0,1,.5))+
+  scale_x_continuous(breaks = c(-200, -100, 0, 100, 200),
+                     labels = c("", "-100", "0", "", "200"))+
+  guides(alpha = "none")
+
+# ggsave(file=paste0(fig_out_path, 'isdn_yn_subj_pYesOverValDiffAcrossTime.jpg'), height = 5, width = 12, units="in")
+```
+
+Plot the numerical value of the slopes and intercepts for each of these logits
+
+```{r}
+k = length(unique(data_yn_clean$time_bin)) # number of factor levels
+
+my_helmert = matrix(c(4/5, -1/5, -1/5, -1/5, -1/5,
+                      0, 3/4, -1/4, -1/4, -1/4,
+                      0, 0, 2/3, -1/3, -1/3,
+                      0, 0, 0, 1/2, -1/2), ncol = k-1)
+
+my_helmert
+```
+
+```{r}
+str(data_yn_clean$type)
+```
+
+```{r}
+str(as.factor(data_yn_clean$time_bin))
+```
+
+```{r}
+fn_draws = paste0(inputs_path, 'yn_logit_norm_bydays_bytype_helmert_draws.csv')
+
+if(file.exists(fn_draws)){
+  yn_logit_draws = read.csv(fn_draws)
+} else{
+  subnums = unique(data_yn_clean$subnum)
+  types = unique(data_yn_clean$type)
+  normMax = 1
+  normMinDay = 0
+  normMinVal = -1
+  
+  yn_logit_draws = tibble()
+  
+  for(cur_sub in subnums){
+    for(cur_type in types){
+      cur_dat = data_yn_clean %>%
+        ungroup() %>%
+        filter(subnum == cur_sub & type == cur_type) %>%
+        mutate(time_bin = as.factor(time_bin)) %>%
+        group_by(day) %>% # Grouping by day to normalize valdiff matters. This makes sure every day ranges [-1,1]
+        mutate(norm_valDiff = (normMax - normMinVal) / (max(val_diff) - min(val_diff)) * (val_diff - max(val_diff)) + (normMax)) %>%
+        ungroup() %>%
+        select(yesChosen, norm_valDiff, time_bin, type)
+      
+      contrasts(cur_dat$time_bin) = my_helmert
+      
+      cur_m <- brm(formula = yesChosen ~ norm_valDiff * time_bin,
+                   data= cur_dat,
+                   family = bernoulli(link = "logit"),
+                   warmup = 500,
+                   iter = 2500,
+                   chains = 4,
+                   init = "0",
+                   cores = 4,
+                   seed = 389253)
+      
+      cur_draws = as_draws_df(cur_m)
+      cur_draws$subnum = cur_sub
+      cur_draws$type = cur_type
+      
+      yn_logit_draws = rbind(yn_logit_draws, cur_draws) 
+    }
+  }
+  names(yn_logit_draws) = gsub(":", ".", names(yn_logit_draws))
+  write.csv(yn_logit_draws, fn_draws, row.names = F)
+  
+  rm(cur_dat, cur_m, cur_draws, cur_sub)
+}
+
+```
+
+```{r}
+names(as_tibble(yn_logit_draws))[grepl("b_", names(as_tibble(yn_logit_draws)))]
+```
+
+```{r}
+names(as_tibble(yn_logit_draws))
+```
+
+```{r}
+yn_par_summary = as_tibble(yn_logit_draws) %>%
+  select(-lprior, -lp__, -.chain, -.iteration, -.draw) %>%
+  gather(key, value, -subnum, -type) %>%
+  mutate(key=recode(key, 
+                    "b_Intercept" = "Intercept", 
+                    "b_norm_valDiff"  = "Value Diff [-1, 1]",
+                    "b_time_bin1" = "Day 1 vs Later",
+                    "b_time_bin2" = "Day 2 vs Later",
+                    "b_time_bin3" = "Day 3 vs Later",
+                    "b_time_bin4" = "Week 2 vs Later",
+                    "b_norm_valDiff.time_bin1" = "Value Diff x Day 1 vs Later",
+                    "b_norm_valDiff.time_bin2" = "Value Diff x Day 2 vs Later",
+                    "b_norm_valDiff.time_bin3" = "Value Diff x Day 3 vs Later",
+                    "b_norm_valDiff.time_bin4" = "Value Diff x Week 2 vs Later",
+                    ),
+         key = factor(key, levels = c("Intercept", "Value Diff [-1, 1]", "Day 1 vs Later", "Day 2 vs Later", "Day 3 vs Later", "Week 2 vs Later", "Value Diff x Day 1 vs Later", "Value Diff x Day 2 vs Later", "Value Diff x Day 3 vs Later", "Value Diff x Week 2 vs Later"))) %>%
+  group_by(subnum, type, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(subnum = as.factor(subnum),
+         task = "Y/N") 
+```
+
+```{r}
+yn_par_summary
+```
+```{r}
+yn_par_summary %>%
+  mutate(type_chr = ifelse(type == 0, "Regular Exposure", "Over Exposure")) %>%
+  filter(key %in% c("Intercept", "Value Diff [-1, 1]", "Value Diff x Day 1 vs Later")) %>%
+  ggplot(aes(m, subnum, color = type_chr)) +
+  geom_vline(aes(xintercept = 0), color = "gray") + 
+  geom_point(position = position_dodge(width=.75))+
+  geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
+  facet_wrap(~key, scales = 'free_x',labeller = labeller(key = label_wrap_gen(10))) +
+  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - Yes/Left ~ Value Diff x Time Bin") +
+  theme(legend.position = "bottom",
+        panel.grid = element_blank(),
+        legend.box.margin=margin(t = -10))+
+  scale_x_symmetric(mid=0)+
+  scale_color_brewer(palette = "Dark2")
+```
+# RT
+
+```{r}
+data_yn_clean = data_yn_clean %>%
+  mutate(abs_val_diff_bin_str =  paste0(abs(val_diff_bin)*50-25,":",abs(val_diff_bin)*50+25),
+         abs_val_diff_bin_str = ifelse(abs_val_diff_bin_str ==  "-25:25", "0:25", abs_val_diff_bin_str),
+         abs_val_diff_bin_str = factor(abs_val_diff_bin_str, levels = c("0:25", "25:75", "75:125", "125:175", "175:225", "225:275")))
+```
+
+
+
+```{r}
+sub_summary = data_yn_clean %>%
+  group_by(subject, time_bin, abs_val_diff_bin_str, type_chr) %>%
+  summarise(mean_y = mean(log(rt)),
+            .groups="keep") %>%
+  mutate(mean_rt = exp(mean_y), 
+         abs_val_diff = (as.numeric(abs_val_diff_bin_str) - 1) * 50)
+
+sub_summary
+```
+
+```{r}
+data_yn_clean %>%
+  mutate(time_bin = factor(time_bin, levels = c("Week 3", "Week 2", "Week 1", "Day 3", "Day 2", "Day 1"))) %>%
+  ggplot() +
+  geom_line(aes(abs_val_diff, rt, color = time_bin, alpha = time_bin), stat="smooth", method = "lm", formula = "y ~ x", se = FALSE, size = 1.5)+
+  geom_point(data = sub_summary, aes(abs_val_diff, mean_rt, color = time_bin), size = 2)+
+  facet_grid(type_chr ~ subject)+
+  labs(x = "|Value Stim - Value Reference|", y = "RT (secs)", title="", color = "")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text = element_text(size = 14),
+        strip.text = element_text(size = 14),
+        axis.title = element_text(size = 16),
+        legend.text = element_text(size = 14),
+        legend.box.margin=margin(t = -10),
+        legend.spacing.y = unit(-0.25, "cm"),
+        legend.box="vertical")+
+  scale_color_manual(values = c("#6e016b", "#238b45", "#41ae76", "#66c2a4", "#99d8c9"),
+                     breaks = c("Day 1", "Day 2", "Day 3", "Week 2", "Week 3"))+
+  scale_alpha_manual(values = c(1, .7, .7, .7, .7))+
+  scale_y_continuous(trans = "log", breaks = c(0.1, .5, 1, 1.5))+
+  scale_x_continuous(breaks = c(0, 100, 200),
+                     labels = c("0", "100", ""))+
+  guides(alpha = "none")
+
+# ggsave(file=paste0(fig_out_path, 'isdn_yn_subj_RTOverValDiffAcrossTime.jpg'), height = 5, width = 12, units="in")
+```
+
+Helmert coding: Compare day 1 to later, day 2 to later etc. 
+
+```{r}
+k = length(unique(data_yn_clean$time_bin)) # number of factor levels
+
+my_helmert = matrix(c(4/5, -1/5, -1/5, -1/5, -1/5,
+                      0, 3/4, -1/4, -1/4, -1/4,
+                      0, 0, 2/3, -1/3, -1/3,
+                      0, 0, 0, 1/2, -1/2), ncol = k-1)
+  
+my_helmert
+```
+
+```{r}
+fn_draws = paste0(inputs_path, 'yn_rt_norm_bydays_bytype_helmert_draws.csv')
+
+if(file.exists(fn_draws)){
+  yn_rt_draws = read.csv(fn_draws)
+} else{
+  subnums = unique(data_yn_clean$subnum)
+  types = unique(data_yn_clean$type)
+  normMax = 1
+  normMin = 0
+  
+  yn_rt_draws = tibble()
+
+  for(cur_sub in subnums){
+    for(cur_type in types){
+      cur_dat = data_yn_clean %>% 
+        ungroup() %>%
+        filter(subnum == cur_sub & type == cur_type) %>%
+        mutate(time_bin = as.factor(time_bin)) %>%
+        mutate(log_rt = log(rt)) %>%
+        group_by(day) %>% # Grouping by day to normalize valdiff matters. This makes sure every day ranges [-1,1]
+        mutate(norm_absValDiff = (normMax - normMin) / (max(abs_val_diff) - min(abs_val_diff)) * (abs_val_diff - max(abs_val_diff)) + (normMax)) %>%
+        ungroup() %>%
+        select(log_rt, norm_absValDiff, time_bin, type)
+      
+      contrasts(cur_dat$time_bin) = my_helmert
+      
+      cur_m <- brm(formula = log_rt ~ norm_absValDiff * time_bin,
+                   data= cur_dat,
+                   warmup = 500,
+                   iter = 2500,
+                   chains = 4,
+                   init = "0",
+                   cores = 4,
+                   seed = 389253)
+      
+      cur_draws = as_draws_df(cur_m)
+      cur_draws$subnum = cur_sub
+      cur_draws$type = cur_type
+      
+      yn_rt_draws = rbind(yn_rt_draws, cur_draws) 
+    }
+  }
+  names(yn_rt_draws) = gsub(":", ".", names(yn_rt_draws))
+  write.csv(yn_rt_draws, fn_draws, row.names = F)
+
+  rm(cur_dat, cur_m, cur_draws, cur_sub)
+}
+
+```
+
+
+```{r}
+names(as_tibble(yn_rt_draws))[grepl("b_", names(as_tibble(yn_rt_draws)))]
+```
+
+```{r}
+names(as_tibble(yn_rt_draws))
+```
+
+```{r}
+yn_par_summary = as_tibble(yn_rt_draws) %>%
+  select(-lprior, -lp__, -.chain, -.iteration, -.draw) %>%
+  gather(key, value, -subnum, -type) %>%
+  mutate(key=recode(key, 
+                    "b_Intercept" = "Intercept", 
+                    "b_norm_absValDiff"  = "|Value Diff| [0, 1]",
+                    "b_time_bin1" = "Day 1 vs Later",
+                    "b_time_bin2" = "Day 2 vs Later",
+                    "b_time_bin3" = "Day 3 vs Later",
+                    "b_time_bin4" = "Week 2 vs Later",
+                    "b_norm_absValDiff.time_bin1" = "Value Diff x Day 1 vs Later",
+                    "b_norm_absValDiff.time_bin2" = "Value Diff x Day 2 vs Later",
+                    "b_norm_absValDiff.time_bin3" = "Value Diff x Day 3 vs Later",
+                    "b_norm_absValDiff.time_bin4" = "Value Diff x Week 2 vs Later",
+                    ),
+         key = factor(key, levels = c("Intercept", "|Value Diff| [0, 1]", "Day 1 vs Later", "Day 2 vs Later", "Day 3 vs Later", "Week 2 vs Later", "Value Diff x Day 1 vs Later", "Value Diff x Day 2 vs Later", "Value Diff x Day 3 vs Later", "Value Diff x Week 2 vs Later"))) %>%
+  group_by(subnum, type, key) %>%
+  summarise(.groups = 'keep',
+            m = mean(value),
+            l95 = HDInterval::hdi(value)[1],
+            h95 = HDInterval::hdi(value)[2]) %>%
+  mutate(subnum = as.factor(subnum),
+         task = "Y/N") 
+```
+
+```{r}
+yn_par_summary
+```

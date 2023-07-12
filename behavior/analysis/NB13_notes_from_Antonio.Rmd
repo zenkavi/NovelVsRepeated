@@ -545,6 +545,7 @@ p = ggplot()+
 # ggsave(file=paste0(fig_out_path, 'ynbc_groupAndSub_accuracyDiffOverDays.jpg'), p, height = 5, width=12, units="in")
 p
 ```
+
 # Choice psychometrics
 
 ## Plots
