@@ -358,7 +358,7 @@ names(as_tibble(yn_rt_draws))
 
 ```{r}
 yn_par_summary = as_tibble(yn_rt_draws) %>%
-  select(-lprior, -lp__, -.chain, -.iteration, -.draw) %>%
+  select(-lprior, -lp__, -.chain, -.iteration, -.draw, -sigma) %>%
   gather(key, value, -subnum, -type) %>%
   mutate(key=recode(key, 
                     "b_Intercept" = "Intercept", 
@@ -384,4 +384,72 @@ yn_par_summary = as_tibble(yn_rt_draws) %>%
 
 ```{r}
 yn_par_summary
+```
+```{r}
+yn_par_summary %>%
+  mutate(type_chr = ifelse(type == 0, "Regular Exposure", "Over Exposure")) %>%
+  # filter(key %in% c("Intercept", "|Value Diff| [0, 1]", "Value Diff x Day 1 vs Later")) %>%
+  ggplot(aes(m, subnum, color = type_chr)) +
+  geom_vline(aes(xintercept = 0), color = "gray") + 
+  geom_point(position = position_dodge(width=.75))+
+  geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
+  facet_wrap(~key, scales = 'free_x',labeller = labeller(key = label_wrap_gen(10))) +
+  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - Yes/Left ~ Value Diff x Time Bin") +
+  theme(legend.position = "bottom",
+        panel.grid = element_blank(),
+        legend.box.margin=margin(t = -10))+
+  scale_x_symmetric(mid=0)+
+  scale_color_brewer(palette = "Dark2")
+```
+
+# Reference amount
+
+```{r}
+data_yn_clean %>%
+  group_by(reference, subject, time_bin, type_chr) %>%
+  summarise(.groups = "keep",
+            mean_rt = mean(log(rt)),
+            sem_rt = sd(log(rt))/sqrt(n())) %>%
+  mutate(reference = factor(reference, levels = c(-50, 0, 50))) %>%
+  ggplot(aes(time_bin, mean_rt, color = reference))+
+  geom_point(position = position_dodge(width = .5))+
+  geom_errorbar(aes(ymin = mean_rt - sem_rt, ymax = mean_rt + sem_rt), width = .2, position = position_dodge(width = .5))+
+  facet_grid(type_chr ~ subject)+
+  theme(legend.position = "bottom")
+```
+```{r}
+data_yn_clean %>%
+  group_by(reference, subject, type_chr) %>%
+  summarise(.groups = "keep",
+            mean_log_rt = exp(mean(log(rt))),
+            sem_rt = sd(log(rt))/sqrt(n())) %>%
+  mutate(reference = factor(reference, levels = c(-50, 0, 50))) %>%
+  ggplot(aes(reference, mean_log_rt, color = reference))+
+  geom_point(position = position_dodge(width = .5))+
+  geom_errorbar(aes(ymin = mean_log_rt - sem_rt, ymax = mean_log_rt + sem_rt), width = .5, position = position_dodge(width = .5))+
+  facet_grid(type_chr ~ subject)+
+  theme(legend.position = "bottom")
+```
+
+```{r}
+data_yn_clean %>%
+  group_by(reference, subject, type_chr) %>%
+  summarise(.groups = "keep",
+            mean_rt = mean(rt),
+            sem_rt = sd(rt)/sqrt(n())) %>%
+  mutate(reference = factor(reference, levels = c(-50, 0, 50))) %>%
+  ggplot(aes(reference, mean_rt, color = reference))+
+  geom_point(position = position_dodge(width = .5))+
+  geom_errorbar(aes(ymin = mean_rt - sem_rt, ymax = mean_rt + sem_rt), width = .2, position = position_dodge(width = .5))+
+  facet_grid(type_chr ~ subject)+
+  theme(legend.position = "bottom")
+```
+
+```{r}
+data_yn_clean %>%
+  mutate(reference = factor(reference, levels = c(-50, 0, 50))) %>%
+  ggplot(aes(log(rt), fill = reference)) +
+  geom_density(position = "identity", alpha = .5, color = NA)+
+  facet_grid(type_chr ~ subject)+
+  theme(legend.position = "bottom") 
 ```
