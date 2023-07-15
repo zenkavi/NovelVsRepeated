@@ -404,6 +404,122 @@ yn_par_summary %>%
 
 # Reference amount
 
+## Choice
+
+Are you more likely to say yes/no to a stimulus with the same value difference depending on the reference amount?
+
+Does this change over days?
+
+```{r warning=FALSE}
+data_yn_clean%>%
+  mutate(time_bin = factor(time_bin, levels = c("Week 3", "Week 2", "Week 1", "Day 3", "Day 2", "Day 1")),
+         reference = factor(reference, levels = c(-50, 0, 50)),
+         day1 = ifelse(day == 1, "Day 1", "Later"),
+         day1 = as.factor(day1)) %>%
+  ggplot() +
+  geom_line(aes(val_diff, yesChosen, color = reference), stat="smooth", method = "glm", method.args = list(family = "binomial"), formula = "y ~ x", se = FALSE, size = 1.5, fullrange = T)+
+  geom_hline(aes(yintercept =.5), color="gray")+
+  geom_vline(aes(xintercept = 0), color="gray")+
+  facet_grid(type_chr ~ day1)+
+  labs(x = "Value Stim - Value Reference", y = "p(Yes)", title="", color = "")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text = element_text(size = 14),
+        strip.text = element_text(size = 14),
+        axis.title = element_text(size = 16),
+        legend.text = element_text(size = 14),
+        legend.box.margin=margin(t = -10),
+        legend.spacing.y = unit(-0.25, "cm"),
+        legend.box="vertical")+
+   scale_color_manual(values = c("#ca0020", "dark grey", "#0571b0"))+
+  scale_y_continuous(breaks = seq(0,1,.5))+
+  scale_x_continuous(breaks = c(-200, -100, 0, 100, 200),
+                     labels = c("", "-100", "0", "", "200"))
+
+# ggsave(file=paste0(fig_out_path, 'isdn_yn_subj_LogitRefEffects.jpg'), height = 5, width = 6, units="in")
+```
+
+
+```{r}
+cur_dat = data_yn_clean %>%
+  mutate(reference = factor(reference, levels = c(0, -50, 50))) %>%
+  group_by(subnum, type, day) %>%
+  mutate(norm_valDiff = (normMax - normMinVal) / (max(val_diff) - min(val_diff)) * (val_diff - max(val_diff)) + (normMax))
+
+cur_m <- brm(formula = yesChosen ~ (1 | reference * type),
+             data= cur_dat,
+             family = bernoulli(link = "logit"),
+             warmup = 500,
+             iter = 2500,
+             chains = 4,
+             init = "0",
+             cores = 4,
+             seed = 389253)
+```
+
+```{r}
+m1 = lme4::glmer(yesChosen ~ (1 | subnum) + (1 | reference) + norm_valDiff, data= cur_dat %>% filter(type==1), family = binomial(link = "logit"))
+
+m0 = lme4::glmer(yesChosen ~ (1 | subnum) + (1 | reference) + norm_valDiff, data= cur_dat %>% filter(type==0), family = binomial(link = "logit"))
+```
+
+```{r}
+summary(m1)
+ranef(m1)
+```
+
+```{r}
+summary(m0)
+ranef(m0)
+```
+
+```{r}
+m = lme4::glmer(yesChosen ~ (1 | subnum:reference) + norm_valDiff, data= cur_dat %>% filter(type==1), family = binomial(link = "logit"))
+```
+
+```{r}
+summary(m)
+ranef(m)
+```
+
+```{r}
+ranef(m1)
+ranef(m0)
+```
+
+Random intercept model in brms was taking too long.
+
+## RT
+
+```{r}
+data_yn_clean %>%
+  mutate(time_bin = factor(time_bin, levels = c("Week 3", "Week 2", "Week 1", "Day 3", "Day 2", "Day 1")),
+         reference = factor(reference, levels = c(-50, 0, 50)),
+         day1 = ifelse(day == 1, "Day 1", "Later"),
+         day1 = as.factor(day1)) %>%
+  ggplot() +
+  geom_line(aes(abs_val_diff, rt, color = reference), stat="smooth", method = "lm", formula = "y ~ x", se = FALSE, size = 1.5)+
+  facet_grid(type_chr ~ day1)+
+  labs(x = "|Value Stim - Value Reference|", y = "RT (secs)", title="", color = "")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text = element_text(size = 14),
+        strip.text = element_text(size = 14),
+        axis.title = element_text(size = 16),
+        legend.text = element_text(size = 14),
+        legend.box.margin=margin(t = -10),
+        legend.spacing.y = unit(-0.25, "cm"),
+        legend.box="vertical")+
+  scale_color_manual(values = c("#ca0020", "dark grey", "#0571b0"))+
+  scale_alpha_manual(values = c(1, .7, .7, .7, .7))+
+  scale_y_continuous(trans = "log", breaks = c(0.1, .5, 1, 1.5))+
+  scale_x_continuous(breaks = c(0, 100, 200),
+                     labels = c("0", "100", ""))
+
+ggsave(file=paste0(fig_out_path, 'isdn_yn_subj_RTRefEffects.jpg'), height = 5, width = 6, units="in")
+```
+
+
 ```{r}
 data_yn_clean %>%
   group_by(reference, subject, time_bin, type_chr) %>%
@@ -417,6 +533,7 @@ data_yn_clean %>%
   facet_grid(type_chr ~ subject)+
   theme(legend.position = "bottom")
 ```
+
 ```{r}
 data_yn_clean %>%
   group_by(reference, subject, type_chr) %>%
