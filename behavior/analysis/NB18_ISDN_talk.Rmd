@@ -699,4 +699,12 @@ Are you learning about the HT in an isolated manner? Or is what you have learned
 I.e. evidence for some generalization
 In other words maybe: are you learning about the stimuli directly or values associated with the attribute levels?
 
+I don't think I've been thinking about this the right way. Of course there is some 
 
+```{r}
+data_yn_clean %>%
+  group_by(subnum, day, yesChosen, type) %>%
+  summarise(.groups = "keep",
+            median_rt = median(rt)) %>%
+  arrange(subnum, day, type)
+```
