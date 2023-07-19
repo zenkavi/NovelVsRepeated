@@ -521,190 +521,59 @@ ggsave(file=paste0(fig_out_path, 'isdn_yn_subj_RTRefEffects.jpg'), height = 5, w
 
 # Similarity to HT
 
-Function to get stimnums and attribute levels for HT stims for a given subject
+What is the interesting question here? "Are you learning about the HT in an isolated manner? Or is what you have learned about them leaking to other stims in some way?"  
+
+This is a bit of a straw man argument. If there was no generalization there would be no reason for behavior in RE to improve. So there is learning for more than just the stim value but what is the representation that is being updated?
 
 ```{r}
-source(paste0(helpers_path, '04_stim_closeness_helpers.R'))
+source(paste0(helpers_path, "rlddm/yn_rlddm.R"))
+stims = data_yn_clean %>% filter(subnum == 601 & day == 1)
+# stims = stims[1:10,]
+stims
 ```
+
+Takes ~ 18 seconds with these parameters for 800 trials.
 
 ```{r}
-data_yn_cht_wshape = get_cht_labels_for_all_subs(data = data_yn_clean, w_shape = TRUE)
+# start = Sys.time()
+sim_data = sim_task(stims, d = .005, sigma = .005, alpha = .3, theta = .2, nonDecisionTime = 300, bias = 0, barrierDecay = 0, return_values = TRUE)
+# end = Sys.time()
+# print(paste0("Total time: ", end - start))
 ```
+
+This looks reasonable for shape and filling but why is orientation off? Would it improve with more training?
 
 ```{r}
-with(data_yn_cht_wshape, table(subnum, type_chr, time_bin))
-```
-
-```{r warning=FALSE}
-data_yn_cht_wshape%>%
-  mutate(time_bin = factor(time_bin, levels = c("Week 3", "Week 2", "Week 1", "Day 3", "Day 2", "Day 1"))) %>%
-  mutate(type_chr = ifelse(type_chr == "CHT", "Close", type_chr),
-         type_chr = factor(type_chr, levels = c("Over Exposure", "Close", "Regular Exposure"))) %>%
-  ggplot() +
-  geom_hline(aes(yintercept =.5), color="gray")+
-  geom_vline(aes(xintercept = 0), color="gray")+
-  geom_line(aes(val_diff, yesChosen, color = time_bin, alpha = time_bin), stat="smooth", method = "glm", method.args = list(family = "binomial"), formula = "y ~ x", se = FALSE, size = 1.5)+
-  # geom_point(data = sub_summary, aes(val_diff_bin, mean_y, color = time_bin), size = 2)+
-  facet_grid(type_chr ~ subject)+
-  labs(x = "Value Stim - Value Reference", y = "p(Yes)", title="", color = "")+
-  theme(panel.grid = element_blank(),
-        legend.position = "bottom",
-        axis.text = element_text(size = 14),
-        strip.text = element_text(size = 14),
-        axis.title = element_text(size = 16),
-        legend.text = element_text(size = 14),
-        legend.box.margin=margin(t = -10),
-        legend.spacing.y = unit(-0.25, "cm"),
-        legend.box="vertical")+
-  scale_color_manual(values = c("#6e016b", "#238b45", "#41ae76", "#66c2a4", "#99d8c9"),
-                     breaks = c("Day 1", "Day 2", "Day 3", "Week 2", "Week 3"))+
-  scale_alpha_manual(values = c(1, .7, .7, .7, .7))+
-  scale_y_continuous(breaks = seq(0,1,.5))+
-  scale_x_continuous(breaks = c(-200, -100, 0, 100, 200),
-                     labels = c("", "-100", "0", "", "200"))+
-  guides(alpha = "none")
+sim_data$values
 ```
 
 ```{r}
-k = length(unique(data_yn_clean$time_bin)) # number of factor levels
+sim_data$out %>%
+  filter(type == 1)
+```
 
-my_helmert = matrix(c(4/5, -1/5, -1/5, -1/5, -1/5,
-                      0, 3/4, -1/4, -1/4, -1/4,
-                      0, 0, 2/3, -1/3, -1/3,
-                      0, 0, 0, 1/2, -1/2), ncol = k-1)
+Sanity checks
 
-my_helmert
+Min and max RT
+RT distribution
+Type differences
+
+```{r}
+summary(sim_data$out$reactionTime)
 ```
 
 ```{r}
-subnums = unique(data_yn_cht_wshape$subnum)
-types = unique(data_yn_cht_wshape$type_chr)
-normMax = 1
-normMinDay = 0
-normMinVal = -1
-
-yn_logit_draws = tibble()
-
-for(cur_sub in subnums){
-  for(cur_type in types){
-    
-    cur_dat = data_yn_cht_wshape %>%
-      ungroup() %>%
-      filter(subnum == cur_sub & type_chr == cur_type) %>%
-      mutate(time_bin = as.factor(time_bin)) %>%
-      group_by(day) %>% # Grouping by day to normalize valdiff matters. This makes sure every day ranges [-1,1]
-      mutate(norm_valDiff = (normMax - normMinVal) / (max(val_diff) - min(val_diff)) * (val_diff - max(val_diff)) + (normMax)) %>%
-      ungroup() %>%
-      select(yesChosen, norm_valDiff, time_bin, type)
-    
-    
-    # If type is not CHT down sample to make the amount of data comparable
-    if(cur_type != "CHT"){
-      tb1 =  cur_dat %>% filter(time_bin == "Day 1") %>% sample_n(50)
-      tb2 =  cur_dat %>% filter(time_bin == "Day 2") %>% sample_n(50)
-      tb3 =  cur_dat %>% filter(time_bin == "Day 3") %>% sample_n(50)
-      tb4 =  cur_dat %>% filter(time_bin == "Week 2") %>% sample_n(180)
-      tb5 =  cur_dat %>% filter(time_bin == "Week 3") %>% sample_n(180)
-      
-      cur_dat = rbind(tb1, tb2, tb3, tb4, tb5)
-    }
-    
-    contrasts(cur_dat$time_bin) = my_helmert
-    
-    cur_m <- brm(formula = yesChosen ~ norm_valDiff * time_bin,
-    # cur_m <- brm(formula = yesChosen ~ norm_valDiff,
-                 data= cur_dat,
-                 family = bernoulli(link = "logit"),
-                 warmup = 500,
-                 iter = 2500,
-                 chains = 4,
-                 init = "0",
-                 cores = 4,
-                 seed = 389253)
-    
-    cur_draws = as_draws_df(cur_m)
-    cur_draws$subnum = cur_sub
-    cur_draws$type = cur_type
-    
-    yn_logit_draws = rbind(yn_logit_draws, cur_draws) 
-  }
-}
-names(yn_logit_draws) = gsub(":", ".", names(yn_logit_draws))
-
-rm(cur_dat, cur_m, cur_draws, cur_sub)
+sim_data$out %>%
+  group_by(type) %>%
+  summarise(median_rt = median(reactionTime))
 ```
 
-```{r}
-yn_par_summary = as_tibble(yn_logit_draws) %>%
-  select(-lprior, -lp__, -.chain, -.iteration, -.draw) %>%
-  gather(key, value, -subnum, -type) %>%
-  mutate(key=recode(key, 
-                    "b_Intercept" = "Intercept", 
-                    "b_norm_valDiff"  = "Value Diff [-1, 1]",
-                    "b_time_bin1" = "Day 1 vs Later",
-                    "b_time_bin2" = "Day 2 vs Later",
-                    "b_time_bin3" = "Day 3 vs Later",
-                    "b_time_bin4" = "Week 2 vs Later",
-                    "b_norm_valDiff.time_bin1" = "Value Diff x Day 1 vs Later",
-                    "b_norm_valDiff.time_bin2" = "Value Diff x Day 2 vs Later",
-                    "b_norm_valDiff.time_bin3" = "Value Diff x Day 3 vs Later",
-                    "b_norm_valDiff.time_bin4" = "Value Diff x Week 2 vs Later",
-                    ),
-         key = factor(key, levels = c("Intercept", "Value Diff [-1, 1]", "Day 1 vs Later", "Day 2 vs Later", "Day 3 vs Later", "Week 2 vs Later", "Value Diff x Day 1 vs Later", "Value Diff x Day 2 vs Later", "Value Diff x Day 3 vs Later", "Value Diff x Week 2 vs Later"))
-         # key = factor(key, levels = c("Intercept", "Value Diff [-1, 1]"))
-         ) %>%
-  group_by(subnum, type, key) %>%
-  summarise(.groups = 'keep',
-            m = mean(value),
-            l95 = HDInterval::hdi(value)[1],
-            h95 = HDInterval::hdi(value)[2]) %>%
-  mutate(subnum = as.factor(subnum),
-         task = "Y/N") 
-```
+How to extend over days?
+Need to pass value representation across days. But identically? Any decay or consolidation?
 
-```{r}
-unique(yn_par_summary$type)
-```
+What parameters to allow to change over days?
 
-```{r}
-yn_par_summary %>%
-  filter(subnum != 621) %>%
-  # mutate(type_chr = ifelse(type == 0, "Regular Exposure", "Over Exposure")) %>%
-  filter(key %in% c("Intercept", "Value Diff [-1, 1]", "Value Diff x Day 1 vs Later")) %>%
-    # filter(key %in% c("Value Diff [-1, 1]")) %>%
-  ggplot(aes(m, subnum, color = type)) +
-  geom_vline(aes(xintercept = 0), color = "gray") + 
-  geom_point(position = position_dodge(width=.75))+
-  geom_errorbarh(aes(xmin = l95, xmax = h95, height=.2), position = position_dodge(width=.75))+
-  facet_wrap(~key, scales = 'free_x',labeller = labeller(key = label_wrap_gen(10))) +
-  labs(x = "Parameter Estimate", y = "Subject", color = "", title = "95% HDI for posterior slopes - Yes/Left ~ Value Diff x Time Bin") +
-  theme(legend.position = "bottom",
-        panel.grid = element_blank(),
-        legend.box.margin=margin(t = -10))+
-  scale_x_symmetric(mid=0)+
-  scale_color_brewer(palette = "Dark2")
-```
-
-What should a continuous measure of closeness to HT look like?
-Assumption: color and shape are more salient than orientation.
-But what about how consequential an attribute is for the stim reward? Eg. shape is more consequential than orientation 
-And also continuity of levels? For orientation and filling one levels gives info on other levels but for shape they're not ordered
-
-What plot/conclusion do I want to show?
-The closer a stim is to an HT, the better the behavior? The better or the more HT like?
-
-What is the interesting questions here?
-Are you learning about the HT in an isolated manner? Or is what you have learned about them leaking to other stims in some way? 
-  - This is sort of a straw man argument. If there was no generalization there would be no reason for behavior to RE to improve. So there is learning for more than just the stim value but what is the representation that is being updated?
-I.e. evidence for some generalization
-In other words maybe: are you learning about the stimuli directly or values associated with the attribute levels?
-
-I don't think I've been thinking about this the right way. Of course there is some 
-
-```{r}
-data_yn_clean %>%
-  group_by(subnum, day, yesChosen, type) %>%
-  summarise(.groups = "keep",
-            median_rt = median(rt)) %>%
-  arrange(subnum, day, type)
-```
+HDDM-LAN: 
+Generating training data for network training is similar to the mass simulation approach in the old-school aDDM fitting.
+The difference is: hierarchical fitting, posteriors for parameter estimates
+Instead of: looking up the likelihood of each trial's RT conditional on choice for each possible parameter combination

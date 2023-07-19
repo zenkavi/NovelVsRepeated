@@ -1,4 +1,4 @@
-sim_task = function(stims, d, sigma, alpha, theta, nonDecisionTime, bias, barrierDecay, barrier=1, timeStep=10, maxIter=1000){
+sim_task = function(stims, d, sigma, alpha, theta, nonDecisionTime, bias, barrierDecay, barrier = 1, timeStep = 10, maxIter = 1000, debug = FALSE, return_values = TRUE){
 
   # Since value updating needs to happen sequentially (i.e. cannot be parallelized) writing this function as a task simulator instead of a trial simulator
 
@@ -12,9 +12,9 @@ sim_task = function(stims, d, sigma, alpha, theta, nonDecisionTime, bias, barrie
   # If time step is 10ms and maxIter is 1000 this would be a 10sec timeout maximum
 
   out = tibble()
-  val_shape = rep(0, 6)
-  val_orientation = rep(0, 11)
-  val_filling = rep(0, 9)
+  val_shape = rep(0, 6) # indexed for [1, 2, 3, 4, 5, 6]
+  val_orientation = rep(0, 11) # indexed for [0, 15, 30, 45, 60, 75, 90, 105, 120, 135, 150]
+  val_filling = rep(0, 9) # indexed for [-.85, -.6, -.4, -.2, 0, .2, .4, .6, .85]
 
   nonDecIters = nonDecisionTime / timeStep
   initialBarrier = barrier
@@ -46,6 +46,8 @@ sim_task = function(stims, d, sigma, alpha, theta, nonDecisionTime, bias, barrie
     cur_filling_val = val_filling[filling_index]
 
     observed_val = stims$possiblePayoff[stim_row]
+    cur_type = stims$type[stim_row]
+
 
     # The values of the barriers can change over time
     for(t in seq(2, maxIter, 1)){
@@ -69,19 +71,6 @@ sim_task = function(stims, d, sigma, alpha, theta, nonDecisionTime, bias, barrie
         } else if (RDV <= -barrier[time]){
           choice = "no"
         }
-
-        # Update value representations
-        # This doesn't depend on which choice is made because feedback is provided regardless
-        val_shape[shape_index] = cur_shape_val + alpha * (observed_val - cur_shape_val)
-        val_orientation[orientation_index] = cur_orientation_val + alpha * (observed_val - cur_orientation_val)
-        val_filling[filling_index] = cur_filling + alpha * (observed_val - cur_filling_val)
-
-        # Additional update of consecutive attribute levels
-        orientation_steps_away = 1:length(val_orientation) - orientation_index
-        val_orientation = (orientation_steps_away * theta * val_orientation[orientation_index]) + val_orientation[orientation_index]
-
-        ... # filling? ...
-
         break
       }
 
@@ -115,20 +104,70 @@ sim_task = function(stims, d, sigma, alpha, theta, nonDecisionTime, bias, barrie
       RT = rlnorm(1, mean = 2, sd = 0.1)
     }
 
+    # Update value representations
+    # This doesn't depend on which choice is made because feedback is provided regardless
+    val_shape[shape_index] = cur_shape_val + alpha * (observed_val - cur_shape_val)
+
+    val_orientation[orientation_index] = cur_orientation_val + alpha * (observed_val - cur_orientation_val)
+    orientation_steps_away = 1:length(val_orientation) - orientation_index
+    val_orientation = (orientation_steps_away * theta * val_orientation[orientation_index]) + val_orientation[orientation_index]
+
+    if(filling_index != 5){
+      val_filling[filling_index] = cur_filling_val + alpha * (observed_val - cur_filling_val)
+      filling_steps_away = 1:length(val_filling) - filling_index
+
+      if(filling_index < 5){
+        filling_steps_away = (-1) * filling_steps_away
+        tmp_val_filling = (filling_steps_away * theta * val_filling[filling_index]) + val_filling[filling_index]
+        val_filling[1:4] = tmp_val_filling[1:4]
+        val_filling[6:9] = (-1) * tmp_val_filling[4:1]
+      } else {
+        tmp_val_filling = (filling_steps_away * theta * val_filling[filling_index]) + val_filling[filling_index]
+        val_filling[6:9] = tmp_val_filling[6:9]
+        val_filling[1:4] = (-1) * tmp_val_filling[9:6]
+      }
+      val_filling[5] = 0
+    }
+
+    if(debug){
+      cat(paste0("***Trial ", stim_row, "***\n"))
+      cat(paste0("Stim details: Shape = ", cur_shape, ", Orientation = ", cur_orientation, ", Filling = ", cur_filling, "\n"))
+      cat(paste0("Stim EV = ", round(mu_mean, 2), ", Payoff = ", observed_val, "\n"))
+      cat("***Post-choice values: ***\n")
+      cat("Shape = \n")
+      cat(as.character(round(val_shape, 2)))
+      cat("\n")
+      cat("Orientation = \n")
+      cat(as.character(round(val_orientation, 2)))
+      cat("\n")
+      cat("Filling = \n")
+      cat(as.character(round(val_filling, 2)))
+
+      cat("\n###################\n")
+      cat("\n")
+    }
+
     # Make sure the RT is always at least as large as the nonDecisionTime
     # (Even if a boundary is hit only by noise before ndt)
     tooFast = as.numeric( (RT*1000) < nonDecisionTime )
     RT = ifelse( (RT*1000) < nonDecisionTime, nonDecisionTime/1000, RT)
 
     #Organize output
-    pred_trial = data.frame(shape = shape, orientation = orientation, filling = filling,
-                            choice = choice, reactionTime = RT,
-                            tooSlow = tooSlow, tooFast = tooFast,
-                            d = d, sigma = sigma, barrierDecay = barrierDecay, barrier = barrier[time], nonDecisionTime = nonDecisionTime, bias = bias,
-                            timeStep = timeStep, maxIter = maxIter)
+    pred_trial = tibble(shape = round(cur_shape), orientation = round(cur_orientation), filling = round(cur_filling, 2),
+                        shape_val = round(cur_shape_val, 3), orientation_val = round(cur_orientation_val, 3), filling_val = round(cur_filling_val, 3),
+                        stim_ev = mu_mean, type = cur_type,
+                        choice = choice, reactionTime = RT,
+                        tooSlow = tooSlow, tooFast = tooFast,
+                        d = d, sigma = sigma, alpha = alpha, theta = theta,
+                        barrierDecay = barrierDecay, barrier = barrier[time], nonDecisionTime = nonDecisionTime, bias = bias,
+                        timeStep = timeStep, maxIter = maxIter)
 
     out = rbind(out, pred_trial)
   }
 
+  if(return_values){
+    return(list(out = out, values = list(val_shape = val_shape, val_orientation = val_orientation, val_filling = val_filling)))
+  } else {
     return(out)
+  }
 }
