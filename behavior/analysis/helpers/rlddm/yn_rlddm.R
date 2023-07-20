@@ -108,9 +108,15 @@ sim_task = function(stims, d, sigma, alpha, theta, nonDecisionTime, bias, barrie
     # This doesn't depend on which choice is made because feedback is provided regardless
     val_shape[shape_index] = cur_shape_val + alpha * (observed_val - cur_shape_val)
 
+    ## Values for attributes with consecutive levels "leaks" across the levels
     val_orientation[orientation_index] = cur_orientation_val + alpha * (observed_val - cur_orientation_val)
-    orientation_steps_away = 1:length(val_orientation) - orientation_index
-    val_orientation = (orientation_steps_away * theta * val_orientation[orientation_index]) + val_orientation[orientation_index]
+
+    ### This assumes that orientation values can only increase from 0, which is wrong
+    ### I can make some arbitrary assumptions about when generalization might begin
+    ### (e.g. when subjects have seen orientations on both sides of 90 degrees etc)
+    ### but I'd rather refrain from that for now.
+    # orientation_steps_away = 1:length(val_orientation) - orientation_index
+    # val_orientation = (orientation_steps_away * theta * val_orientation[orientation_index]) + val_orientation[orientation_index]
 
     if(filling_index != 5){
       val_filling[filling_index] = cur_filling_val + alpha * (observed_val - cur_filling_val)
@@ -155,7 +161,7 @@ sim_task = function(stims, d, sigma, alpha, theta, nonDecisionTime, bias, barrie
     #Organize output
     pred_trial = tibble(shape = round(cur_shape), orientation = round(cur_orientation), filling = round(cur_filling, 2),
                         shape_val = round(cur_shape_val, 3), orientation_val = round(cur_orientation_val, 3), filling_val = round(cur_filling_val, 3),
-                        stim_ev = mu_mean, type = cur_type,
+                        stim_ev = mu_mean, type = cur_type, possiblePayoff = stims$possiblePayoff[stim_row], reference = stims$reference[stim_row],
                         choice = choice, reactionTime = RT,
                         tooSlow = tooSlow, tooFast = tooFast,
                         d = d, sigma = sigma, alpha = alpha, theta = theta,

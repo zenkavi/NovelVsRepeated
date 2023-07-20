@@ -259,7 +259,8 @@ sub_summary
 data_yn_clean %>%
   mutate(time_bin = factor(time_bin, levels = c("Week 3", "Week 2", "Week 1", "Day 3", "Day 2", "Day 1"))) %>%
   ggplot() +
-  geom_line(aes(abs_val_diff, rt, color = time_bin, alpha = time_bin), stat="smooth", method = "lm", formula = "y ~ x", se = FALSE, size = 1.5)+
+  geom_hline(aes(yintercept = 1), color = "gray") +
+  geom_line(aes(abs_val_diff, rt, color = time_bin, alpha = time_bin), stat="smooth", method = "lm", formula = "y ~ x", se = FALSE, linewidth = 1.5)+
   geom_point(data = sub_summary, aes(abs_val_diff, mean_rt, color = time_bin), size = 2)+
   facet_grid(type_chr ~ subject)+
   labs(x = "|Value Stim - Value Reference|", y = "RT (secs)", title="", color = "")+
@@ -281,6 +282,32 @@ data_yn_clean %>%
   guides(alpha = "none")
 
 # ggsave(file=paste0(fig_out_path, 'isdn_yn_subj_RTOverValDiffAcrossTime.jpg'), height = 5, width = 12, units="in")
+```
+
+Comparison of types across time bins
+
+```{r}
+data_yn_clean %>%
+  mutate(time_bin = factor(time_bin, levels = c("Week 3", "Week 2", "Week 1", "Day 3", "Day 2", "Day 1"))) %>%
+  ggplot() +
+  geom_line(aes(abs_val_diff, rt, color = type_chr), stat="smooth", method = "lm", formula = "y ~ x", se = FALSE, size = 1.5)+
+  geom_point(data = sub_summary, aes(abs_val_diff, mean_rt, color = type_chr), size = 2)+
+  facet_grid(time_bin ~ subject)+
+  labs(x = "|Value Stim - Value Reference|", y = "RT (secs)", title="", color = "")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text = element_text(size = 14),
+        strip.text = element_text(size = 14),
+        axis.title = element_text(size = 16),
+        legend.text = element_text(size = 14),
+        legend.box.margin=margin(t = -10),
+        legend.spacing.y = unit(-0.25, "cm"),
+        legend.box="vertical")+
+  scale_color_brewer(palette = "Dark2")+
+  scale_alpha_manual(values = c(1, .7, .7, .7, .7))+
+  scale_y_continuous(trans = "log", breaks = c(0.1, .5, 1, 1.5))+
+  scale_x_continuous(breaks = c(0, 100, 200),
+                     labels = c("0", "100", ""))
 ```
 
 Helmert coding: Compare day 1 to later, day 2 to later etc. 
@@ -385,10 +412,11 @@ yn_par_summary = as_tibble(yn_rt_draws) %>%
 ```{r}
 yn_par_summary
 ```
+
 ```{r}
 yn_par_summary %>%
   mutate(type_chr = ifelse(type == 0, "Regular Exposure", "Over Exposure")) %>%
-  # filter(key %in% c("Intercept", "|Value Diff| [0, 1]", "Value Diff x Day 1 vs Later")) %>%
+  filter(key %in% c("Intercept", "|Value Diff| [0, 1]", "Value Diff x Day 1 vs Later")) %>%
   ggplot(aes(m, subnum, color = type_chr)) +
   geom_vline(aes(xintercept = 0), color = "gray") + 
   geom_point(position = position_dodge(width=.75))+
@@ -532,11 +560,11 @@ stims = data_yn_clean %>% filter(subnum == 601 & day == 1)
 stims
 ```
 
-Takes ~ 18 seconds with these parameters for 800 trials.
+Takes ~ 18 seconds with these parameters (`d = .005, sigma = .005, alpha = .3, theta = .2`) for 800 trials.
 
 ```{r}
 # start = Sys.time()
-sim_data = sim_task(stims, d = .005, sigma = .005, alpha = .3, theta = .2, nonDecisionTime = 300, bias = 0, barrierDecay = 0, return_values = TRUE)
+sim_data = sim_task(stims, d = .005, sigma = .005, alpha = .1, theta = .2, nonDecisionTime = 300, bias = 0, barrierDecay = 0, return_values = TRUE)
 # end = Sys.time()
 # print(paste0("Total time: ", end - start))
 ```
@@ -548,24 +576,64 @@ sim_data$values
 ```
 
 ```{r}
-sim_data$out %>%
-  filter(type == 1)
-```
+sim_data$out = sim_data$out %>%
+  # filter(type == 1) %>%
+  mutate(type_chr = ifelse(type == 1, "Over Exposure", "Regular Exposure"),
+         val_diff = possiblePayoff - reference,
+         abs_val_diff = abs(possiblePayoff - reference),
+         val_diff_bin = round(val_diff/50),
+         val_diff_bin_str = paste0(val_diff_bin*50-25,":",val_diff_bin*50+25),
+         val_diff_bin_str = factor(val_diff_bin_str, levels = c("-225:-175", "-175:-125", "-125:-75", "-75:-25", "-25:25", "25:75", "75:125", "125:175", "175:225")),
+         yesChosen = ifelse(choice == "yes", 1, 0)) 
 
-Sanity checks
-
-Min and max RT
-RT distribution
-Type differences
-
-```{r}
-summary(sim_data$out$reactionTime)
 ```
 
 ```{r}
 sim_data$out %>%
-  group_by(type) %>%
-  summarise(median_rt = median(reactionTime))
+  ggplot() +
+  geom_hline(aes(yintercept =.5), color="gray")+
+  geom_vline(aes(xintercept = 0), color="gray")+
+  geom_line(aes(val_diff, yesChosen, color = type_chr), stat="smooth", method = "glm", method.args = list(family = "binomial"), formula = "y ~ x", se = FALSE, size = 1.5, fullrange = T) +
+  facet_grid(. ~ reference) +
+  labs(x = "Value Stim - Value Reference", y = "p(Yes)", title="", color = "")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text = element_text(size = 14),
+        strip.text = element_text(size = 14),
+        axis.title = element_text(size = 16),
+        legend.text = element_text(size = 14),
+        legend.box.margin=margin(t = -10),
+        legend.spacing.y = unit(-0.25, "cm"),
+        legend.box="vertical")+
+  scale_color_brewer(palette = "Dark2")+
+  scale_alpha_manual(values = c(1, .7, .7, .7, .7))+
+  scale_y_continuous(breaks = seq(0,1,.5))+
+  scale_x_continuous(breaks = c(-200, -100, 0, 100, 200),
+                     labels = c("", "-100", "0", "", "200"))
+```
+
+
+```{r}
+sim_data$out %>%
+  mutate(rt = reactionTime) %>%
+  ggplot() +
+  geom_line(aes(abs_val_diff, rt, color = type_chr), stat="smooth", method = "lm", formula = "y ~ x", se = FALSE, size = 1.5)+
+  # facet_grid(time_bin ~ session) +
+  labs(x = "|Value Stim - Value Reference|", y = "RT (secs)", title="", color = "")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text = element_text(size = 14),
+        strip.text = element_text(size = 14),
+        axis.title = element_text(size = 16),
+        legend.text = element_text(size = 14),
+        legend.box.margin=margin(t = -10),
+        legend.spacing.y = unit(-0.25, "cm"),
+        legend.box="vertical")+
+  scale_color_brewer(palette = "Dark2")+
+  scale_alpha_manual(values = c(1, .7, .7, .7, .7))+
+  scale_y_continuous(trans = "log", breaks = c(0.1, .5, 1, 1.5))+
+  scale_x_continuous(breaks = c(0, 100, 200),
+                     labels = c("0", "100", ""))
 ```
 
 How to extend over days?
@@ -577,3 +645,55 @@ HDDM-LAN:
 Generating training data for network training is similar to the mass simulation approach in the old-school aDDM fitting.
 The difference is: hierarchical fitting, posteriors for parameter estimates
 Instead of: looking up the likelihood of each trial's RT conditional on choice for each possible parameter combination
+
+# HT on day 1
+
+````{r warning=FALSE}
+data_yn_clean %>%
+  filter(subnum == 619) %>%
+  ggplot() +
+  geom_hline(aes(yintercept =.5), color="gray")+
+  geom_vline(aes(xintercept = 0), color="gray")+
+  geom_line(aes(val_diff, yesChosen, color = type_chr), stat="smooth", method = "glm", method.args = list(family = "binomial"), formula = "y ~ x", se = FALSE, size = 1.5, fullrange = T) +
+  facet_grid(time_bin ~ session) +
+  labs(x = "Value Stim - Value Reference", y = "p(Yes)", title="", color = "")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text = element_text(size = 14),
+        strip.text = element_text(size = 14),
+        axis.title = element_text(size = 16),
+        legend.text = element_text(size = 14),
+        legend.box.margin=margin(t = -10),
+        legend.spacing.y = unit(-0.25, "cm"),
+        legend.box="vertical")+
+  scale_color_brewer(palette = "Dark2")+
+  scale_alpha_manual(values = c(1, .7, .7, .7, .7))+
+  scale_y_continuous(breaks = seq(0,1,.5))+
+  scale_x_continuous(breaks = c(-200, -100, 0, 100, 200),
+                     labels = c("", "-100", "0", "", "200"))
+
+```
+
+```{r}
+data_yn_clean %>%
+  filter(subnum == 611) %>%
+  # mutate(time_bin = factor(time_bin, levels = c("Week 3", "Week 2", "Week 1", "Day 3", "Day 2", "Day 1"))) %>%
+  ggplot() +
+  geom_line(aes(abs_val_diff, rt, color = type_chr), stat="smooth", method = "lm", formula = "y ~ x", se = FALSE, size = 1.5)+
+  facet_grid(time_bin ~ session) +
+  labs(x = "|Value Stim - Value Reference|", y = "RT (secs)", title="", color = "")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text = element_text(size = 14),
+        strip.text = element_text(size = 14),
+        axis.title = element_text(size = 16),
+        legend.text = element_text(size = 14),
+        legend.box.margin=margin(t = -10),
+        legend.spacing.y = unit(-0.25, "cm"),
+        legend.box="vertical")+
+  scale_color_brewer(palette = "Dark2")+
+  scale_alpha_manual(values = c(1, .7, .7, .7, .7))+
+  scale_y_continuous(trans = "log", breaks = c(0.1, .5, 1, 1.5))+
+  scale_x_continuous(breaks = c(0, 100, 200),
+                     labels = c("0", "100", ""))
+```
