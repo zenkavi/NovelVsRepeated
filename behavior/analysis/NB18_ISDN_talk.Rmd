@@ -544,107 +544,8 @@ data_yn_clean %>%
   scale_x_continuous(breaks = c(0, 100, 200),
                      labels = c("0", "100", ""))
 
-ggsave(file=paste0(fig_out_path, 'isdn_yn_subj_RTRefEffects.jpg'), height = 5, width = 6, units="in")
+# ggsave(file=paste0(fig_out_path, 'isdn_yn_subj_RTRefEffects.jpg'), height = 5, width = 6, units="in")
 ```
-
-# Similarity to HT
-
-What is the interesting question here? "Are you learning about the HT in an isolated manner? Or is what you have learned about them leaking to other stims in some way?"  
-
-This is a bit of a straw man argument. If there was no generalization there would be no reason for behavior in RE to improve. So there is learning for more than just the stim value but what is the representation that is being updated?
-
-```{r}
-source(paste0(helpers_path, "rlddm/yn_rlddm.R"))
-stims = data_yn_clean %>% filter(subnum == 601 & day == 1)
-# stims = stims[1:10,]
-stims
-```
-
-Takes ~ 18 seconds with these parameters (`d = .005, sigma = .005, alpha = .3, theta = .2`) for 800 trials.
-
-```{r}
-# start = Sys.time()
-sim_data = sim_task(stims, d = .005, sigma = .005, alpha = .1, theta = .2, nonDecisionTime = 300, bias = 0, barrierDecay = 0, return_values = TRUE)
-# end = Sys.time()
-# print(paste0("Total time: ", end - start))
-```
-
-This looks reasonable for shape and filling but why is orientation off? Would it improve with more training?
-
-```{r}
-sim_data$values
-```
-
-```{r}
-sim_data$out = sim_data$out %>%
-  # filter(type == 1) %>%
-  mutate(type_chr = ifelse(type == 1, "Over Exposure", "Regular Exposure"),
-         val_diff = possiblePayoff - reference,
-         abs_val_diff = abs(possiblePayoff - reference),
-         val_diff_bin = round(val_diff/50),
-         val_diff_bin_str = paste0(val_diff_bin*50-25,":",val_diff_bin*50+25),
-         val_diff_bin_str = factor(val_diff_bin_str, levels = c("-225:-175", "-175:-125", "-125:-75", "-75:-25", "-25:25", "25:75", "75:125", "125:175", "175:225")),
-         yesChosen = ifelse(choice == "yes", 1, 0)) 
-
-```
-
-```{r}
-sim_data$out %>%
-  ggplot() +
-  geom_hline(aes(yintercept =.5), color="gray")+
-  geom_vline(aes(xintercept = 0), color="gray")+
-  geom_line(aes(val_diff, yesChosen, color = type_chr), stat="smooth", method = "glm", method.args = list(family = "binomial"), formula = "y ~ x", se = FALSE, size = 1.5, fullrange = T) +
-  facet_grid(. ~ reference) +
-  labs(x = "Value Stim - Value Reference", y = "p(Yes)", title="", color = "")+
-  theme(panel.grid = element_blank(),
-        legend.position = "bottom",
-        axis.text = element_text(size = 14),
-        strip.text = element_text(size = 14),
-        axis.title = element_text(size = 16),
-        legend.text = element_text(size = 14),
-        legend.box.margin=margin(t = -10),
-        legend.spacing.y = unit(-0.25, "cm"),
-        legend.box="vertical")+
-  scale_color_brewer(palette = "Dark2")+
-  scale_alpha_manual(values = c(1, .7, .7, .7, .7))+
-  scale_y_continuous(breaks = seq(0,1,.5))+
-  scale_x_continuous(breaks = c(-200, -100, 0, 100, 200),
-                     labels = c("", "-100", "0", "", "200"))
-```
-
-
-```{r}
-sim_data$out %>%
-  mutate(rt = reactionTime) %>%
-  ggplot() +
-  geom_line(aes(abs_val_diff, rt, color = type_chr), stat="smooth", method = "lm", formula = "y ~ x", se = FALSE, size = 1.5)+
-  # facet_grid(time_bin ~ session) +
-  labs(x = "|Value Stim - Value Reference|", y = "RT (secs)", title="", color = "")+
-  theme(panel.grid = element_blank(),
-        legend.position = "bottom",
-        axis.text = element_text(size = 14),
-        strip.text = element_text(size = 14),
-        axis.title = element_text(size = 16),
-        legend.text = element_text(size = 14),
-        legend.box.margin=margin(t = -10),
-        legend.spacing.y = unit(-0.25, "cm"),
-        legend.box="vertical")+
-  scale_color_brewer(palette = "Dark2")+
-  scale_alpha_manual(values = c(1, .7, .7, .7, .7))+
-  scale_y_continuous(trans = "log", breaks = c(0.1, .5, 1, 1.5))+
-  scale_x_continuous(breaks = c(0, 100, 200),
-                     labels = c("0", "100", ""))
-```
-
-How to extend over days?
-Need to pass value representation across days. But identically? Any decay or consolidation?
-
-What parameters to allow to change over days?
-
-HDDM-LAN: 
-Generating training data for network training is similar to the mass simulation approach in the old-school aDDM fitting.
-The difference is: hierarchical fitting, posteriors for parameter estimates
-Instead of: looking up the likelihood of each trial's RT conditional on choice for each possible parameter combination
 
 # HT on day 1
 
@@ -697,3 +598,161 @@ data_yn_clean %>%
   scale_x_continuous(breaks = c(0, 100, 200),
                      labels = c("0", "100", ""))
 ```
+
+# RLDDM
+
+What is the interesting question here? "Are you learning about the HT in an isolated manner? Or is what you have learned about them leaking to other stims in some way?"  
+
+This is a bit of a straw man argument. If there was no generalization there would be no reason for behavior in RE to improve. So there is learning for more than just the stim value but what is the representation that is being updated?
+
+```{r}
+source(paste0(helpers_path, "rlddm/yn_rlddm.R"))
+stims = data_yn_clean %>% filter(subnum == 601 & day == 1)
+# stims = stims[1:10,]
+stims
+```
+
+Takes ~ 18 seconds with these parameters (`d = .005, sigma = .005, alpha = .3, theta = .2`) for 800 trials.
+
+```{r}
+# start = Sys.time()
+sim_data = sim_task(stims, d = .005, sigma = .005, alpha = .1, theta = .2, nonDecisionTime = 300, bias = 0, barrierDecay = 0, return_values = TRUE)
+# end = Sys.time()
+# print(paste0("Total time: ", end - start))
+```
+
+This looks reasonable for shape and filling but why is orientation off? Would it improve with more training?
+
+```{r}
+sim_data$values
+```
+PLot: heat map of value representations with number of occurence of each attribute level
+Normalize values to range from [-1 to +1]
+
+```{r}
+normMax = 1
+normMin = -1
+
+
+sim_vals = tibble(attr_level = factor(1:6), val = sim_data$values$val_shape) %>%
+  mutate(attr = "shape", type = "sim") %>%
+  rbind(tibble(attr_level = factor(c(-.85, -.6, -.4, -.2, 0, .2, .4, .6, .85)), val = sim_data$values$val_filling) %>%
+          mutate(attr = "filling", type = "sim")) %>%
+  rbind(tibble(attr_level = factor(seq(0,150, 15)), val = sim_data$values$val_orientation) %>%
+          mutate(attr = "orientation", type = "sim")) %>%
+  group_by(attr) %>%
+  mutate(val = (normMax - normMin) / (max(val) - min(val)) * (val - max(val)) + (normMax),
+         y = factor(1)) 
+```
+
+```{r}
+true_vals = data_yn_clean %>%
+  filter(subnum == 601) %>%
+  select(valueS, shape) %>%
+  distinct() %>%
+  rename(val = valueS, attr_level = shape) %>%
+  mutate(attr = "shape") %>%
+  rbind(data_yn_clean %>%
+          filter(subnum == 601) %>%
+          select(valueF, filling) %>%
+          distinct() %>%
+          rename(val = valueF, attr_level = filling) %>%
+          group_by(attr_level) %>%
+          summarise(val = mean(val)) %>%
+          mutate(attr = "filling")) %>%
+  rbind(data_yn_clean %>%
+          filter(subnum == 601) %>%
+          select(valueO, orientation) %>%
+          distinct() %>%
+          rename(val = valueO, attr_level = orientation) %>%
+          mutate(attr = "orientation")) %>%
+  mutate(y = 1, type = "true",
+         attr_level = as.factor(attr_level))
+
+true_vals %>%
+  rbind(sim_vals) %>%
+  ggplot(aes(attr_level, y, fill = val))+
+  geom_tile()+
+  theme(panel.grid = element_blank(),
+        panel.border = element_blank(),
+        legend.position = "none",
+        axis.ticks = element_blank(),
+        axis.text = element_blank())+
+  facet_grid(type~attr, scales = "free")+
+  labs(y = "", x = "")+
+  scale_fill_gradient2(high = "#b2182b", low = "#2166ac", mid = "white", 
+   midpoint = 0, limit = c(-1,1), space = "Lab")
+```
+
+```{r}
+sim_data$out = sim_data$out %>%
+  # filter(type == 1) %>%
+  mutate(type_chr = ifelse(type == 1, "Over Exposure", "Regular Exposure"),
+         val_diff = possiblePayoff - reference,
+         abs_val_diff = abs(possiblePayoff - reference),
+         val_diff_bin = round(val_diff/50),
+         val_diff_bin_str = paste0(val_diff_bin*50-25,":",val_diff_bin*50+25),
+         val_diff_bin_str = factor(val_diff_bin_str, levels = c("-225:-175", "-175:-125", "-125:-75", "-75:-25", "-25:25", "25:75", "75:125", "125:175", "175:225")),
+         yesChosen = ifelse(choice == "yes", 1, 0)) 
+
+```
+
+```{r}
+sim_data$out %>%
+  ggplot() +
+  geom_hline(aes(yintercept =.5), color="gray")+
+  geom_vline(aes(xintercept = 0), color="gray")+
+  geom_line(aes(val_diff, yesChosen, color = type_chr), stat="smooth", method = "glm", method.args = list(family = "binomial"), formula = "y ~ x", se = FALSE, linewidth = 1.5, fullrange = T) +
+  facet_grid(. ~ reference) +
+  labs(x = "Value Stim - Value Reference", y = "p(Yes)", title="", color = "")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text = element_text(size = 14),
+        strip.text = element_text(size = 14),
+        axis.title = element_text(size = 16),
+        legend.text = element_text(size = 14),
+        legend.box.margin=margin(t = -10),
+        legend.spacing.y = unit(-0.25, "cm"),
+        legend.box="vertical")+
+  scale_color_brewer(palette = "Dark2")+
+  scale_alpha_manual(values = c(1, .7, .7, .7, .7))+
+  scale_y_continuous(breaks = seq(0,1,.5))+
+  scale_x_continuous(breaks = c(-200, -100, 0, 100, 200),
+                     labels = c("", "-100", "0", "", "200"))
+```
+
+
+```{r}
+sim_data$out %>%
+  mutate(rt = reactionTime) %>%
+  ggplot() +
+  geom_line(aes(abs_val_diff, rt, color = type_chr), stat="smooth", method = "lm", formula = "y ~ x", se = FALSE, size = 1.5)+
+  # facet_grid(time_bin ~ session) +
+  labs(x = "|Value Stim - Value Reference|", y = "RT (secs)", title="", color = "")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text = element_text(size = 14),
+        strip.text = element_text(size = 14),
+        axis.title = element_text(size = 16),
+        legend.text = element_text(size = 14),
+        legend.box.margin=margin(t = -10),
+        legend.spacing.y = unit(-0.25, "cm"),
+        legend.box="vertical")+
+  scale_color_brewer(palette = "Dark2")+
+  scale_alpha_manual(values = c(1, .7, .7, .7, .7))+
+  scale_y_continuous(trans = "log", breaks = c(0.1, .5, 1, 1.5))+
+  scale_x_continuous(breaks = c(0, 100, 200),
+                     labels = c("0", "100", ""))
+```
+
+How to extend over days?
+Need to pass value representation across days. But identically? Any decay or consolidation?
+
+What parameters to allow to change over days?
+
+HDDM-LAN: 
+Generating training data for network training is similar to the mass simulation approach in the old-school aDDM fitting.
+The difference is: hierarchical fitting, posteriors for parameter estimates
+Instead of: looking up the likelihood of each trial's RT conditional on choice for each possible parameter combination
+
+
