@@ -1,4 +1,4 @@
-sim_task = function(stims, d, sigma, alpha, theta, nonDecisionTime, bias, barrierDecay, barrier = 1, timeStep = 10, maxIter = 1000, debug = FALSE, return_values = TRUE){
+sim_task = function(stims, d, sigma, alpha, theta, k, nonDecisionTime, bias, barrierDecay, barrier = 1, timeStep = 10, maxIter = 1000, debug = FALSE, return_values = TRUE){
 
   # Since value updating needs to happen sequentially (i.e. cannot be parallelized) writing this function as a task simulator instead of a trial simulator
 
@@ -45,8 +45,16 @@ sim_task = function(stims, d, sigma, alpha, theta, nonDecisionTime, bias, barrie
     cur_orientation_val = val_orientation[orientation_index]
     cur_filling_val = val_filling[filling_index]
 
-    observed_val = stims$possiblePayoff[stim_row]
+    observed_val = stims$possiblePayoff[stim_row]/3
     cur_type = stims$type[stim_row]
+
+    if("day" %in% names(stims)){
+      if(length(unique(stims$day)) > 1){
+        cur_day = stims$day[stim_row]
+      }
+    } else{
+      cur_day = NA
+    }
 
 
     # The values of the barriers can change over time
@@ -54,7 +62,9 @@ sim_task = function(stims, d, sigma, alpha, theta, nonDecisionTime, bias, barrie
       barrier[t] = initialBarrier / (1 + (barrierDecay * t))
     }
 
-    mu_mean = d * ((cur_shape_val + cur_orientation_val + cur_filling_val)/3)
+    cur_stim_val  = (cur_shape_val + cur_orientation_val + cur_filling_val)/3
+    cur_ref_val = k * stims$reference[stim_row]
+    mu_mean = d * (cur_stim_val - cur_ref_val)
 
     while (time<maxIter) {
 
@@ -118,22 +128,22 @@ sim_task = function(stims, d, sigma, alpha, theta, nonDecisionTime, bias, barrie
     # orientation_steps_away = 1:length(val_orientation) - orientation_index
     # val_orientation = (orientation_steps_away * theta * val_orientation[orientation_index]) + val_orientation[orientation_index]
 
-    if(filling_index != 5){
-      val_filling[filling_index] = cur_filling_val + alpha * (observed_val - cur_filling_val)
-      filling_steps_away = 1:length(val_filling) - filling_index
+    # if(filling_index != 5){
+    val_filling[filling_index] = cur_filling_val + alpha * (observed_val - cur_filling_val)
 
-      if(filling_index < 5){
-        filling_steps_away = (-1) * filling_steps_away
-        tmp_val_filling = (filling_steps_away * theta * val_filling[filling_index]) + val_filling[filling_index]
-        val_filling[1:4] = tmp_val_filling[1:4]
-        val_filling[6:9] = (-1) * tmp_val_filling[4:1]
-      } else {
-        tmp_val_filling = (filling_steps_away * theta * val_filling[filling_index]) + val_filling[filling_index]
-        val_filling[6:9] = tmp_val_filling[6:9]
-        val_filling[1:4] = (-1) * tmp_val_filling[9:6]
-      }
-      val_filling[5] = 0
-    }
+      # filling_steps_away = 1:length(val_filling) - filling_index
+      # if(filling_index < 5){
+      #   filling_steps_away = (-1) * filling_steps_away
+      #   tmp_val_filling = (filling_steps_away * theta * val_filling[filling_index]) + val_filling[filling_index]
+      #   val_filling[1:4] = tmp_val_filling[1:4]
+      #   val_filling[6:9] = (-1) * tmp_val_filling[4:1]
+      # } else {
+      #   tmp_val_filling = (filling_steps_away * theta * val_filling[filling_index]) + val_filling[filling_index]
+      #   val_filling[6:9] = tmp_val_filling[6:9]
+      #   val_filling[1:4] = (-1) * tmp_val_filling[9:6]
+      # }
+      # val_filling[5] = 0
+    # }
 
     if(debug){
       cat(paste0("***Trial ", stim_row, "***\n"))
@@ -161,14 +171,18 @@ sim_task = function(stims, d, sigma, alpha, theta, nonDecisionTime, bias, barrie
     #Organize output
     pred_trial = tibble(shape = round(cur_shape), orientation = round(cur_orientation), filling = round(cur_filling, 2),
                         shape_val = round(cur_shape_val, 3), orientation_val = round(cur_orientation_val, 3), filling_val = round(cur_filling_val, 3),
-                        stim_ev = mu_mean, type = cur_type, possiblePayoff = stims$possiblePayoff[stim_row], reference = stims$reference[stim_row],
+                        stim_ev = cur_stim_val, type = cur_type, possiblePayoff = stims$possiblePayoff[stim_row], reference = stims$reference[stim_row], day = cur_day,
+                        trial_drift = mu_mean,
                         choice = choice, reactionTime = RT,
                         tooSlow = tooSlow, tooFast = tooFast,
                         d = d, sigma = sigma, alpha = alpha, theta = theta,
                         barrierDecay = barrierDecay, barrier = barrier[time], nonDecisionTime = nonDecisionTime, bias = bias,
-                        timeStep = timeStep, maxIter = maxIter)
+                        timeStep = timeStep, maxIter = maxIter,
+                        val_shape = list(val_shape), val_orientation = list(val_orientation), val_filling = list(val_filling))
 
     out = rbind(out, pred_trial)
+
+
   }
 
   if(return_values){

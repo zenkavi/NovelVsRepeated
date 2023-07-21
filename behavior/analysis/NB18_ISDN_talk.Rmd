@@ -260,7 +260,7 @@ data_yn_clean %>%
   mutate(time_bin = factor(time_bin, levels = c("Week 3", "Week 2", "Week 1", "Day 3", "Day 2", "Day 1"))) %>%
   ggplot() +
   geom_hline(aes(yintercept = 1), color = "gray") +
-  geom_line(aes(abs_val_diff, rt, color = time_bin, alpha = time_bin), stat="smooth", method = "lm", formula = "y ~ x", se = FALSE, linewidth = 1.5)+
+  geom_line(aes(abs_val_diff, rt, color = time_bin, alpha = time_bin), stat="smooth", method = "lm", formula = "y ~ x", se = FALSE, linewidth = 1.5, fullrange = TRUE)+
   geom_point(data = sub_summary, aes(abs_val_diff, mean_rt, color = time_bin), size = 2)+
   facet_grid(type_chr ~ subject)+
   labs(x = "|Value Stim - Value Reference|", y = "RT (secs)", title="", color = "")+
@@ -607,32 +607,68 @@ This is a bit of a straw man argument. If there was no generalization there woul
 
 ```{r}
 source(paste0(helpers_path, "rlddm/yn_rlddm.R"))
-stims = data_yn_clean %>% filter(subnum == 601 & day == 1)
-# stims = stims[1:10,]
-stims
+```
+
+```{r}
+cur_subnum = 601
+cur_day = c(1, 2, 3)
+stims = data_yn_clean %>% filter(subnum == cur_subnum & day %in% cur_day)
 ```
 
 Takes ~ 18 seconds with these parameters (`d = .005, sigma = .005, alpha = .3, theta = .2`) for 800 trials.
 
 ```{r}
-# start = Sys.time()
-sim_data = sim_task(stims, d = .005, sigma = .005, alpha = .1, theta = .2, nonDecisionTime = 300, bias = 0, barrierDecay = 0, return_values = TRUE)
-# end = Sys.time()
-# print(paste0("Total time: ", end - start))
+sim_data = sim_task(stims, d = .003, sigma = .09, alpha = .001, theta = 0, k = .15, nonDecisionTime = 300, bias = 0, barrierDecay = 0, return_values = TRUE)
 ```
 
-This looks reasonable for shape and filling but why is orientation off? Would it improve with more training?
+Plot: heat map of value representations with number of occurence of each attribute level
+Normalize values to range from [-1 to +1]
 
 ```{r}
-sim_data$values
+occs = stims %>%
+  count(orientation) %>%
+  rename(attr_level = orientation) %>%
+  mutate(attr = "orientation") %>%
+  rbind(stims %>%
+          count(shape) %>%
+          rename(attr_level = shape) %>%
+          mutate(attr = "shape")) %>%
+  rbind(stims %>%
+          count(filling) %>%
+          rename(attr_level = filling) %>%
+          mutate(attr = "filling")) %>%
+  mutate( attr_level = as.factor(attr_level))
 ```
-PLot: heat map of value representations with number of occurence of each attribute level
-Normalize values to range from [-1 to +1]
+
+```{r}
+true_vals = data_yn_clean %>%
+  filter(subnum == cur_subnum) %>%
+  select(valueS, shape) %>%
+  distinct() %>%
+  rename(val = valueS, attr_level = shape) %>%
+  mutate(attr = "shape") %>%
+  rbind(data_yn_clean %>%
+          filter(subnum == cur_subnum) %>%
+          select(valueF, filling) %>%
+          distinct() %>%
+          rename(val = valueF, attr_level = filling) %>%
+          group_by(attr_level) %>%
+          summarise(val = mean(val)) %>%
+          mutate(attr = "filling")) %>%
+  rbind(data_yn_clean %>%
+          filter(subnum == cur_subnum) %>%
+          select(valueO, orientation) %>%
+          distinct() %>%
+          rename(val = valueO, attr_level = orientation) %>%
+          mutate(attr = "orientation")) %>%
+  mutate(y = 1, type = "true",
+         attr_level = as.factor(attr_level))
+
+```
 
 ```{r}
 normMax = 1
 normMin = -1
-
 
 sim_vals = tibble(attr_level = factor(1:6), val = sim_data$values$val_shape) %>%
   mutate(attr = "shape", type = "sim") %>%
@@ -646,43 +682,80 @@ sim_vals = tibble(attr_level = factor(1:6), val = sim_data$values$val_shape) %>%
 ```
 
 ```{r}
-true_vals = data_yn_clean %>%
-  filter(subnum == 601) %>%
-  select(valueS, shape) %>%
-  distinct() %>%
-  rename(val = valueS, attr_level = shape) %>%
-  mutate(attr = "shape") %>%
-  rbind(data_yn_clean %>%
-          filter(subnum == 601) %>%
-          select(valueF, filling) %>%
-          distinct() %>%
-          rename(val = valueF, attr_level = filling) %>%
-          group_by(attr_level) %>%
-          summarise(val = mean(val)) %>%
-          mutate(attr = "filling")) %>%
-  rbind(data_yn_clean %>%
-          filter(subnum == 601) %>%
-          select(valueO, orientation) %>%
-          distinct() %>%
-          rename(val = valueO, attr_level = orientation) %>%
-          mutate(attr = "orientation")) %>%
-  mutate(y = 1, type = "true",
-         attr_level = as.factor(attr_level))
-
 true_vals %>%
   rbind(sim_vals) %>%
-  ggplot(aes(attr_level, y, fill = val))+
+  left_join(occs, by = c("attr", "attr_level")) %>%
+  ggplot(aes(attr_level, y, fill = val)) +
   geom_tile()+
+  geom_text(aes(label = n), size = 2, nudge_y = .4) +
   theme(panel.grid = element_blank(),
         panel.border = element_blank(),
-        legend.position = "none",
+        legend.position = "bottom",
+        legend.box.margin=margin(t = -30),
         axis.ticks = element_blank(),
         axis.text = element_blank())+
   facet_grid(type~attr, scales = "free")+
-  labs(y = "", x = "")+
-  scale_fill_gradient2(high = "#b2182b", low = "#2166ac", mid = "white", 
+  labs(y = "", x = "", fill = "")+
+  scale_fill_gradient2(low = "#b2182b", high = "#2166ac", mid = "white", 
    midpoint = 0, limit = c(-1,1), space = "Lab")
 ```
+
+
+```{r}
+sim_vals_d1 = tibble(attr_level = factor(1:6), val = sim_data$out$val_shape[800][[1]]) %>%
+  mutate(attr = "shape", type = "sim_d1") %>%
+  rbind(tibble(attr_level = factor(c(-.85, -.6, -.4, -.2, 0, .2, .4, .6, .85)), val = sim_data$out$val_filling[800][[1]]) %>%
+          mutate(attr = "filling", type = "sim_d1")) %>%
+  rbind(tibble(attr_level = factor(seq(0,150, 15)), val = sim_data$out$val_orientation[800][[1]]) %>%
+          mutate(attr = "orientation", type = "sim_d1")) %>%
+  group_by(attr) %>%
+  mutate(val = (normMax - normMin) / (max(val) - min(val)) * (val - max(val)) + (normMax),
+         y = factor(1)) 
+
+sim_vals_d2 = tibble(attr_level = factor(1:6), val = sim_data$out$val_shape[2*800][[1]]) %>%
+  mutate(attr = "shape", type = "sim_d2") %>%
+  rbind(tibble(attr_level = factor(c(-.85, -.6, -.4, -.2, 0, .2, .4, .6, .85)), val = sim_data$out$val_filling[2*800][[1]]) %>%
+          mutate(attr = "filling", type = "sim_d2")) %>%
+  rbind(tibble(attr_level = factor(seq(0,150, 15)), val = sim_data$out$val_orientation[2*800][[1]]) %>%
+          mutate(attr = "orientation", type = "sim_d2")) %>%
+  group_by(attr) %>%
+  mutate(val = (normMax - normMin) / (max(val) - min(val)) * (val - max(val)) + (normMax),
+         y = factor(1)) 
+
+sim_vals_d3 = tibble(attr_level = factor(1:6), val = sim_data$out$val_shape[3*800][[1]]) %>%
+  mutate(attr = "shape", type = "sim_d3") %>%
+  rbind(tibble(attr_level = factor(c(-.85, -.6, -.4, -.2, 0, .2, .4, .6, .85)), val = sim_data$out$val_filling[3*800][[1]]) %>%
+          mutate(attr = "filling", type = "sim_d3")) %>%
+  rbind(tibble(attr_level = factor(seq(0,150, 15)), val = sim_data$out$val_orientation[3*800][[1]]) %>%
+          mutate(attr = "orientation", type = "sim_d3")) %>%
+  group_by(attr) %>%
+  mutate(val = (normMax - normMin) / (max(val) - min(val)) * (val - max(val)) + (normMax),
+         y = factor(1)) 
+```
+
+```{r}
+sim_vals_d1
+```
+
+```{r}
+true_vals %>%
+  rbind(sim_vals_d1, sim_vals_d2, sim_vals_d3) %>%
+  # left_join(occs, by = c("attr", "attr_level")) %>%
+  ggplot(aes(attr_level, y, fill = val)) +
+  geom_tile()+
+  # geom_text(aes(label = n), size = 2, nudge_y = .4) +
+  theme(panel.grid = element_blank(),
+        panel.border = element_blank(),
+        legend.position = "bottom",
+        legend.box.margin=margin(t = -30),
+        axis.ticks = element_blank(),
+        axis.text = element_blank())+
+  facet_grid(type~attr, scales = "free")+
+  labs(y = "", x = "", fill = "")+
+  scale_fill_gradient2(low = "#b2182b", high = "#2166ac", mid = "white", 
+   midpoint = 0, limit = c(-1,1), space = "Lab")
+```
+
 
 ```{r}
 sim_data$out = sim_data$out %>%
@@ -693,17 +766,19 @@ sim_data$out = sim_data$out %>%
          val_diff_bin = round(val_diff/50),
          val_diff_bin_str = paste0(val_diff_bin*50-25,":",val_diff_bin*50+25),
          val_diff_bin_str = factor(val_diff_bin_str, levels = c("-225:-175", "-175:-125", "-125:-75", "-75:-25", "-25:25", "25:75", "75:125", "125:175", "175:225")),
-         yesChosen = ifelse(choice == "yes", 1, 0)) 
+         yesChosen = ifelse(choice == "yes", 1, 0)) %>%
+    mutate(day = paste0("Day ", day),
+         day = factor(day, levels = c("Day 1", "Day 2", "Day 3")))
 
 ```
 
 ```{r}
 sim_data$out %>%
-  ggplot() +
+  ggplot()+
   geom_hline(aes(yintercept =.5), color="gray")+
   geom_vline(aes(xintercept = 0), color="gray")+
   geom_line(aes(val_diff, yesChosen, color = type_chr), stat="smooth", method = "glm", method.args = list(family = "binomial"), formula = "y ~ x", se = FALSE, linewidth = 1.5, fullrange = T) +
-  facet_grid(. ~ reference) +
+  facet_grid(. ~ day) +
   labs(x = "Value Stim - Value Reference", y = "p(Yes)", title="", color = "")+
   theme(panel.grid = element_blank(),
         legend.position = "bottom",
@@ -721,13 +796,64 @@ sim_data$out %>%
                      labels = c("", "-100", "0", "", "200"))
 ```
 
+```{r}
+sim_data$out %>%
+  ggplot() +
+  geom_hline(aes(yintercept =.5), color="gray")+
+  geom_vline(aes(xintercept = 0), color="gray")+
+  geom_line(aes(val_diff, yesChosen, color = day), stat="smooth", method = "glm", method.args = list(family = "binomial"), formula = "y ~ x", se = FALSE, linewidth = 1.5, fullrange = T) +
+  facet_grid(type_chr ~ .) +
+  labs(x = "Value Stim - Value Reference", y = "p(Yes)", title="", color = "")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text = element_text(size = 14),
+        strip.text = element_text(size = 14),
+        axis.title = element_text(size = 16),
+        legend.text = element_text(size = 14),
+        legend.box.margin=margin(t = -10),
+        legend.spacing.y = unit(-0.25, "cm"),
+        legend.box="vertical")+
+  scale_color_manual(values = c("#6e016b", "#238b45", "#41ae76"),
+                     breaks = c("Day 1", "Day 2", "Day 3"))+
+  scale_y_continuous(breaks = seq(0,1,.5))+
+  scale_x_continuous(breaks = c(-200, -100, 0, 100, 200),
+                     labels = c("", "-100", "0", "", "200"))
+
+# scale_color_manual(values = c("#6e016b", "#238b45", "#41ae76", "#66c2a4", "#99d8c9"),
+                     # breaks = c("Day 1", "Day 2", "Day 3", "Week 2", "Week 3"))
+```
+
+```{r}
+sim_data$out %>%
+  mutate(reference = as.factor(reference)) %>%
+  ggplot() +
+  geom_line(aes(val_diff, yesChosen, color = reference), stat="smooth", method = "glm", method.args = list(family = "binomial"), formula = "y ~ x", se = FALSE, size = 1.5, fullrange=T)+
+  geom_hline(aes(yintercept =.5), color="gray")+
+  geom_vline(aes(xintercept = 0), color="gray")+
+  facet_grid(type_chr ~ day)+
+  labs(x = "Value Stim - Value Reference", y = "p(Yes)", title="", color = "")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text = element_text(size = 14),
+        strip.text = element_text(size = 14),
+        axis.title = element_text(size = 16),
+        legend.text = element_text(size = 14),
+        legend.box.margin=margin(t = -10),
+        legend.spacing.y = unit(-0.25, "cm"),
+        legend.box="vertical")+
+   scale_color_manual(values = c("#ca0020", "dark grey", "#0571b0"))+
+  scale_y_continuous(breaks = seq(0,1,.5))+
+  scale_x_continuous(breaks = c(-200, -100, 0, 100, 200),
+                     labels = c("", "-100", "0", "", "200"))
+```
 
 ```{r}
 sim_data$out %>%
   mutate(rt = reactionTime) %>%
   ggplot() +
-  geom_line(aes(abs_val_diff, rt, color = type_chr), stat="smooth", method = "lm", formula = "y ~ x", se = FALSE, size = 1.5)+
-  # facet_grid(time_bin ~ session) +
+  geom_hline(aes(yintercept = 1), color = "gray") + 
+  geom_line(aes(abs_val_diff, rt, color = day), stat="smooth", method = "lm", formula = "y ~ x", se = FALSE, size = 1.5)+
+  facet_grid(type_chr ~ .) +
   labs(x = "|Value Stim - Value Reference|", y = "RT (secs)", title="", color = "")+
   theme(panel.grid = element_blank(),
         legend.position = "bottom",
@@ -738,11 +864,28 @@ sim_data$out %>%
         legend.box.margin=margin(t = -10),
         legend.spacing.y = unit(-0.25, "cm"),
         legend.box="vertical")+
-  scale_color_brewer(palette = "Dark2")+
+  scale_color_manual(values = c("#6e016b", "#238b45", "#41ae76"),
+                     breaks = c("Day 1", "Day 2", "Day 3"))+
   scale_alpha_manual(values = c(1, .7, .7, .7, .7))+
-  scale_y_continuous(trans = "log", breaks = c(0.1, .5, 1, 1.5))+
+  scale_y_continuous(trans = "log", breaks = c(0.1, .5, 1, 1.5), limits = c(0.001,8))+
   scale_x_continuous(breaks = c(0, 100, 200),
                      labels = c("0", "100", ""))
+```
+
+```{r}
+sim_data$out %>%
+  ggplot(aes(possiblePayoff, stim_ev, color = type_chr))+
+  geom_point()+
+  geom_abline(aes(slope = 1, intercept = 0))+
+  scale_color_brewer(palette = "Dark2")+
+  theme(legend.position = "bottom")+
+  labs(color = "", x = "True value", y = "Learned value")
+```
+
+```{r}
+sim_data$out %>%
+  group_by(type_chr) %>%
+  summarise(val_cor = cor(possiblePayoff, stim_ev))
 ```
 
 How to extend over days?
