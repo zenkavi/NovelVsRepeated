@@ -1,20 +1,29 @@
-sim_task = function(stims, d, sigma, alpha, theta, k, nonDecisionTime, bias, barrierDecay, barrier = 1, timeStep = 10, maxIter = 1000, debug = FALSE, return_values = TRUE){
+sim_task = function(stims, ht_values, attr_values, d, sigma, alpha, theta, oe_noise, re_noise, nonDecisionTime, bias, barrierDecay = 0, barrier = 1, timeStep = 10, maxIter = 1000, return_values = TRUE){
 
   # Since value updating needs to happen sequentially (i.e. cannot be parallelized) writing this function as a task simulator instead of a trial simulator
 
   # stims : trial information containing attribute levels and possible payoff
+  # values: list with values for each attribute
   # d : drift rate
   # sigma: sd of the normal distribution from which RDVs are sampled in each timestep
-  # theta: percentage of updated value that leaks to consecutive levels of orientation and filling [0, 1]
+  # alpha: learning rate for ht stims
+  # theta: generalization rate for re stims
+  # re_noise: noise for the normal distribution from which the RE stim value is drawn
+  # oe_noise: noise for the normal distribution from which the RE stim value is drawn
   # timeStep: in ms
   # nonDecisionTime: in ms
   # maxIter: num max samples. if a barrier isn't hit by this sampling of evidence no decision is made.
   # If time step is 10ms and maxIter is 1000 this would be a 10sec timeout maximum
 
   out = tibble()
-  val_shape = rep(0, 6) # indexed for [1, 2, 3, 4, 5, 6]
-  val_orientation = rep(0, 11) # indexed for [0, 15, 30, 45, 60, 75, 90, 105, 120, 135, 150]
-  val_filling = rep(0, 9) # indexed for [-.85, -.6, -.4, -.2, 0, .2, .4, .6, .85]
+  val_shape = attr_values$val_shape
+  val_orientation = attr_values$val_orientation
+  val_filling = attr_values$val_filling
+  ht_vals = ht_values
+
+  # val_shape = rep(0, 6) # indexed for [1, 2, 3, 4, 5, 6]
+  # val_orientation = rep(0, 11) # indexed for [0, 15, 30, 45, 60, 75, 90, 105, 120, 135, 150]
+  # val_filling = rep(0, 9) # indexed for [-.85, -.6, -.4, -.2, 0, .2, .4, .6, .85]
 
   nonDecIters = nonDecisionTime / timeStep
   initialBarrier = barrier
@@ -33,9 +42,11 @@ sim_task = function(stims, d, sigma, alpha, theta, k, nonDecisionTime, bias, bar
     tooSlow = 0
 
     # Extract stimulus information
+    cur_type = stims$type[stim_row]
     cur_shape = stims$shape[stim_row]
     cur_orientation = stims$orientation[stim_row]
     cur_filling = stims$filling[stim_row]
+    cur_stimNum = as.character(stims$stimNum[stim_row])
 
     shape_index = cur_shape
     orientation_index = (cur_orientation/15) + 1
@@ -45,15 +56,23 @@ sim_task = function(stims, d, sigma, alpha, theta, k, nonDecisionTime, bias, bar
     cur_orientation_val = val_orientation[orientation_index]
     cur_filling_val = val_filling[filling_index]
 
-    observed_val = stims$possiblePayoff[stim_row]/3
-    cur_type = stims$type[stim_row]
+    # Should all attributes be updated by the full observed amount?
+    observed_val = stims$possiblePayoff[stim_row]
 
+    cur_day = NA
     if("day" %in% names(stims)){
       if(length(unique(stims$day)) > 1){
         cur_day = stims$day[stim_row]
       }
-    } else{
-      cur_day = NA
+    }
+
+    if(cur_type == 1){
+      if(! (cur_stimNum %in% names(ht_vals)) ){
+        ht_vals[[cur_stimNum]] = 0
+      }
+      cur_stim_val = ht_vals[[cur_stimNum]]
+    } else {
+      cur_stim_val  = (cur_shape_val + cur_orientation_val + cur_filling_val)
     }
 
 
@@ -62,8 +81,11 @@ sim_task = function(stims, d, sigma, alpha, theta, k, nonDecisionTime, bias, bar
       barrier[t] = initialBarrier / (1 + (barrierDecay * t))
     }
 
-    cur_stim_val  = (cur_shape_val + cur_orientation_val + cur_filling_val)/3
-    cur_ref_val = k * stims$reference[stim_row]
+    # cur_stim_val  = (cur_shape_val + cur_orientation_val + cur_filling_val)/3
+    # cur_stim_val  = (cur_shape_val + cur_orientation_val + cur_filling_val)
+    cur_stim_val = ifelse(cur_type == 1,  rnorm(1, mean = cur_stim_val, sd = oe_noise), rnorm(1, mean = cur_stim_val, sd = re_noise))
+
+    cur_ref_val = stims$reference[stim_row]
     mu_mean = d * (cur_stim_val - cur_ref_val)
 
     while (time<maxIter) {
@@ -93,6 +115,8 @@ sim_task = function(stims, d, sigma, alpha, theta, k, nonDecisionTime, bias, bar
       }
 
       # Sample the change in RDV from the distribution.
+      # Noise isn't in the sampling of evidence to decision. It's in the representation of value
+      # sigma = ifelse(cur_type == 1, oe_noise, re_noise)
       RDV = RDV + rnorm(1, mu, sigma)
 
       # Increment sampling iteration
@@ -116,52 +140,14 @@ sim_task = function(stims, d, sigma, alpha, theta, k, nonDecisionTime, bias, bar
 
     # Update value representations
     # This doesn't depend on which choice is made because feedback is provided regardless
-    val_shape[shape_index] = cur_shape_val + alpha * (observed_val - cur_shape_val)
-
-    ## Values for attributes with consecutive levels "leaks" across the levels
-    val_orientation[orientation_index] = cur_orientation_val + alpha * (observed_val - cur_orientation_val)
-
-    ### This assumes that orientation values can only increase from 0, which is wrong
-    ### I can make some arbitrary assumptions about when generalization might begin
-    ### (e.g. when subjects have seen orientations on both sides of 90 degrees etc)
-    ### but I'd rather refrain from that for now.
-    # orientation_steps_away = 1:length(val_orientation) - orientation_index
-    # val_orientation = (orientation_steps_away * theta * val_orientation[orientation_index]) + val_orientation[orientation_index]
-
-    # if(filling_index != 5){
-    val_filling[filling_index] = cur_filling_val + alpha * (observed_val - cur_filling_val)
-
-      # filling_steps_away = 1:length(val_filling) - filling_index
-      # if(filling_index < 5){
-      #   filling_steps_away = (-1) * filling_steps_away
-      #   tmp_val_filling = (filling_steps_away * theta * val_filling[filling_index]) + val_filling[filling_index]
-      #   val_filling[1:4] = tmp_val_filling[1:4]
-      #   val_filling[6:9] = (-1) * tmp_val_filling[4:1]
-      # } else {
-      #   tmp_val_filling = (filling_steps_away * theta * val_filling[filling_index]) + val_filling[filling_index]
-      #   val_filling[6:9] = tmp_val_filling[6:9]
-      #   val_filling[1:4] = (-1) * tmp_val_filling[9:6]
-      # }
-      # val_filling[5] = 0
-    # }
-
-    if(debug){
-      cat(paste0("***Trial ", stim_row, "***\n"))
-      cat(paste0("Stim details: Shape = ", cur_shape, ", Orientation = ", cur_orientation, ", Filling = ", cur_filling, "\n"))
-      cat(paste0("Stim EV = ", round(mu_mean, 2), ", Payoff = ", observed_val, "\n"))
-      cat("***Post-choice values: ***\n")
-      cat("Shape = \n")
-      cat(as.character(round(val_shape, 2)))
-      cat("\n")
-      cat("Orientation = \n")
-      cat(as.character(round(val_orientation, 2)))
-      cat("\n")
-      cat("Filling = \n")
-      cat(as.character(round(val_filling, 2)))
-
-      cat("\n###################\n")
-      cat("\n")
+    # No embedded assumption on how value "leaks" across consecutive levels
+    if(cur_type == 1){
+      ht_vals[cur_stimNum] = cur_stim_val + alpha * (observed_val - cur_stim_val)
     }
+
+    val_shape[shape_index] = cur_shape_val + theta * (observed_val - cur_shape_val)
+    val_orientation[orientation_index] = cur_orientation_val + theta * (observed_val - cur_orientation_val)
+    val_filling[filling_index] = cur_filling_val + theta * (observed_val - cur_filling_val)
 
     # Make sure the RT is always at least as large as the nonDecisionTime
     # (Even if a boundary is hit only by noise before ndt)
@@ -175,7 +161,7 @@ sim_task = function(stims, d, sigma, alpha, theta, k, nonDecisionTime, bias, bar
                         trial_drift = mu_mean,
                         choice = choice, reactionTime = RT,
                         tooSlow = tooSlow, tooFast = tooFast,
-                        d = d, sigma = sigma, alpha = alpha, theta = theta,
+                        d = d, sigma = sigma, alpha = alpha,
                         barrierDecay = barrierDecay, barrier = barrier[time], nonDecisionTime = nonDecisionTime, bias = bias,
                         timeStep = timeStep, maxIter = maxIter,
                         val_shape = list(val_shape), val_orientation = list(val_orientation), val_filling = list(val_filling))
@@ -186,7 +172,7 @@ sim_task = function(stims, d, sigma, alpha, theta, k, nonDecisionTime, bias, bar
   }
 
   if(return_values){
-    return(list(out = out, values = list(val_shape = val_shape, val_orientation = val_orientation, val_filling = val_filling)))
+    return(list(out = out, values = list(ht_vals = ht_vals, val_shape = val_shape, val_orientation = val_orientation, val_filling = val_filling)))
   } else {
     return(out)
   }
