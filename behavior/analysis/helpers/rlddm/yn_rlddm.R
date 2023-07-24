@@ -25,11 +25,14 @@ sim_task = function(stims, ht_values, attr_values, d, sigma, alpha, theta, oe_no
   # val_orientation = rep(0, 11) # indexed for [0, 15, 30, 45, 60, 75, 90, 105, 120, 135, 150]
   # val_filling = rep(0, 9) # indexed for [-.85, -.6, -.4, -.2, 0, .2, .4, .6, .85]
 
-  nonDecIters = nonDecisionTime / timeStep
+  # nonDecIters = nonDecisionTime / timeStep
   initialBarrier = barrier
   barrier = rep(initialBarrier, maxIter)
 
   for(stim_row in 1:nrow(stims)){
+
+    nonDecIters = nonDecisionTime / timeStep
+    trial_sigma = sigma
 
     # Initialize variables that will be populated
     # bias is operationalized differently than the HDDM, where it ranges 0 to 1 and no bias is .5
@@ -43,6 +46,8 @@ sim_task = function(stims, ht_values, attr_values, d, sigma, alpha, theta, oe_no
 
     # Extract stimulus information
     cur_type = stims$type[stim_row]
+    trial_sigma = ifelse(cur_type == 1, trial_sigma * oe_noise, trial_sigma)
+
     cur_shape = stims$shape[stim_row]
     cur_orientation = stims$orientation[stim_row]
     cur_filling = stims$filling[stim_row]
@@ -67,6 +72,8 @@ sim_task = function(stims, ht_values, attr_values, d, sigma, alpha, theta, oe_no
     }
 
     if(cur_type == 1){
+      nonDecIters = nonDecIters - 10
+
       if(! (cur_stimNum %in% names(ht_vals)) ){
         ht_vals[[cur_stimNum]] = 0
       }
@@ -106,7 +113,6 @@ sim_task = function(stims, ht_values, attr_values, d, sigma, alpha, theta, oe_no
         break
       }
 
-
       if (elapsedNDT < nonDecIters){
         mu = 0
         elapsedNDT = elapsedNDT + 1
@@ -117,7 +123,9 @@ sim_task = function(stims, ht_values, attr_values, d, sigma, alpha, theta, oe_no
       # Sample the change in RDV from the distribution.
       # Noise isn't in the sampling of evidence to decision. It's in the representation of value
       # sigma = ifelse(cur_type == 1, oe_noise, re_noise)
-      RDV = RDV + rnorm(1, mu, sigma)
+
+      # RDV = RDV + rnorm(1, mu, sigma)
+      RDV = RDV + rnorm(1, mu, trial_sigma)
 
       # Increment sampling iteration
       time = time + 1

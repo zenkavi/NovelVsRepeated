@@ -1,0 +1,277 @@
+---
+title: "Novel vs. repeated choice project: Manual RLDDM fitting to determine parameter space"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: 'hide'
+---
+
+Set up environment and load in data
+
+```{r include=FALSE, message=FALSE}
+library(tidyverse)
+library(brms)
+library(here)
+library(grid)
+library(gridExtra)
+library(lemon)
+theme_set(theme_bw())
+helpers_path = paste0(here(),'/analysis/helpers/')
+inputs_path = paste0(here(),'/inputs/')
+source(paste0(helpers_path, '01_clean_behavioral_data.R'))
+fig_out_path = paste0(here(), '/outputs/fig/')
+rm(data_bc_clean)
+```
+
+```{r}
+data_yn_clean = data_yn_clean %>%
+  mutate(correct = ifelse(possiblePayoff>reference & yesChosen == 1, 1, ifelse(possiblePayoff < reference & yesChosen == 0, 1, 0))) %>%
+  mutate(type_chr = ifelse(type == 1, "Over Exposure", "Regular Exposure"),
+         week = ifelse(week == 1, "Week 1", ifelse(week == 2, "Week 2", ifelse(week == 3, "Week 3", NA))),
+         week = factor(week, levels = c("Week 1", "Week 2", "Week 3"))) %>%
+  mutate(val_diff = possiblePayoff - reference,
+         abs_val_diff = abs(possiblePayoff - reference),
+         val_diff_bin = round(val_diff/50),
+         val_diff_bin_str = paste0(val_diff_bin*50-25,":",val_diff_bin*50+25),
+         val_diff_bin_str = factor(val_diff_bin_str, levels = c("-225:-175", "-175:-125", "-125:-75", "-75:-25", "-25:25", "25:75", "75:125", "125:175", "175:225")),
+         time_bin = ifelse(day == 1, "Day 1", ifelse(day == 2, "Day 2", ifelse(day == 3, "Day 3", ifelse((day > 3) & (day < 8), "Week 2", "Week 3"))))) %>%
+  mutate(subject = recode(subnum, 
+                    `601` = "Subject 1", 
+                    `609` = "Subject 2",
+                    `611` = "Subject 3",
+                    `619` = "Subject 4",
+                    `621` = "Subject 5",
+                    `629` = "Subject 6"))
+```
+
+
+```{r}
+data_yn_clean = data_yn_clean %>%
+  mutate(abs_val_diff_bin_str =  paste0(abs(val_diff_bin)*50-25,":",abs(val_diff_bin)*50+25),
+         abs_val_diff_bin_str = ifelse(abs_val_diff_bin_str ==  "-25:25", "0:25", abs_val_diff_bin_str),
+         abs_val_diff_bin_str = factor(abs_val_diff_bin_str, levels = c("0:25", "25:75", "75:125", "125:175", "175:225", "225:275")))
+```
+
+
+```{r}
+source(paste0(helpers_path, "rlddm/yn_rlddm.R"))
+```
+
+The true noise level is 10 so don't go below that?
+
+```{r}
+cur_subnum = 601
+init_attr_values = list(val_shape = rep(0, 6), val_orientation = rep(0, 11), val_filling = rep(0, 9))
+init_ht_values = list()
+  
+stims = data_yn_clean %>% filter((subnum == cur_subnum) & (day %in% c(1)))
+sim_data_d1 = sim_task(stims, init_ht_values, init_attr_values, 
+                       d = .0007, sigma = .025, alpha = .04, theta = .03, 
+                       oe_noise = 3, re_noise = 30, 
+                       nonDecisionTime = 400, bias = 0)
+sim_data_d1$out$day = 1
+
+stims = data_yn_clean %>% filter((subnum == cur_subnum) & (day %in% c(2)))
+sim_data_d2 = sim_task(stims, sim_data_d1$values$ht_vals, sim_data_d1$values, 
+                       d = .0007, sigma = .025, alpha = .04, theta = 0.05,
+                       oe_noise = 3, re_noise = 25, nonDecisionTime = 400, bias = 0)
+sim_data_d2$out$day = 2
+
+stims = data_yn_clean %>% filter((subnum == cur_subnum) & (day %in% c(3)))
+sim_data_d3 = sim_task(stims, sim_data_d2$values$ht_vals, sim_data_d2$values, 
+                       d = .0007, sigma = .025, alpha = 0.04, theta = 0.05, 
+                       oe_noise = 3, re_noise = 15, nonDecisionTime = 400, bias = 0)
+sim_data_d3$out$day = 3
+
+```
+
+```{r}
+sim_data = rbind(sim_data_d1$out, sim_data_d2$out, sim_data_d3$out) %>%
+  # filter(type == 1) %>%
+  mutate(type_chr = ifelse(type == 1, "Over Exposure", "Regular Exposure"),
+         val_diff = possiblePayoff - reference,
+         abs_val_diff = abs(possiblePayoff - reference),
+         val_diff_bin = round(val_diff/50),
+         val_diff_bin_str = paste0(val_diff_bin*50-25,":",val_diff_bin*50+25),
+         val_diff_bin_str = factor(val_diff_bin_str, levels = c("-225:-175", "-175:-125", "-125:-75", "-75:-25", "-25:25", "25:75", "75:125", "125:175", "175:225")),
+         yesChosen = ifelse(choice == "yes", 1, 0)) %>%
+    mutate(day = paste0("Day ", day),
+         day = factor(day, levels = c("Day 1", "Day 2", "Day 3")))
+
+```
+
+```{r}
+sim_data %>%
+  ggplot(aes(possiblePayoff, stim_ev))+
+  geom_point()+
+  geom_abline(aes(slope = 1, intercept = 0))+
+  scale_color_brewer(palette = "Dark2")+
+  theme(legend.position = "bottom",
+        panel.grid = element_blank())+
+  facet_grid(type_chr ~ day)+
+  labs(color = "", x = "True value", y = "Learned value")
+
+ggsave(file=paste0(fig_out_path, 'isdn_yn_true_vs_sim_vals_example.jpg'), height = 4.5, width = 8, units="in")
+```
+
+```{r}
+sim_data %>%
+  group_by(type_chr, day) %>%
+  summarise(val_cor = cor(possiblePayoff, stim_ev), .groups = "keep")
+```
+
+```{r}
+sim_data %>%
+  ggplot()+
+  geom_hline(aes(yintercept =.5), color="gray")+
+  geom_vline(aes(xintercept = 0), color="gray")+
+  geom_line(aes(val_diff, yesChosen, color = type_chr), stat="smooth", method = "glm", method.args = list(family = "binomial"), formula = "y ~ x", se = FALSE, linewidth = 1.5, fullrange = T) +
+  facet_grid(. ~ day) +
+  labs(x = "Value Stim - Value Reference", y = "p(Yes)", title="", color = "")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text = element_text(size = 14),
+        strip.text = element_text(size = 14),
+        axis.title = element_text(size = 16),
+        legend.text = element_text(size = 14),
+        legend.box.margin=margin(t = -10),
+        legend.spacing.y = unit(-0.25, "cm"),
+        legend.box="vertical")+
+  scale_color_brewer(palette = "Dark2")+
+  scale_alpha_manual(values = c(1, .7, .7, .7, .7))+
+  scale_y_continuous(breaks = seq(0,1,.5))+
+  scale_x_continuous(breaks = c(-200, -100, 0, 100, 200),
+                     labels = c("", "-100", "0", "", "200"))
+```
+
+```{r}
+sim_data %>%
+  ggplot() +
+  geom_hline(aes(yintercept =.5), color="gray")+
+  geom_vline(aes(xintercept = 0), color="gray")+
+  geom_line(aes(val_diff, yesChosen, color = day), stat="smooth", method = "glm", method.args = list(family = "binomial"), formula = "y ~ x", se = FALSE, linewidth = 1.5, fullrange = T) +
+  facet_grid(type_chr ~ .) +
+  labs(x = "Value Stim - Value Reference", y = "p(Yes)", title="", color = "")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text = element_text(size = 14),
+        strip.text = element_text(size = 14),
+        axis.title = element_text(size = 16),
+        legend.text = element_text(size = 14),
+        legend.box.margin=margin(t = -10),
+        legend.spacing.y = unit(-0.25, "cm"),
+        legend.box="vertical")+
+  scale_color_manual(values = c("#6e016b", "#238b45", "#41ae76"),
+                     breaks = c("Day 1", "Day 2", "Day 3"))+
+  scale_y_continuous(breaks = seq(0,1,.5))+
+  scale_x_continuous(breaks = c(-200, -100, 0, 100, 200),
+                     labels = c("", "-100", "0", "", "200"))
+
+# scale_color_manual(values = c("#6e016b", "#238b45", "#41ae76", "#66c2a4", "#99d8c9"),
+                     # breaks = c("Day 1", "Day 2", "Day 3", "Week 2", "Week 3"))
+```
+
+```{r}
+sim_data %>%
+  select(val_diff, yesChosen, type_chr, day) %>%
+  mutate(data_type = "sim") %>%
+  rbind(data_yn_clean %>%
+          filter((subnum == cur_subnum) & (day %in% c(1, 2, 3))) %>%
+          select(val_diff, yesChosen, type_chr, day) %>%
+          mutate(data_type = "true",
+                 day = paste0("Day ", day),
+                 day = factor(day, levels = c("Day 1", "Day 2", "Day 3")))) %>%
+  mutate(data_type = factor(data_type, levels = c("true", "sim"))) %>%
+  ggplot() +
+  geom_hline(aes(yintercept =.5), color="gray")+
+  geom_vline(aes(xintercept = 0), color="gray")+
+  geom_line(aes(val_diff, yesChosen, color = day, linetype = data_type), stat="smooth", method = "glm", method.args = list(family = "binomial"), formula = "y ~ x", se = FALSE, linewidth = 1.5, fullrange = T) +
+  facet_grid(type_chr ~ day) +
+  labs(x = "Value Stim - Value Reference", y = "p(Yes)", title="", color = "", linetype = "")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text = element_text(size = 14),
+        strip.text = element_text(size = 14),
+        axis.title = element_text(size = 16),
+        legend.text = element_text(size = 14),
+        legend.box.margin=margin(t = -10),
+        legend.spacing.y = unit(-0.25, "cm"),
+        legend.box="vertical")+
+  scale_color_manual(values = c("#6e016b", "#238b45", "#41ae76"),
+                     breaks = c("Day 1", "Day 2", "Day 3"))+
+  scale_y_continuous(breaks = seq(0,1,.5))+
+  scale_x_continuous(breaks = c(-200, -100, 0, 100, 200),
+                     labels = c("", "-100", "0", "", "200"))
+
+ggsave(file=paste0(fig_out_path, 'isdn_yn_true_vs_sim_logit_example.jpg'), height = 5.5, width = 8, units="in")
+```
+```{r}
+sim_data %>%
+  select(val_diff, yesChosen, type_chr, day) %>%
+  mutate(data_type = "sim") %>%
+  rbind(data_yn_clean %>%
+          filter((subnum == cur_subnum) & (day %in% c(1, 2, 3))) %>%
+          select(val_diff, yesChosen, type_chr, day) %>%
+          mutate(data_type = "true",
+                 day = paste0("Day ", day),
+                 day = factor(day, levels = c("Day 1", "Day 2", "Day 3")))) %>%
+  mutate(data_type = factor(data_type, levels = c("true", "sim"))) %>%
+  ggplot() +
+  geom_hline(aes(yintercept =.5), color="gray")+
+  geom_vline(aes(xintercept = 0), color="gray")+
+  geom_line(aes(val_diff, yesChosen, color = day, linetype = data_type), stat="smooth", method = "glm", method.args = list(family = "binomial"), formula = "y ~ x", se = FALSE, linewidth = 1.5, fullrange = T) +
+  facet_grid(type_chr ~ data_type) +
+  labs(x = "Value Stim - Value Reference", y = "p(Yes)", title="", color = "", linetype = "")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text = element_text(size = 14),
+        strip.text = element_text(size = 14),
+        axis.title = element_text(size = 16),
+        legend.text = element_text(size = 14),
+        legend.box.margin=margin(t = -10),
+        legend.spacing.y = unit(-0.25, "cm"),
+        legend.box="vertical")+
+  scale_color_manual(values = c("#6e016b", "#238b45", "#41ae76"),
+                     breaks = c("Day 1", "Day 2", "Day 3"))+
+  scale_y_continuous(breaks = seq(0,1,.5))+
+  scale_x_continuous(breaks = c(-200, -100, 0, 100, 200),
+                     labels = c("", "-100", "0", "", "200"))
+```
+
+```{r}
+sim_data %>%
+  mutate(rt = reactionTime) %>%
+  select(abs_val_diff, rt, type_chr, day) %>%
+  mutate(data_type = "sim") %>%
+  rbind(data_yn_clean %>%
+          filter((subnum == cur_subnum) & (day %in% c(1, 2, 3))) %>%
+          select(abs_val_diff, rt, type_chr, day) %>%
+          mutate(data_type = "true",
+                 day = paste0("Day ", day),
+                 day = factor(day, levels = c("Day 1", "Day 2", "Day 3")))) %>%
+  mutate(data_type = factor(data_type, levels = c("true", "sim"))) %>%
+  ggplot() +
+  geom_hline(aes(yintercept = 1), color = "gray") + 
+  geom_line(aes(abs_val_diff, rt, color = day, linetype = data_type), stat="smooth", method = "lm", formula = "y ~ x", se = FALSE, linewidth = 1.5)+
+  facet_grid(type_chr ~ day) +
+  labs(x = "|Value Stim - Value Reference|", y = "RT (secs)", title="", color = "", linetype = "")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text = element_text(size = 14),
+        strip.text = element_text(size = 14),
+        axis.title = element_text(size = 16),
+        legend.text = element_text(size = 14),
+        legend.box.margin=margin(t = -10),
+        legend.spacing.y = unit(-0.25, "cm"),
+        legend.box="vertical")+
+  scale_color_manual(values = c("#6e016b", "#238b45", "#41ae76"),
+                     breaks = c("Day 1", "Day 2", "Day 3"))+
+  scale_alpha_manual(values = c(1, .7, .7, .7, .7))+
+  # scale_y_continuous(trans = "log", breaks = c(0.1, .5, 1, 1.5), limits = c(0.001,8))+
+  scale_y_continuous(trans = "log", breaks = c(0.1, .5, 1, 1.5))+
+  scale_x_continuous(breaks = c(0, 100, 200),
+                     labels = c("0", "100", ""))
+
+ggsave(file=paste0(fig_out_path, 'isdn_yn_true_vs_sim_rt_example.jpg'), height = 5.5, width = 8, units="in")
+```

@@ -1070,12 +1070,13 @@ true_vals %>%
 
 ```{r}
 sim_data %>%
-  ggplot(aes(possiblePayoff, stim_ev, color = type_chr))+
+  ggplot(aes(possiblePayoff, stim_ev))+
   geom_point()+
   geom_abline(aes(slope = 1, intercept = 0))+
   scale_color_brewer(palette = "Dark2")+
-  theme(legend.position = "bottom")+
-  facet_grid(.~day)+
+  theme(legend.position = "bottom",
+        panel.grid = element_blank())+
+  facet_grid(type_chr ~ day)+
   labs(color = "", x = "True value", y = "Learned value")
 ```
 
@@ -1138,6 +1139,39 @@ sim_data %>%
 
 ```{r}
 sim_data %>%
+  select(val_diff, yesChosen, type_chr, day) %>%
+  mutate(data_type = "sim") %>%
+  rbind(data_yn_clean %>%
+          filter((subnum == cur_subnum) & (day %in% c(1, 2, 3))) %>%
+          select(val_diff, yesChosen, type_chr, day) %>%
+          mutate(data_type = "true",
+                 day = paste0("Day ", day),
+                 day = factor(day, levels = c("Day 1", "Day 2", "Day 3")))) %>%
+  mutate(data_type = factor(data_type, levels = c("true", "sim"))) %>%
+  ggplot() +
+  geom_hline(aes(yintercept =.5), color="gray")+
+  geom_vline(aes(xintercept = 0), color="gray")+
+  geom_line(aes(val_diff, yesChosen, color = day, linetype = data_type), stat="smooth", method = "glm", method.args = list(family = "binomial"), formula = "y ~ x", se = FALSE, linewidth = 1.5, fullrange = T) +
+  facet_grid(type_chr ~ day) +
+  labs(x = "Value Stim - Value Reference", y = "p(Yes)", title="", color = "", linetype = "")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text = element_text(size = 14),
+        strip.text = element_text(size = 14),
+        axis.title = element_text(size = 16),
+        legend.text = element_text(size = 14),
+        legend.box.margin=margin(t = -10),
+        legend.spacing.y = unit(-0.25, "cm"),
+        legend.box="vertical")+
+  scale_color_manual(values = c("#6e016b", "#238b45", "#41ae76"),
+                     breaks = c("Day 1", "Day 2", "Day 3"))+
+  scale_y_continuous(breaks = seq(0,1,.5))+
+  scale_x_continuous(breaks = c(-200, -100, 0, 100, 200),
+                     labels = c("", "-100", "0", "", "200"))
+```
+
+```{r}
+sim_data %>%
   mutate(reference = factor(reference, levels = c(-50, 0, 50)),
          day1 = ifelse(day == "Day 1", "Day 1", "Later"),
          day1 = as.factor(day1)) %>%
@@ -1168,9 +1202,44 @@ sim_data %>%
   mutate(rt = reactionTime) %>%
   ggplot() +
   geom_hline(aes(yintercept = 1), color = "gray") + 
-  geom_line(aes(abs_val_diff, rt, color = day), stat="smooth", method = "lm", formula = "y ~ x", se = FALSE, size = 1.5)+
+  geom_line(aes(abs_val_diff, rt, color = day), stat="smooth", method = "lm", formula = "y ~ x", se = FALSE, linewidth = 1.5)+
   facet_grid(type_chr ~ .) +
   labs(x = "|Value Stim - Value Reference|", y = "RT (secs)", title="", color = "")+
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text = element_text(size = 14),
+        strip.text = element_text(size = 14),
+        axis.title = element_text(size = 16),
+        legend.text = element_text(size = 14),
+        legend.box.margin=margin(t = -10),
+        legend.spacing.y = unit(-0.25, "cm"),
+        legend.box="vertical")+
+  scale_color_manual(values = c("#6e016b", "#238b45", "#41ae76"),
+                     breaks = c("Day 1", "Day 2", "Day 3"))+
+  scale_alpha_manual(values = c(1, .7, .7, .7, .7))+
+  # scale_y_continuous(trans = "log", breaks = c(0.1, .5, 1, 1.5), limits = c(0.001,8))+
+  scale_y_continuous(trans = "log", breaks = c(0.1, .5, 1, 1.5))+
+  scale_x_continuous(breaks = c(0, 100, 200),
+                     labels = c("0", "100", ""))
+```
+
+```{r}
+sim_data %>%
+  mutate(rt = reactionTime) %>%
+  select(abs_val_diff, rt, type_chr, day) %>%
+  mutate(data_type = "sim") %>%
+  rbind(data_yn_clean %>%
+          filter((subnum == cur_subnum) & (day %in% c(1, 2, 3))) %>%
+          select(abs_val_diff, rt, type_chr, day) %>%
+          mutate(data_type = "true",
+                 day = paste0("Day ", day),
+                 day = factor(day, levels = c("Day 1", "Day 2", "Day 3")))) %>%
+  mutate(data_type = factor(data_type, levels = c("true", "sim"))) %>%
+  ggplot() +
+  geom_hline(aes(yintercept = 1), color = "gray") + 
+  geom_line(aes(abs_val_diff, rt, color = day, linetype = data_type), stat="smooth", method = "lm", formula = "y ~ x", se = FALSE, linewidth = 1.5)+
+  facet_grid(type_chr ~ day) +
+  labs(x = "|Value Stim - Value Reference|", y = "RT (secs)", title="", color = "", linetype = "")+
   theme(panel.grid = element_blank(),
         legend.position = "bottom",
         axis.text = element_text(size = 14),
