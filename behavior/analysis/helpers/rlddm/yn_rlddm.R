@@ -1,4 +1,4 @@
-sim_task = function(stims, ht_values, attr_values, d, sigma, alpha, theta, oe_noise, re_noise, nonDecisionTime, bias, barrierDecay = 0, barrier = 1, timeStep = 10, maxIter = 1000, return_values = TRUE){
+sim_task = function(stims, ht_values, attr_values, d, sigma, alpha, theta, oe_noise, re_noise, nonDecisionTime, bias = 0, barrierDecay = 0, barrier = 1, timeStep = 10, maxIter = 1000, return_values = TRUE){ # nolint
 
   # Since value updating needs to happen sequentially (i.e. cannot be parallelized) writing this function as a task simulator instead of a trial simulator
 
@@ -27,9 +27,11 @@ sim_task = function(stims, ht_values, attr_values, d, sigma, alpha, theta, oe_no
 
   # nonDecIters = nonDecisionTime / timeStep
   initialBarrier = barrier
-  barrier = rep(initialBarrier, maxIter)
+  # barrier = rep(initialBarrier, maxIter)
 
   for(stim_row in 1:nrow(stims)){
+
+    barrier = rep(initialBarrier, maxIter)
 
     nonDecIters = nonDecisionTime / timeStep
     trial_sigma = sigma
@@ -46,7 +48,7 @@ sim_task = function(stims, ht_values, attr_values, d, sigma, alpha, theta, oe_no
 
     # Extract stimulus information
     cur_type = stims$type[stim_row]
-    trial_sigma = ifelse(cur_type == 1, trial_sigma * oe_noise, trial_sigma)
+    # trial_sigma = ifelse(cur_type == 1, trial_sigma * oe_noise, trial_sigma) # this is weird
 
     cur_shape = stims$shape[stim_row]
     cur_orientation = stims$orientation[stim_row]
@@ -72,24 +74,27 @@ sim_task = function(stims, ht_values, attr_values, d, sigma, alpha, theta, oe_no
     }
 
     if(cur_type == 1){
-      nonDecIters = nonDecIters - 10
+      
+      # Add barrier decay option only for HT stims
+      for(t in seq(2, maxIter, 1)){
+        barrier[t] = initialBarrier / (1 + (barrierDecay * t))
+        }
 
       if(! (cur_stimNum %in% names(ht_vals)) ){
         ht_vals[[cur_stimNum]] = 0
       }
       cur_stim_val = ht_vals[[cur_stimNum]]
     } else {
-      cur_stim_val  = (cur_shape_val + cur_orientation_val + cur_filling_val)
+      cur_stim_val  = (cur_shape_val + cur_orientation_val + cur_filling_val)/3
     }
 
 
     # The values of the barriers can change over time
-    for(t in seq(2, maxIter, 1)){
-      barrier[t] = initialBarrier / (1 + (barrierDecay * t))
-    }
+    # for(t in seq(2, maxIter, 1)){
+    #   barrier[t] = initialBarrier / (1 + (barrierDecay * t))
+    # }
 
-    # cur_stim_val  = (cur_shape_val + cur_orientation_val + cur_filling_val)/3
-    # cur_stim_val  = (cur_shape_val + cur_orientation_val + cur_filling_val)
+    # Average drift rate is sampled from the distributions with different noie levels depending on stimulus type
     cur_stim_val = ifelse(cur_type == 1,  rnorm(1, mean = cur_stim_val, sd = oe_noise), rnorm(1, mean = cur_stim_val, sd = re_noise))
 
     cur_ref_val = stims$reference[stim_row]
@@ -148,7 +153,7 @@ sim_task = function(stims, ht_values, attr_values, d, sigma, alpha, theta, oe_no
 
     # Update value representations
     # This doesn't depend on which choice is made because feedback is provided regardless
-    # No embedded assumption on how value "leaks" across consecutive levels
+    # No embedded assumption on how value "leaks" across consecutive levels (which might be the case for the attributes with continuos levels)
     if(cur_type == 1){
       ht_vals[cur_stimNum] = cur_stim_val + alpha * (observed_val - cur_stim_val)
     }
